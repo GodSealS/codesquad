@@ -28,7 +28,11 @@
 </p>
 
 ---
+| ![Chat 界面](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/chat.jpg) | ![模型配置](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/Model.jpg) |
+|:--:|:--:|
+| ![MCP 集成](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/MCP.jpg) | |
 
+---
 ## 📖 项目简介
 
 **CodeSquad** 是一个 AI 原生的游戏开发命令行工具，为 **CodeBuddy Game Studios** 提供完整的多工具代理绑定和技能编排框架。它将单一的 AI 会话组织成真实工作室的层级结构：
