@@ -78,7 +78,7 @@ git clone https://github.com/GodSealS/codesquad.git
 cd codesquad
 
 # 全局安装
-npm install -g .
+npm install
 ```
 
 安装后即可在任意目录使用 `codesquad` 命令。
