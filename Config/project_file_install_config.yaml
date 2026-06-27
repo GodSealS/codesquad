@@ -1,0 +1,25 @@
+
+version: 1
+
+project_file_install_config:
+  root_system_file: 
+    from: Root/CODESQUAD.md
+    dist: ${Project}/CODESQUAD.md
+  entities:
+    from: Root/design/registry/entities.yaml
+    dist: ${Project}/design/registry/entities.yaml
+  design_system_file: 
+    from: Root/design/CODESQUAD.md
+    dist: ${Project}/design/CODESQUAD.md
+  codesquad_system_file: 
+    from: Root/AICore/CODESQUAD.md
+    dist: ${Project}/.codesquad/CODESQUAD.md
+  codesquad_settings_file: 
+    from: Root/AICore/settings.json
+    dist: ${Project}/.codesquad/settings.json
+  codesquad_statusline_file: 
+    from: Root/AICore/statusline.sh
+    dist: ${Project}/.codesquad/statusline.sh
+  root_docs_dir:
+    from: Root/docs
+    dist: ${Project}/docs

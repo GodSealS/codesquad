@@ -1,0 +1,62 @@
+/**
+ * runtime — Embedded mode detection and data access API
+ *
+ * When the CLI is compiled via `bun build --compile`, all AICore content
+ * is embedded in the binary as Base64-encoded string constants.
+ * This module decodes on read so callers always get plaintext.
+ */
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
+/**
+ * Whether the current process is a Bun-compiled binary.
+ *
+ * Detection: In a compiled binary, `import.meta.url` does NOT start with
+ * `file://`. In tsx/node dev mode, it always does.
+ */
+export const isBunCompiled = !import.meta.url.startsWith('file://');
+/** Decode a Base64-encoded embedded value back to UTF-8 text. */
+function decodeEmbedded(encoded) {
+    return Buffer.from(encoded, 'base64').toString('utf-8');
+}
+/**
+ * Read a relative file path from embedded data.
+ * In PROD mode (IS_BASE64_ENCODED=true), content is Base64-decoded transparently.
+ * In DEV mode (IS_BASE64_ENCODED=false), content is already plaintext.
+ * @returns File content as string, or null if not found
+ */
+export function readEmbeddedFile(relativePath) {
+    // Lazy-load to avoid circular dependency at module init time
+    const { EMBEDDED_FILES, IS_BASE64_ENCODED } = _require('./aicore-data.js');
+    const raw = EMBEDDED_FILES[relativePath];
+    if (!raw)
+        return null;
+    return IS_BASE64_ENCODED ? decodeEmbedded(raw) : raw;
+}
+/**
+ * List directory entries from embedded data (readdir semantics).
+ * @returns Array of entry names, or empty array if dir not found
+ */
+export function readEmbeddedDir(relativeDir) {
+    const { EMBEDDED_DIRS } = _require('./aicore-data.js');
+    return EMBEDDED_DIRS[relativeDir] ?? [];
+}
+/**
+ * Check if a path exists in embedded data.
+ */
+export function existsEmbeddedPath(relativePath) {
+    const { EMBEDDED_FILE_SET } = _require('./aicore-data.js');
+    return EMBEDDED_FILE_SET.has(relativePath);
+}
+/**
+ * Get embedded generation statistics.
+ */
+export function getEmbeddedStats() {
+    try {
+        const { EMBEDDED_STATS } = _require('./aicore-data.js');
+        return EMBEDDED_STATS;
+    }
+    catch {
+        return null;
+    }
+}
+//# sourceMappingURL=runtime.js.map

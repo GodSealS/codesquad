@@ -1,0 +1,10 @@
+# CodeSquad Project Configuration
+version: 1
+tools:
+  - codebuddy
+engine:
+  name: custom
+  version: ""
+generation:
+  overwriteOnUpdate: true
+  skipSettings: false

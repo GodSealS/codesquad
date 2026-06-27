@@ -1,1 +1,0 @@
-{"version":3,"file":"setup-engine.js","sourceRoot":"","sources":["../../../AgentTeams_UE/src/commands/setup-engine.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAEH,OAAO,EAAE,cAAc,EAAE,MAAM,8BAA8B,CAAC;AAE9D,MAAM,CAAC,KAAK,UAAU,iBAAiB,CACrC,MAAe,EACf,OAAgB;IAEhB,MAAM,cAAc,CAAC;QACnB,UAAU,EAAE,GAAG;QACf,MAAM;QACN,OAAO;KACR,CAAC,CAAC;AACL,CAAC"}

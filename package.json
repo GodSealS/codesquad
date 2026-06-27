@@ -1,0 +1,76 @@
+{
+  "name": "codesquad",
+  "version": "1.0.1",
+  "description": "AI-native game development CLI — multi-tool agent & skill binding for CodeBuddy Game Studios",
+  "keywords": [
+    "codesquad",
+    "game-development",
+    "ai-agent",
+    "cli",
+    "codebuddy"
+  ],
+  "homepage": "https://github.com/CodeSquad/codesquad",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CodeSquad/codesquad"
+  },
+  "license": "MIT",
+  "author": "CodeSquad Contributors",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "codesquad": "./bin/codesquad.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "Config",
+    "schemas",
+    "templates",
+    "docs",
+    "design",
+    "UI/web-console",
+    "AGENTS.md",
+    "CODESQUAD.md",
+    "codesquad.config.yaml",
+    "models.config.yaml",
+    "!dist/**/*.test.js",
+    "!dist/**/__tests__",
+    "!dist/**/*.map",
+    "!UI/web-console/**/*.map"
+  ],
+  "scripts": {
+    "install:cli": "node scripts/install.js",
+    "install:exe": "node scripts/install.js --exe",
+    "dev:cli": "npm run build && node bin/codesquad.js",
+    "cli": "tsx src/cli/index.ts"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.8.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "chalk": "^5.5.0",
+    "commander": "^14.0.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "fast-glob": "^3.3.3",
+    "js-tiktoken": "^1.0.21",
+    "keytar": "^7.9.0",
+    "proper-lockfile": "^4.1.2",
+    "ulid": "^3.0.2",
+    "yaml": "^2.8.2",
+    "zod": "^4.0.17"
+  }
+}

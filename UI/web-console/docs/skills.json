@@ -1,0 +1,412 @@
+{
+  "adopt": {
+    "description": "Brownfield onboarding — audits existing project artifacts for template format compliance (not just existence), classifies gaps by impact, and produces a numbered migration plan. Run this when joining an in-progress project or upgrading from an older template version. Distinct from /project-stage-detect (which checks what exists) \n— this checks whether what exists will actually work with the template's skills.\n\n**Parameters:**\n- `[focus: full | gdds | adrs | stories | infra]` \n— Required parameter",
+    "name_cn": "adopt 项目迁移适配",
+    "description_cn": "棕地项目接入——审计现有项目产物的模板格式合规性，按影响分级差距，生成编号迁移计划。在加入进行中的项目或从旧模板版本升级时使用。\n- `[focus: full | gdds | adrs | stories | infra]` — 必需参数"
+  },
+  "architecture-decision": {
+    "description": "Creates an Architecture Decision Record (ADR) documenting a significant technical decision, its context, alternatives considered, and consequences. Every major technical choice should have an ADR.\n\n**Parameters:**\n- `[title]` — Required parameter\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "architecture-decision 架构决策记录",
+    "description_cn": "创建架构决策记录，记录重要的技术决策、背景、替代方案和后果。每个重大技术选择都应有ADR。- `[title]` — 必需参数\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "architecture-review": {
+    "description": "Validates completeness and consistency of the project architecture against all GDDs. Builds a traceability matrix mapping every GDD technical requirement to ADRs, identifies coverage gaps, detects cross-ADR conflicts, verifies engine compatibility consistency across all decisions, and produces a PASS/CONCERNS/FAIL verdict. The architecture equivalent of /design-review.\n\n**Parameters:**\n- `[focus: full | coverage | consistency | engine | single-gdd path/to/gdd.md]` \n— Target engine name (godot/unity/unreal/cocos)",
+    "name_cn": "architecture-review 架构审查",
+    "description_cn": "根据所有GDD验证项目架构的完整性和一致性。构建可追溯性矩阵，识别覆盖缺口，检测跨ADR冲突，验证引擎兼容性一致性。\n- `[focus: full | coverage | consistency | engine | single-gdd path/to/gdd.md]` — 目标引擎名称"
+  },
+  "art-bible": {
+    "description": "Guided, section-by-section Art Bible authoring. Creates the visual identity specification that gates all asset production. Run after /brainstorm is approved and before /map-systems or any GDD authoring begins.\n\n**Parameters:**\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "art-bible 美术圣经",
+    "description_cn": "引导式逐节编写美术圣经。创建定义所有资产生产的视觉标识规范。在brainstorm获批后、map-systems或GDD编写前执行。\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "asset-audit": {
+    "description": "Audits game assets for compliance with naming conventions, file size budgets, format standards, and pipeline requirements. Identifies orphaned assets, missing references, and standard violations.\n\n**Parameters:**\n- `[category|all]` — Required parameter",
+    "name_cn": "asset-audit 资产审计",
+    "description_cn": "审计游戏资产是否符合命名规范、文件大小预算、格式标准和管线要求。识别孤立资产、缺失引用和标准违规。\n- `[category|all]` — 必需参数"
+  },
+  "asset-spec": {
+    "description": "Generate per-asset visual specifications and AI generation prompts from GDDs, level docs, or character profiles. Produces structured spec files and updates the master asset manifest. Run after art bible and GDD/level design are approved, before production begins.\n\n**Parameters:**\n- `[system:<name> | level:<name> | character:<name>]` — System slug or identifier\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "asset-spec 资产规范",
+    "description_cn": "从GDD、关卡文档或角色档案生成每个资产的视觉规范和AI生成提示。生成结构化规范文件并更新主资产清单。\n- `[system:<name> | level:<name> | character:<name>]` — 系统标识符\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "balance-check": {
+    "description": "Analyzes game balance data files, formulas, and configuration to identify outliers, broken progressions, degenerate strategies, and economy imbalances. Use after modifying any balance-related data or design. Use when user says 'balance report', 'check game balance', 'run a balance check'.\n\n**Parameters:**\n- `[system-name|path-to-data-file]` — System slug or identifier",
+    "name_cn": "balance-check 平衡性检查",
+    "description_cn": "分析游戏平衡数据文件、公式和配置，识别异常值、错误的成长曲线、退化策略和经济失衡。在修改任何平衡相关数据或设计后使用。\n- `[system-name|path-to-data-file]` — 系统标识符"
+  },
+  "brainstorm": {
+    "description": "Guided game concept ideation — from zero idea to a structured game concept document. Uses professional studio ideation techniques, player psychology frameworks, and structured creative exploration.\n\n**Parameters:**\n- `[genre or theme hint, or 'open']` — Required parameter\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "brainstorm 头脑风暴",
+    "description_cn": "引导式游戏概念构思——从零创意到结构化游戏概念文档。使用专业工作室构思技巧、玩家心理学框架和结构化创意探索。\n- `[genre or theme hint, or 'open']` — 必需参数\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "bug-report": {
+    "description": "Creates a structured bug report from a description, or analyzes code to identify potential bugs. Ensures every bug report has full reproduction steps, severity assessment, and context.\n\n**Parameters:**\n- `[description]` — Concept or description text\n- `analyze` — Command option\n- `[path-to-file]` — File or directory path",
+    "name_cn": "bug-report Bug报告",
+    "description_cn": "从描述创建结构化Bug报告，或分析代码识别潜在Bug。确保每个Bug报告都有完整的复现步骤、严重性评估和上下文。\n- `[description]` — 概念或描述文本\n- `analyze` — 命令选项\n- `[path-to-file]` — 文件或目录路径"
+  },
+  "bug-triage": {
+    "description": "Read all open bugs in production/qa/bugs/, re-evaluate priority vs. severity, assign to sprints, surface systemic trends, and produce a triage report. Run at sprint start or when the bug count grows enough to need re-prioritization.\n\n**Parameters:**\n- `[sprint | full | trend]` — Sprint identifier",
+    "name_cn": "bug-triage Bug分类",
+    "description_cn": "阅读所有未解决的Bug，重新评估优先级与严重性，分配到冲刺，发现系统性问题趋势，生成分类报告。在冲刺开始时或Bug数量需要重新排序时运行。\n- `[sprint | full | trend]` — 迭代标识符"
+  },
+  "changelog": {
+    "description": "Auto-generates a changelog from git commits, sprint data, and design documents. Produces both internal and player-facing versions.\n\n**Parameters:**\n- `[version|sprint-number]` — Engine version specification",
+    "name_cn": "changelog 更新日志生成",
+    "description_cn": "从Git提交、冲刺数据和设计文档自动生成更新日志。同时生成内部版和面向玩家的版本。\n- `[version|sprint-number]` — 引擎版本号"
+  },
+  "code-review": {
+    "description": "Performs an architectural and quality code review on a specified file or set of files. Checks for coding standard compliance, architectural pattern adherence, SOLID principles, module depth, seams, testability, and performance concerns.\n\n**Parameters:**\n- `[path-to-file-or-directory]` — File or directory path",
+    "name_cn": "code-review 代码审查",
+    "description_cn": "对指定文件或文件集进行架构和质量代码审查。检查编码规范合规性、架构模式遵循度、SOLID原则、模块深度、接缝、可测试性和性能问题。\n- `[path-to-file-or-directory]` — 文件或目录路径"
+  },
+  "consistency-check": {
+    "description": "Scan all GDDs against the entity registry to detect cross-document inconsistencies: same entity with different stats, same item with different values, same formula with different variables. Grep-first approach — reads registry then targets only conflicting GDD sections rather than full document reads.\n\n**Parameters:**\n- `[full | since-last-review | entity:<name> | item:<name>]` — Review mode or intensity",
+    "name_cn": "consistency-check 一致性检查",
+    "description_cn": "扫描所有GDD与实体注册表，检测跨文档不一致：同一实体不同属性值、同一物品不同数值、同一公式不同变量。\n- `[full | since-last-review | entity:<name> | item:<name>]` — 审查模式"
+  },
+  "content-audit": {
+    "description": "Audit GDD-specified content counts against implemented content. Identifies what's planned vs built.\n**Parameters:**\n- `[system-name | --summary | (no arg = full audit)]` — System slug or identifier",
+    "name_cn": "content-audit 内容审计",
+    "description_cn": "审计GDD指定的内容数量与实际实现的内容。识别计划内容和已构建内容的差异。\n- `[system-name | --summary | (no arg = full audit)]` — 系统标识符"
+  },
+  "create-architecture": {
+    "description": "Guided, section-by-section authoring of the master architecture document for the game. Reads all GDDs, the systems index, existing ADRs, and the engine reference library to produce a complete architecture blueprint before any code is written. Engine-version-aware: flags knowledge gaps and validates decisions against the pinned engine version.\n\n**Parameters:**\n- `[focus-area: full | layers | data-flow | api-boundaries | adr-audit]` — Required parameter\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "create-architecture 创建架构",
+    "description_cn": "引导式逐节编写游戏的主架构文档。读取所有GDD、系统索引、现有ADR和引擎参考库，生成完整的架构蓝图。\n- `[focus-area: full | layers | data-flow | api-boundaries | adr-audit]` — 必需参数\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "create-control-manifest": {
+    "description": "After architecture is complete, produces a flat actionable rules sheet for programmers — what you must do, what you must never do, per system and per layer. Extracted from all Accepted ADRs, technical preferences, and engine reference docs. More immediately actionable than ADRs (which explain why).\n\n**Parameters:**\n- `[update — regenerate from current ADRs]` — Required parameter",
+    "name_cn": "create-control-manifest 创建控制清单",
+    "description_cn": "架构完成后，生成一份扁平可操作的程序员规则表——什么必须做、什么禁止做，按系统和层级分类。从所有已通过的ADR、技术偏好和引擎参考文档中提取。\n- `[update — regenerate from current ADRs]` — 必需参数"
+  },
+  "create-epics": {
+    "description": "Translate approved GDDs + architecture into epics — one epic per architectural module. Defines scope, governing ADRs, engine risk, and untraced requirements. Does NOT break into stories — run /create-stories [epic-slug] after each epic is created.\n\n**Parameters:**\n- `[system-name | layer: foundation|core|feature|presentation | all]` — System slug or identifier\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "create-epics 创建Epic",
+    "description_cn": "将批准的GDD和架构转化为Epic——每个架构模块一个Epic。定义范围、治理ADR、引擎风险和未追踪的需求。\n- `[system-name | layer: foundation|core|feature|presentation | all]` — 系统标识符\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "create-stories": {
+    "description": "Break a single epic into implementable story files. Reads the epic, its GDD, governing ADRs, and control manifest. Each story embeds its GDD requirement TR-ID, ADR guidance, acceptance criteria, story type, and test evidence path. Run after /create-epics for each epic.\n\n**Parameters:**\n- `[epic-slug | epic-path]` — System slug or identifier\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "create-stories 创建Story",
+    "description_cn": "将单个Epic分解为可实现的Story文件。读取Epic、其GDD、治理ADR和控制清单。每个Story嵌入GDD需求TR-ID、ADR指导、验收标准、Story类型和测试证据路径。\n- `[epic-slug | epic-path]` — 系统标识符\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "day-one-patch": {
+    "description": "Prepare a day-one patch for a game launch. Scopes, prioritises, implements, and QA-gates a focused patch addressing known issues discovered after gold master but before or immediately after public launch. Treats the patch as a mini-sprint with its own QA gate and rollback plan.\n\n**Parameters:**\n- `[scope: known-bugs | cert-feedback | all]` — Required parameter",
+    "name_cn": "day-one-patch 首日补丁",
+    "description_cn": "为游戏发布准备首日补丁。范围确定、优先级排序、实现和QA把关，处理金版发布后、公开上线前发现的已知问题。\n- `[scope: known-bugs | cert-feedback | all]` — 必需参数"
+  },
+  "design-review": {
+    "description": "Reviews a game design document for completeness, internal consistency, implementability, and adherence to project design standards. Run this before handing a design document to programmers.\n\n**Parameters:**\n- `[path-to-design-doc]` — File or directory path\n- `[--depth full|lean|solo]` — Required parameter",
+    "name_cn": "design-review 设计审查",
+    "description_cn": "审查游戏设计文档的完整性、内部一致性、可实现性和项目设计标准的遵循度。在将设计文档交给程序员之前运行此命令。\n- `[path-to-design-doc]` — 文件或目录路径\n- `[--depth full|lean|solo]` — 必需参数"
+  },
+  "design-system": {
+    "description": "Guided, section-by-section GDD authoring for a single game system. Gathers context from existing docs, walks through each required section collaboratively, cross-references dependencies, and writes incrementally to file.\n\n**Parameters:**\n- `<system-name>` — System slug or identifier\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "design-system 系统设计",
+    "description_cn": "引导式逐节编写单个游戏系统的GDD。从现有文档收集上下文，协作遍历每个必需章节，交叉引用依赖项，增量写入文件。\n- `<system-name>` — 系统标识符\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "design-with-kb": {
+    "description": "Search knowledge-base for matching design patterns and techniques before implementing. Reads INDEX.yaml, matches by domain/tags/engine, reads candidate chapters, outputs suitability assessment.\n\n**Parameters:**\n- `[problem description or design domain]` — Concept or description text",
+    "name_cn": "design-with-kb 知识库辅助设计",
+    "description_cn": "在实现前搜索知识库中的匹配设计模式和技术。读取INDEX.yaml，按领域/标签/引擎匹配，读取候选章节，输出适用性评估。\n- `[problem description or design domain]` — 概念或描述文本"
+  },
+  "dev-story": {
+    "description": "Read a story file and implement it. Loads the full context (story, GDD requirement, ADR guidelines, control manifest), routes to the right programmer agent for the system and engine, implements the code and test, and confirms each acceptance criterion. The core implementation skill — run after /story-readiness, before /code-review and /story-done.\n\n**Parameters:**\n- `[story-path]` — File or directory path",
+    "name_cn": "dev-story 开发Story",
+    "description_cn": "读取Story文件并实现它。加载完整上下文（Story、GDD需求、ADR指南、控制清单），路由到正确的系统程序员代理，实现代码和测试，确认每个验收标准。\n- `[story-path]` — 文件或目录路径"
+  },
+  "diagnose": {
+    "description": "Disciplined diagnosis loop for hard bugs and performance regressions. Reproduce the failure, hypothesise root causes, instrument to isolate, fix, and regression-test. Use when user says 'diagnose this', 'debug this', reports a stubborn bug, or describes a performance regression with unclear cause.\n\n**Parameters:**\n- `[BUG-ID or description of the issue]` — Concept or description text",
+    "name_cn": "diagnose 问题诊断",
+    "description_cn": "针对顽固Bug和性能回归的规范诊断循环。复现故障、假设根本原因、插装隔离、修复并进行回归测试。\n- `[BUG-ID or description of the issue]` — 概念或描述文本"
+  },
+  "estimate": {
+    "description": "Estimates task effort by analyzing complexity, dependencies, historical velocity, and risk factors. Produces a structured estimate with confidence levels.\n\n**Parameters:**\n- `[task-description]` — Concept or description text",
+    "name_cn": "estimate 工作量估算",
+    "description_cn": "通过分析复杂性、依赖关系、历史速度和风险因素来估算任务工作量。生成带有置信度级别的结构化估算。\n- `[task-description]` — 概念或描述文本"
+  },
+  "gate-check": {
+    "description": "Validate readiness to advance between development phases. Produces a PASS/CONCERNS/FAIL verdict with specific blockers and required artifacts. Use when user says 'are we ready to move to X', 'can we advance to production', 'check if we can start the next phase', 'pass the gate'.\n\n**Parameters:**\n- `[target-phase: systems-design | technical-setup | pre-production | production | polish | release]` — System slug or identifier\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "gate-check 阶段关卡检查",
+    "description_cn": "验证开发阶段之间的推进就绪情况。生成PASS/CONCERNS/FAIL裁定，包含具体阻塞项和必需产物。\n- `[target-phase: systems-design | technical-setup | pre-production | production | polish | release]` — 系统标识符\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "graphify": {
+    "description": "Turn any folder of files into a navigable knowledge graph with community detection, an honest audit trail, and three outputs: interactive HTML, GraphRAG-ready JSON, and a plain-language GRAPH_REPORT.md. Invoked via /graphify.",
+    "name_cn": "graphify 知识图谱",
+    "description_cn": "将任意文件夹转化为可导航的知识图谱，包含社区检测、审计追踪，输出交互式HTML、GraphRAG JSON和纯文本报告。通过 /graphify 调用。"
+  },
+  "graphify-reader": {
+    "description": "Control the graphify knowledge graph tool — build project knowledge graphs, query code structure, and analyze module relationships. Invoked via /graphify-reader.\n\n**Parameters:**\n- `[build|query|update|path|explain|cluster-only|export]` — File or directory path",
+    "name_cn": "graphify-reader 知识图谱",
+    "description_cn": "控制graphify知识图谱工具——构建项目知识图谱、查询代码结构和分析模块关系。\n- `[build|query|update|path|explain|cluster-only|export]` — 文件或目录路径"
+  },
+  "handoff": {
+    "description": "Compact the current conversation into a handoff document so another agent (or a future session) can pick up the work without re-reading the full history.\n\n**Parameters:**\n- `What will the next session be used for?` — Command option",
+    "name_cn": "handoff 工作交接",
+    "description_cn": "将当前对话压缩为交接文档，使其他代理或后续会话可以在无需重新阅读完整历史的情况下接手工作。\n- `What will the next session be used for?` — 命令选项"
+  },
+  "help": {
+    "description": "Analyzes what is done and the users query and offers advice on what to do next. Use if user says what should I do next or what do I do now or I'm stuck or I don't know what to do\n\n**Parameters:**\n- `[optional: what you just finished, e.g. 'finished design-review' or 'stuck on ADRs']` — Review mode or intensity",
+    "name_cn": "help 帮助",
+    "description_cn": "分析已完成的工作和用户查询，提供下一步行动建议。\n- `[optional: what you just finished, e.g. 'finished design-review' or 'stuck on ADRs']` — 审查模式"
+  },
+  "hotfix": {
+    "description": "Emergency fix workflow that bypasses normal sprint processes with a full audit trail. Creates hotfix branch, tracks approvals, and ensures the fix is backported correctly.\n\n**Parameters:**\n- `[bug-id or description]` — Concept or description text",
+    "name_cn": "hotfix 紧急修复",
+    "description_cn": "绕过正常冲刺流程的紧急修复工作流，带有完整审计追踪。创建热修复分支，追踪审批，确保修复被正确回溯移植。\n- `[bug-id or description]` — 概念或描述文本"
+  },
+  "launch-checklist": {
+    "description": "Complete launch readiness validation covering every department: code, content, store, marketing, community, infrastructure, legal, and go/no-go sign-offs.\n\n**Parameters:**\n- `[launch-date or 'dry-run']` — Required parameter",
+    "name_cn": "launch-checklist 发布清单",
+    "description_cn": "覆盖所有部门的完整发布就绪验证：代码、内容、商店、营销、社区、基础设施、法律和go/no-go签署。\n- `[launch-date or 'dry-run']` — 必需参数"
+  },
+  "localize": {
+    "description": "Full localization pipeline: scan for hardcoded strings, extract and manage string tables, validate translations, generate translator briefings, run cultural/sensitivity review, manage VO localization, test RTL/platform requirements, enforce string freeze, and report coverage.\n\n**Parameters:**\n- `[scan|extract|validate|status|brief|cultural-review|vo-pipeline|rtl-check|freeze|qa]` — Review mode or intensity",
+    "name_cn": "localize 本地化",
+    "description_cn": "完整的本地化管线：扫描硬编码字符串、提取和管理字符串表、验证翻译、生成翻译简报、运行文化/敏感性审查、管理配音本地化、测试RTL/平台要求、执行字符串冻结和报告覆盖率。\n- `[scan|extract|validate|status|brief|cultural-review|vo-pipeline|rtl-check|freeze|qa]` — 审查模式"
+  },
+  "map-systems": {
+    "description": "Decompose a game concept into individual systems, map dependencies, prioritize design order, and create the systems index.\n**Parameters:**\n- `[next | system-name]` — System slug or identifier\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "map-systems 系统映射",
+    "description_cn": "将所有游戏系统及其依赖关系映射到系统索引中，创建可追溯性矩阵和交互矩阵。\n- `[next | system-name]` — 系统标识符\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "milestone-review": {
+    "description": "Generates a comprehensive milestone progress review including feature completeness, quality metrics, risk assessment, and go/no-go recommendation. Use at milestone checkpoints or when evaluating readiness for a milestone deadline.\n\n**Parameters:**\n- `[milestone-name|current]` — Required parameter\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "milestone-review 里程碑审查",
+    "description_cn": "审查里程碑完成情况，验证所有交付物、风险状态和下一步行动。\n- `[milestone-name|current]` — 必需参数\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "onboard": {
+    "description": "Generates a contextual onboarding document for a new contributor or agent joining the project. Summarizes project state, architecture, conventions, and current priorities relevant to the specified role or area.\n\n**Parameters:**\n- `[role|area]` — Required parameter",
+    "name_cn": "onboard 新人入职引导",
+    "description_cn": "新团队成员入职引导——加载项目上下文，解释架构、工作流程和当前状态。\n- `[role|area]` — 必需参数"
+  },
+  "patch-notes": {
+    "description": "Generate player-facing patch notes from git history, sprint data, and internal changelogs. Translates developer language into clear, engaging player communication.\n\n**Parameters:**\n- `[version]` — Engine version specification\n- `[--style brief|detailed|full]` — Required parameter",
+    "name_cn": "patch-notes 补丁说明",
+    "description_cn": "- `[version]` — 引擎版本号\n- `[--style brief|detailed|full]` — 必需参数"
+  },
+  "perf-profile": {
+    "description": "Structured performance profiling workflow. Identifies bottlenecks, measures against budgets, and generates optimization recommendations with priority rankings.\n\n**Parameters:**\n- `[system-name or 'full']` — System slug or identifier",
+    "name_cn": "patch-notes 性能分析",
+    "description_cn": "从更新日志和变更记录生成面向玩家的补丁说明。\n- `[system-name or 'full']` — 系统标识符"
+  },
+  "playtest-report": {
+    "description": "Generates a structured playtest report template or analyzes existing playtest notes into a structured format. Use this to standardize playtest feedback collection and analysis.\n\n**Parameters:**\n- `[new|analyze path-to-notes]` — File or directory path\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "playtest-report 试玩报告",
+    "description_cn": "从试玩会话数据生成结构化试玩报告，包括玩家行为分析、痛点识别和可操作建议。\n- `[new|analyze path-to-notes]` — 文件或目录路径\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "post-fix-test": {
+    "description": "TODO: Describe what this skill does and when to invoke it.",
+    "name_cn": "post-fix-test 修复后测试",
+    "description_cn": "在Bug修复后运行针对性测试以验证修复有效性并检查回归。"
+  },
+  "project-stage-detect": {
+    "description": "Automatically analyze project state, detect stage, identify gaps, and recommend next steps based on existing artifacts. Use when user asks 'where are we in development', 'what stage are we in', 'full project audit'.\n\n**Parameters:**\n- `[optional: role filter like 'programmer' or 'designer']` — Filter criteria",
+    "name_cn": "project-stage-detect 项目阶段检测",
+    "description_cn": "自动检测项目当前开发阶段（概念/系统设计/技术设置/预生产/生产），基于现有产物进行分析。\n- `[optional: role filter like 'programmer' or 'designer']` — 过滤条件"
+  },
+  "propagate-design-change": {
+    "description": "When a GDD is revised, scans all ADRs and the traceability index to identify which architectural decisions are now potentially stale. Produces a change impact report and guides the user through resolution.\n\n**Parameters:**\n- `[path/to/changed-gdd.md]` — File or directory path",
+    "name_cn": "propagate-design-change 设计变更传播",
+    "description_cn": "当设计文档变更时，自动识别所有受影响的下游产物（GDD、ADR、Story）并传播更新。\n- `[path/to/changed-gdd.md]` — 文件或目录路径"
+  },
+  "prototype": {
+    "description": "Concept prototype — validate the core idea is worth designing before writing GDDs. Run right after /brainstorm and /setup-engine. Routes to HTML, Engine, or Paper path based on game type. Produces a throwaway build and a PROCEED/PIVOT/KILL verdict.\n\n**Parameters:**\n- `[concept-description]` — Concept or description text\n- `[--path html|engine|paper]` — Target engine name (godot/unity/unreal/cocos)\n- `[--review full|lean|solo]` — Review mode or intensity\n- `[--spike]` — Required parameter",
+    "name_cn": "prototype 原型制作",
+    "description_cn": "快速构建游戏概念的可玩原型来验证机制和体验。\n- `[concept-description]` — 概念或描述文本\n- `[--path html|engine|paper]` — 目标引擎名称\n- `[--review full|lean|solo]` — 审查模式\n- `[--spike]` — 必需参数"
+  },
+  "qa-plan": {
+    "description": "Generate a QA test plan for a sprint or feature. Reads GDDs and story files, classifies stories by test type (Logic/Integration/Visual/UI), and produces a structured test plan covering automated tests required, manual test cases, smoke test scope, and playtest sign-off requirements. Run before sprint begins or when starting a major feature.\n\n**Parameters:**\n- `[sprint | feature: system-name | story: path]` — System slug or identifier",
+    "name_cn": "qa-plan QA计划",
+    "description_cn": "为特定功能或发布创建全面的QA测试计划，包括测试策略、资源分配和日程安排。\n- `[sprint | feature: system-name | story: path]` — 系统标识符"
+  },
+  "quick-design": {
+    "description": "Lightweight design spec for small changes — tuning adjustments, minor mechanics, balance tweaks. Skips full GDD authoring when a system GDD already exists or the change is too small to warrant one. Produces a Quick Design Spec that embeds directly into story files.\n\n**Parameters:**\n- `[brief description of the change]` — Concept or description text",
+    "name_cn": "quick-design 快速设计",
+    "description_cn": "进行快速、轻量级的设计会话，用于简单功能或小范围设计需求。\n- `[brief description of the change]` — 概念或描述文本"
+  },
+  "regression-suite": {
+    "description": "Map test coverage to GDD critical paths, identify fixed bugs without regression tests, flag coverage drift from new features, and maintain tests/regression-suite.md. Run after implementing a bug fix or before a release gate.\n\n**Parameters:**\n- `[update | audit | report]` — Required parameter",
+    "name_cn": "regression-suite 回归测试套件",
+    "description_cn": "为新功能或发布维护和运行回归测试套件，确保现有功能不被破坏。\n- `[update | audit | report]` — 必需参数"
+  },
+  "release-checklist": {
+    "description": "Generates a comprehensive pre-release validation checklist covering build verification, certification requirements, store metadata, and launch readiness.\n\n**Parameters:**\n- `[platform: pc|console|mobile|all]` — Required parameter",
+    "name_cn": "release-checklist 发布清单",
+    "description_cn": "在发布前检查所有必需的项目——认证要求、商店资产、法律合规和社区准备。\n- `[platform: pc|console|mobile|all]` — 必需参数"
+  },
+  "retrospective": {
+    "description": "Generates a sprint or milestone retrospective by analyzing completed work, velocity, blockers, and patterns. Produces actionable insights for the next iteration.\n\n**Parameters:**\n- `[sprint-N|milestone-name]` — Sprint identifier",
+    "name_cn": "retrospective 回顾总结",
+    "description_cn": "引导冲刺回顾，收集团队反馈，识别流程改进，生成行动项。\n- `[sprint-N|milestone-name]` — 迭代标识符"
+  },
+  "reverse-document": {
+    "description": "Generate design or architecture documents from existing implementation. Works backwards from code/prototypes to create missing planning docs.\n\n**Parameters:**\n- `<type> <path> (e.g., 'design src/gameplay/combat' or 'architecture src/core')` — File or directory path",
+    "name_cn": "reverse-document 逆向文档",
+    "description_cn": "从现有代码逆向生成设计文档和架构文档，用于文档不足的棕地项目。\n- `<type> <path> (e.g., 'design src/gameplay/combat' or 'architecture src/core')` — 文件或目录路径"
+  },
+  "review-all-gdds": {
+    "description": "Holistic cross-GDD consistency and game design review. Reads all system GDDs simultaneously and checks for contradictions between them, stale references, ownership conflicts, formula incompatibilities, and game design theory violations (dominant strategies, economic imbalance, cognitive overload, pillar drift). Run after all MVP GDDs are written, before architecture begins.\n\n**Parameters:**\n- `[focus: full | consistency | design-theory | since-last-review]` — Review mode or intensity",
+    "name_cn": "review-all-gdds GDD全面审查",
+    "description_cn": "批量审查所有GDD的完整性、一致性和跨文档冲突。\n- `[focus: full | consistency | design-theory | since-last-review]` — 审查模式"
+  },
+  "scope-check": {
+    "description": "Analyze a feature or sprint for scope creep by comparing current scope against the original plan. Flags additions, quantifies bloat, and recommends cuts. Use when user says 'any scope creep', 'scope review', 'are we staying in scope'.\n\n**Parameters:**\n- `[feature-name or sprint-N]` — Sprint identifier",
+    "name_cn": "scope-check 范围检查",
+    "description_cn": "检查功能范围是否与项目约束、时间线和资源匹配，识别范围蔓延。\n- `[feature-name or sprint-N]` — 迭代标识符"
+  },
+  "security-audit": {
+    "description": "Audit the game for security vulnerabilities: save tampering, cheat vectors, network exploits, data exposure, and input validation gaps. Produces a prioritised security report with remediation guidance. Run before any public release or multiplayer launch.\n\n**Parameters:**\n- `[full | network | save | input | quick]` — Required parameter",
+    "name_cn": "security-audit 安全审计",
+    "description_cn": "审计代码库和基础设施的安全漏洞、不当的密钥处理和不安全的依赖项。\n- `[full | network | save | input | quick]` — 必需参数"
+  },
+  "setup-engine": {
+    "description": "Configure the project's game engine and version. Pins the engine in CODESQUAD.md, detects knowledge gaps, and populates engine reference docs via WebSearch when the version is beyond the LLM's training data.\n\n**Parameters:**\n- `[engine]` — Target engine name (godot/unity/unreal/cocos)\n- `[engine version]` — Engine version specification\n- `refresh` — Re-download and update reference docs\n- `upgrade` — Upgrade engine version with migration audit\n- `[old-version]` — Engine version specification\n- `[new-version]` — Engine version specification",
+    "name_cn": "setup-engine 引擎设置",
+    "description_cn": "配置游戏引擎、生成参考文档并设置引擎特定的项目结构。\n- `[engine]` — 目标引擎名称\n- `[engine version]` — 引擎版本号\n- `refresh` — 重新下载并更新参考文档\n- `upgrade` — 升级引擎版本并执行迁移审计\n- `[old-version]` — 引擎版本号\n- `[new-version]` — 引擎版本号"
+  },
+  "smoke-check": {
+    "description": "Run the critical path smoke test gate before QA hand-off. Executes the automated test suite, verifies core functionality, and produces a PASS/FAIL report. Run after a sprint's stories are implemented and before manual QA begins. A failed smoke check means the build is not ready for QA.\n\n**Parameters:**\n- `[sprint | quick | --platform pc|console|mobile|all]` — Sprint identifier",
+    "name_cn": "smoke-check 冒烟测试",
+    "description_cn": "在构建或部署后运行快速冒烟测试，验证核心功能正常且无严重回归。\n- `[sprint | quick | --platform pc|console|mobile|all]` — 迭代标识符"
+  },
+  "soak-test": {
+    "description": "Generate a soak test protocol for extended play sessions. Defines what to observe, measure, and log during long play sessions to surface slow leaks, fatigue effects, and edge cases that only appear after sustained play. Primarily used in Polish and Release phases.\n\n**Parameters:**\n- `[duration: 30m | 1h | 2h | 4h]` — Required parameter\n- `[focus: memory | stability | balance | all]` — Required parameter",
+    "name_cn": "soak-test 浸泡测试",
+    "description_cn": "运行长时间稳定性测试，检测内存泄漏、性能退化和其他随时间累积的问题。\n- `[duration: 30m | 1h | 2h | 4h]` — 必需参数\n- `[focus: memory | stability | balance | all]` — 必需参数"
+  },
+  "sprint-plan": {
+    "description": "Generates a new sprint plan or updates an existing one based on the current milestone, completed work, and available capacity. Pulls context from production documents and design backlogs.\n\n**Parameters:**\n- `[new|update|status]` — Required parameter\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "sprint-plan 冲刺规划",
+    "description_cn": "创建和管理冲刺计划，包含Story分配、依赖关系和容量规划。\n- `[new|update|status]` — 必需参数\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "sprint-status": {
+    "description": "Fast sprint status check. Reads the current sprint plan, scans story files for status, and produces a concise progress snapshot with burndown assessment and emerging risks. Run at any time during a sprint for quick situational awareness. Use when user asks 'how is the sprint going', 'sprint update', 'show sprint progress'.\n\n**Parameters:**\n- `[sprint-number or blank for current]` — Sprint identifier",
+    "name_cn": "sprint-status 冲刺状态",
+    "description_cn": "报告当前冲刺的进度、阻塞项和燃尽状态。\n- `[sprint-number or blank for current]` — 迭代标识符"
+  },
+  "start": {
+    "description": "First-time onboarding — asks where you are, then guides you to the right workflow. No assumptions.\n\n**Parameters:**\n- `[no arguments]` — Required parameter",
+    "name_cn": "start 项目启动",
+    "description_cn": "引导式项目启动向导——检测项目状态，配置引擎，设置初始结构。\n- `[no arguments]` — 必需参数"
+  },
+  "story-done": {
+    "description": "End-of-story completion review. Reads the story file, verifies each acceptance criterion against the implementation, checks for GDD/ADR deviations, prompts code review, updates story status to Complete, and surfaces the next ready story from the sprint.\n\n**Parameters:**\n- `[story-file-path]` — File or directory path\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "story-done Story完成",
+    "description_cn": "验证Story的所有验收标准已满足，更新状态，生成完成报告。\n- `[story-file-path]` — 文件或目录路径\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "story-readiness": {
+    "description": "Validate that a story file is implementation-ready. Checks for embedded GDD requirements, ADR references, engine notes, clear acceptance criteria, and no open design questions. Produces READY / NEEDS WORK / BLOCKED verdict with specific gaps. Use when user says 'is this story ready', 'can I start on this story', 'is story X ready to implement'.\n\n**Parameters:**\n- `[story-file-path or 'all' or 'sprint']` — File or directory path",
+    "name_cn": "story-readiness Story就绪检查",
+    "description_cn": "在开始实现前验证Story是否满足所有就绪条件——依赖项、ADR状态、设计批准。\n- `[story-file-path or 'all' or 'sprint']` — 文件或目录路径"
+  },
+  "tdd": {
+    "description": "Test-driven development with red-green-refactor loop. Builds features or fixes bugs one vertical slice at a time. Use when user explicitly asks for TDD, mentions 'red-green-refactor', wants to write tests first, or requests a disciplined test-first workflow.\n\n**Parameters:**\n- `[story-path | description of feature to build]` — File or directory path",
+    "name_cn": "tdd 测试驱动开发",
+    "description_cn": "按TDD方法论实现功能：先写测试，确认失败，实现代码，通过测试，重构。\n- `[story-path | description of feature to build]` — 文件或目录路径"
+  },
+  "team-audio": {
+    "description": "Orchestrate audio team: audio-director + sound-designer + technical-artist + gameplay-programmer for full audio pipeline from direction to implementation.\n\n**Parameters:**\n- `[feature or area to design audio for]` — Required parameter\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "team-audio 音频团队协作",
+    "description_cn": "协调音频团队的工作——音效、音乐、配音和混音任务的分配与追踪。\n- `[feature or area to design audio for]` — 必需参数\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "team-combat": {
+    "description": "Orchestrate the combat team: coordinates game-designer, gameplay-programmer, ai-programmer, technical-artist, sound-designer, and qa-tester to design, implement, and validate a combat feature end-to-end.\n\n**Parameters:**\n- `[combat feature description]` — Concept or description text\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "team-combat 战斗团队协作",
+    "description_cn": "协调战斗系统团队的工作——战斗设计、实现、平衡和调优。\n- `[combat feature description]` — 概念或描述文本\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "team-level": {
+    "description": "Orchestrate level design team: level-designer + narrative-director + world-builder + art-director + systems-designer + qa-tester for complete area/level creation.\n\n**Parameters:**\n- `[level name or area to design]` — Required parameter\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "team-level 关卡团队协作",
+    "description_cn": "协调关卡设计团队的工作——布局、遭遇、节奏和关卡美术。\n- `[level name or area to design]` — 必需参数\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "team-live-ops": {
+    "description": "Orchestrate the live-ops team for post-launch content planning: coordinates live-ops-designer, economy-designer, analytics-engineer, community-manager, writer, and narrative-director to design and plan a season, event, or live content update.\n\n**Parameters:**\n- `[season name or event description]` — Concept or description text\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "team-live-ops 运营团队协作",
+    "description_cn": "协调运营团队的工作——活动、内容更新、玩家参与的持续管理。\n- `[season name or event description]` — 概念或描述文本\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "team-narrative": {
+    "description": "Orchestrate the narrative team: coordinates narrative-director, writer, world-builder, and level-designer to create cohesive story content, world lore, and narrative-driven level design.\n\n**Parameters:**\n- `[narrative content description]` — Concept or description text\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "team-narrative 叙事团队协作",
+    "description_cn": "协调叙事团队的工作——故事、角色、世界构建和对话。\n- `[narrative content description]` — 概念或描述文本\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "team-polish": {
+    "description": "Orchestrate the polish team: coordinates performance-analyst, technical-artist, sound-designer, and qa-tester to optimize, polish, and harden a feature or area for release quality.\n\n**Parameters:**\n- `[feature or area to polish]` — Required parameter\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "team-polish 打磨团队协作",
+    "description_cn": "协调打磨阶段的工作——Bug修复、性能优化、体验完善和最终润色。\n- `[feature or area to polish]` — 必需参数\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "team-qa": {
+    "description": "Orchestrate the QA team through a full testing cycle. Coordinates qa-lead (strategy + test plan) and qa-tester (test case writing + bug reporting) to produce a complete QA package for a sprint or feature. Covers: test plan generation, test case writing, smoke check gate, manual QA execution, and sign-off report.\n\n**Parameters:**\n- `[sprint | feature: system-name]` — System slug or identifier\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "team-qa QA团队协作",
+    "description_cn": "协调QA团队的工作——测试执行、Bug追踪和发布验证。\n- `[sprint | feature: system-name]` — 系统标识符\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "team-release": {
+    "description": "Orchestrate the release team: coordinates release-manager, qa-lead, devops-engineer, and producer to execute a release from candidate to deployment.\n\n**Parameters:**\n- `[version number or 'next']` — Engine version specification\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "team-release 发布团队协作",
+    "description_cn": "协调发布团队的工作——认证、商店提交和发布日执行。\n- `[version number or 'next']` — 引擎版本号\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "team-ui": {
+    "description": "Orchestrate the UI team through the full UX pipeline: from UX spec authoring through visual design, implementation, review, and polish. Integrates with /ux-design, /ux-review, and studio UX templates.\n\n**Parameters:**\n- `[UI feature description]` — Concept or description text\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "team-ui UI团队协作",
+    "description_cn": "协调UI团队的工作——界面设计、实现和UX测试。\n- `[UI feature description]` — 概念或描述文本\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "tech-debt": {
+    "description": "Track, categorize, and prioritize technical debt across the codebase. Scans for debt indicators, maintains a debt register, and recommends repayment scheduling.\n\n**Parameters:**\n- `[scan|add|prioritize|report]` — Required parameter",
+    "name_cn": "tech-debt 技术债务管理",
+    "description_cn": "识别、分类和优先级排序技术债务项，制定偿还计划。\n- `[scan|add|prioritize|report]` — 必需参数"
+  },
+  "test-evidence-review": {
+    "description": "Quality review of test files and manual evidence documents. Goes beyond existence checks — evaluates assertion coverage, edge case handling, naming conventions, and evidence completeness. Produces ADEQUATE/INCOMPLETE/MISSING verdict per story. Run before QA sign-off or on demand.\n\n**Parameters:**\n- `[story-path | sprint | system-name]` — System slug or identifier",
+    "name_cn": "test-evidence-review 测试证据审查",
+    "description_cn": "审查Story实现的测试证据，验证覆盖率和质量。\n- `[story-path | sprint | system-name]` — 系统标识符"
+  },
+  "test-flakiness": {
+    "description": "Detect non-deterministic (flaky) tests by reading CI run logs or test result history. Aggregates pass rates per test, identifies intermittent failures, recommends quarantine or fix, and maintains a flaky test registry. Best run during Polish phase or after multiple CI runs.\n\n**Parameters:**\n- `[ci-log-path | scan | registry]` — File or directory path",
+    "name_cn": "test-flakiness 测试稳定性分析",
+    "description_cn": "检测和修复不稳定的测试（flaky tests），提高CI可靠性。\n- `[ci-log-path | scan | registry]` — 文件或目录路径"
+  },
+  "test-foo-skill": {
+    "description": "TODO: Describe what this skill does and when to invoke it.",
+    "name_cn": "test-foo-skill 技能测试示例",
+    "description_cn": "用于测试技能框架的示例Skill。"
+  },
+  "test-helpers": {
+    "description": "Generate engine-specific test helper libraries for the project's test suite. Reads existing test patterns and produces tests/helpers/ with assertion utilities, factory functions, and mock objects tailored to the project's systems. Reduces boilerplate in new test files.\n\n**Parameters:**\n- `[system-name | all | scaffold]` — System slug or identifier",
+    "name_cn": "test-helpers 测试辅助工具",
+    "description_cn": "提供测试编写和执行的辅助工具和实用函数。\n- `[system-name | all | scaffold]` — 系统标识符"
+  },
+  "test-setup": {
+    "description": "Scaffold the test framework and CI/CD pipeline for the project's engine. Creates the tests/ directory structure, engine-specific test runner configuration, and GitHub Actions workflow. Run once during Technical Setup phase before the first sprint begins.\n\n**Parameters:**\n- `[force]` — Required parameter",
+    "name_cn": "test-setup 测试环境设置",
+    "description_cn": "配置和维护测试环境，包括测试数据、mock服务和测试基础设施。\n- `[force]` — 必需参数"
+  },
+  "to-prd": {
+    "description": "Turn the current conversation context into a PRD (Product Requirements Document). Synthesises what has already been discussed into a structured document with user stories, implementation and testing decisions, and out-of-scope boundaries. Use when the conversation has explored a feature enough to write it up, or when user says 'write this up as a PRD'.\n\n**Parameters:**\n- `[optional reference to the feature being specified]` — Required parameter",
+    "name_cn": "to-prd 转PRD文档",
+    "description_cn": "将设计文档转换为产品需求文档（PRD）格式，适合与外部团队或利益相关者共享。\r\n- `[optional reference to the feature being specified]` — 必需参数"
+  },
+  "test-runner": {
+    "description": "Cross-language test runner skill. Knows how to invoke pytest, jest, mocha, dotnet test, go test, cargo test, cmake test, and other frameworks. Provides test command suggestions and output interpretation.\n\n**Parameters:**\n- `[framework | auto]` — Test framework name or auto-detect\n- `[--watch | --coverage | --filter <pattern>]` — Run mode options",
+    "name_cn": "test-runner 测试运行器",
+    "description_cn": "跨语言测试运行器，支持自动检测 pytest、jest、mocha、dotnet test、go test、cargo test、cmake test 等框架，提供测试命令建议和结果解读。\n- `[framework | auto]` — 测试框架名称或自动检测\n- `[--watch | --coverage | --filter <pattern>]` — 运行模式选项"
+  },
+  "ux-design": {
+    "description": "Guided, section-by-section UX spec authoring for a screen, flow, or HUD. Reads game concept, player journey, and relevant GDDs to provide context-aware design guidance. Produces ux-spec.md (per screen/flow) or hud-design.md using the studio templates.\n\n**Parameters:**\n- `[screen/flow name] or 'hud' or 'patterns'` — Required parameter",
+    "name_cn": "ux-design UX设计",
+    "description_cn": "设计用户体验流程、交互模式和界面原型。\n- `[screen/flow name] or 'hud' or 'patterns'` — 必需参数"
+  },
+  "ux-review": {
+    "description": "Validates a UX spec, HUD design, or interaction pattern library for completeness, accessibility compliance, GDD alignment, and implementation readiness. Produces APPROVED / NEEDS REVISION / MAJOR REVISION NEEDED verdict with specific gaps.\n\n**Parameters:**\n- `[file-path or 'all' or 'hud' or 'patterns']` — File or directory path",
+    "name_cn": "ux-review UX审查",
+    "description_cn": "审查现有UI/UX的可用性、一致性和最佳实践遵循度。\n- `[file-path or 'all' or 'hud' or 'patterns']` — 文件或目录路径"
+  },
+  "vertical-slice": {
+    "description": "Pre-Production validation — build a production-quality end-to-end build to confirm the full game loop is achievable before committing to Production. Run after GDDs, architecture, and UX specs are complete. Produces a PROCEED/PIVOT/KILL verdict that gates the Pre-Production → Production transition.\n\n**Parameters:**\n- `[--review full|lean|solo]` — Review mode or intensity",
+    "name_cn": "vertical-slice 垂直切片",
+    "description_cn": "规划和执行垂直切片——实现游戏的一小部分完整功能链路来验证技术栈和设计。\n- `[--review full|lean|solo]` — 审查模式"
+  },
+  "zoom-out": {
+    "description": "Tell the agent to zoom out and give broader context or a higher-level perspective. Use when you are unfamiliar with a section of code and need to understand how it fits into the bigger picture.\n\n**Parameters:**\n- `[path-to-file-or-module]` — File or directory path",
+    "name_cn": "zoom-out 全局视角",
+    "description_cn": "从高层视角审视项目状态、进度和风险，提供大局观分析和建议。/n- `[path-to-file-or-module]` — 文件或目录路径"
+  }
+}

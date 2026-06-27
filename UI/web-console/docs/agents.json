@@ -1,0 +1,202 @@
+{
+  "accessibility-specialist": {
+    "description": "The Accessibility Specialist ensures the game is playable by the widest possible audience. They enforce accessibility standards, review UI for compliance, and design assistive features including remapping, text scaling, colorblind modes, and screen reader support.",
+    "name_cn": "无障碍专家 accessibility-specialist",
+    "description_cn": "确保游戏能被最广泛的玩家群体游玩，执行无障碍标准，审查UI合规性，设计辅助功能包括按键重映射、文字缩放、色盲模式和屏幕阅读器支持。"
+  },
+  "ai-programmer": {
+    "description": "The AI Programmer implements game AI systems: behavior trees, state machines, pathfinding, perception systems, decision-making, and NPC behavior. Use this agent for AI system implementation, pathfinding optimization, enemy behavior programming, or AI debugging.",
+    "name_cn": "AI程序员 AI Programmer",
+    "description_cn": "实现游戏AI系统：行为树、状态机、寻路、感知系统、决策系统和NPC行为。用于AI系统实现、寻路优化、敌人行为编程或AI调试。"
+  },
+  "analytics-engineer": {
+    "description": "The Analytics Engineer designs telemetry systems, player behavior tracking, A/B test frameworks, and data analysis pipelines. Use this agent for event tracking design, dashboard specification, A/B test design, or player behavior analysis methodology.",
+    "name_cn": "数据分析工程师 Analytics Engineer",
+    "description_cn": "设计遥测系统、玩家行为追踪、A/B测试框架和数据分析管线。用于事件追踪设计、仪表板规范、A/B测试设计或玩家行为分析方法论。"
+  },
+  "art-director": {
+    "description": "The Art Director owns the visual identity of the game: style guides, art bible, asset standards, color palettes, UI/UX visual design, and the art production pipeline. Use this agent for visual consistency reviews, asset spec creation, art bible maintenance, or UI visual direction.",
+    "name_cn": "美术总监 Art Director",
+    "description_cn": "掌管游戏的视觉标识：风格指南、美术圣经、资产标准、调色板、UI/UX视觉设计以及美术生产管线。用于视觉一致性审查、资产规范创建、美术圣经维护或UI视觉指导。"
+  },
+  "audio-director": {
+    "description": "The Audio Director owns the sonic identity of the game: music direction, sound design philosophy, audio implementation strategy, and mix balance. Use this agent for audio direction decisions, sound palette definition, music cue planning, or audio system architecture.",
+    "name_cn": "音频总监 audio-director",
+    "description_cn": "掌管游戏的声音标识：音乐方向、音效设计理念、音频实现策略和混音平衡。用于音频方向决策、音效调色板定义、音乐线索规划或音频系统架构。"
+  },
+  "build-specialist": {
+    "description": "The Build Specialist owns compilation and packaging for all game engines. It detects the project engine, invokes the appropriate build toolchain, interprets build errors, and manages build output.",
+    "name_cn": "构建专家 build-specialist",
+    "description_cn": "负责所有游戏引擎的编译和打包。检测项目引擎类型、调用适当的构建工具链、解读构建错误、管理构建产物。"
+  },
+  "cocos-specialist": {
+    "description": "Cocos Creator engine authority. Handles all Cocos subsystems directly using domain skills (cocos_2d, cocos_3d, cocos_animation, cocos_core, cocos_physics, cocos_physics-2d, cocos_rendering, cocos_ui, cocos_editor) loaded via UseSkill. No sub-agent delegation needed.",
+    "name_cn": "Cocos引擎专家 cocos-specialist",
+    "description_cn": "Cocos Creator引擎权威。直接使用领域技能处理所有Cocos子系统，无需委托子代理。"
+  },
+  "community-manager": {
+    "description": "The community manager owns player-facing communication: patch notes, social media posts, community updates, player feedback collection, bug report triage from players, and crisis communication. They translate between development team and player community.",
+    "name_cn": "社区经理 community-manager",
+    "description_cn": "负责面向玩家的沟通：更新日志、社交媒体发布、社区公告、玩家反馈收集、玩家Bug报告分类和危机沟通。在开发团队和玩家社区之间架起桥梁。"
+  },
+  "creative-director": {
+    "description": "The Creative Director is the highest-level creative authority for the project. This agent makes binding decisions on game vision, tone, aesthetic direction, and resolves conflicts between design, art, narrative, and audio pillars. Use this agent when a decision affects the fundamental identity of the game or when department leads cannot reach consensus.",
+    "name_cn": "创意总监 creative-director",
+    "description_cn": "项目的最高创意权威。对游戏愿景、基调、美学方向做出最终决策，解决设计、美术、叙事和音频部门之间的冲突。当决策影响游戏的基本特性或部门负责人无法达成共识时使用。"
+  },
+  "devops-engineer": {
+    "description": "The DevOps Engineer maintains build pipelines, CI/CD configuration, version control workflow, and deployment infrastructure. Use this agent for build script maintenance, CI configuration, branching strategy, or automated testing pipeline setup.",
+    "name_cn": "DevOps工程师 devops-engineer",
+    "description_cn": "维护构建管线、CI/CD配置、版本控制工作流和部署基础设施。用于构建脚本维护、CI配置、分支策略或自动化测试管线设置。"
+  },
+  "economy-designer": {
+    "description": "The Economy Designer specializes in resource economies, loot systems, progression curves, and in-game market design. Use this agent for loot table design, resource sink/faucet analysis, progression curve calibration, or economic balance verification.",
+    "name_cn": "经济系统设计师 economy-designer",
+    "description_cn": "专精于资源经济、掉落系统、成长曲线和游戏内市场设计。用于掉落表设计、资源来源/消耗分析、成长曲线校准或经济平衡验证。"
+  },
+  "engine-programmer": {
+    "description": "The Engine Programmer works on core engine systems: rendering pipeline, physics, memory management, resource loading, scene management, and core framework code. Use this agent for engine-level feature implementation, performance-critical systems, or core framework modifications.",
+    "name_cn": "引擎程序员 engine-programmer",
+    "description_cn": "负责核心引擎系统：渲染管线、物理、内存管理、资源加载、场景管理和核心框架代码。用于引擎级功能实现、性能关键系统或核心框架修改。"
+  },
+  "game-designer": {
+    "description": "The Game Designer owns the mechanical and systems design of the game. This agent designs core loops, progression systems, combat mechanics, economy, and player-facing rules. Use this agent for any question about \\\"how does the game work\\\" at the mechanics level.",
+    "name_cn": "游戏设计师 game-designer",
+    "description_cn": "掌管游戏的机制和系统设计。设计核心循环、成长系统、战斗机制、经济系统和面向玩家的规则。用于任何关于游戏机制运作方式的问题。"
+  },
+  "gameplay-programmer": {
+    "description": "The Gameplay Programmer implements game mechanics, player systems, combat, and interactive features as code. Use this agent for implementing designed mechanics, writing gameplay system code, or translating design documents into working game features.",
+    "name_cn": "玩法程序员 gameplay-programmer",
+    "description_cn": "实现游戏机制、玩家系统、战斗和交互功能。用于实现设计的机制、编写玩法系统代码或将设计文档转化为可运行的游戏功能。"
+  },
+  "godot-specialist": {
+    "description": "Godot 4 engine authority. Handles all Godot domains directly using domain skills (godot-gdscript, godot-csharp, godot-shader, godot-gdextension) loaded via UseSkill. No sub-agent delegation needed.",
+    "name_cn": "Godot引擎专家 godot-specialist",
+    "description_cn": "Godot 4引擎权威。直接使用领域技能处理所有Godot子系统，无需委托子代理。"
+  },
+  "lead-programmer": {
+    "description": "The Lead Programmer owns code-level architecture, coding standards, code review, and the assignment of programming work to specialist programmers. Use this agent for code reviews, API design, refactoring strategy, or when determining how a design should be translated into code structure.",
+    "name_cn": "主程序员 lead-programmer",
+    "description_cn": "掌管代码级架构、编码规范、代码审查和编程工作的分配。用于代码审查、API设计、重构策略或确定设计应如何转化为代码结构。"
+  },
+  "level-designer": {
+    "description": "The Level Designer creates spatial designs, encounter layouts, pacing plans, and environmental storytelling guides for game levels and areas. Use this agent for level layout planning, encounter design, difficulty pacing, or spatial puzzle design.",
+    "name_cn": "关卡设计师 level-designer",
+    "description_cn": "创建关卡和区域的空间设计、遭遇布局、节奏规划和环境叙事指南。用于关卡布局规划、遭遇设计、难度节奏或空间谜题设计。"
+  },
+  "live-ops-designer": {
+    "description": "The live-ops designer owns post-launch content strategy: seasonal events, battle passes, content cadence, player retention mechanics, live service economy, and engagement analytics. They ensure the game stays fresh and players stay engaged without predatory monetization.",
+    "name_cn": "运营设计师 live-ops-designer",
+    "description_cn": "掌管发布后内容策略：赛季活动、战令、内容节奏、玩家留存机制、在线服务经济和参与度分析。确保游戏保持新鲜、玩家持续参与，避免掠夺性变现。"
+  },
+  "localization-lead": {
+    "description": "Owns internationalization architecture, string management, locale testing, and translation pipeline. Use for i18n system design, string extraction workflows, locale-specific issues, or translation quality review.",
+    "name_cn": "本地化负责人 localization-lead",
+    "description_cn": "掌管国际化架构、字符串管理、本地化测试和翻译管线。用于i18n系统设计、字符串提取工作流、特定语言环境问题或翻译质量审查。"
+  },
+  "narrative-director": {
+    "description": "The Narrative Director owns story architecture, world-building, character design, and dialogue strategy. Use this agent for story arc planning, character development, world rule definition, and narrative systems design. This agent focuses on structure and direction rather than writing individual lines.",
+    "name_cn": "叙事总监 narrative-director",
+    "description_cn": "掌管故事架构、世界构建、角色设计和对话策略。用于故事弧规划、角色开发、世界规则定义和叙事系统设计。专注于结构和方向而非编写单行对话。"
+  },
+  "network-programmer": {
+    "description": "The Network Programmer implements multiplayer networking: state replication, lag compensation, matchmaking, and network protocol design. Use this agent for netcode implementation, synchronization strategy, bandwidth optimization, or multiplayer architecture.",
+    "name_cn": "网络程序员 network-programmer",
+    "description_cn": "实现多人网络：状态复制、延迟补偿、匹配和网络协议设计。用于网络代码实现、同步策略、带宽优化或多人架构。"
+  },
+  "performance-analyst": {
+    "description": "The Performance Analyst profiles game performance, identifies bottlenecks, recommends optimizations, and tracks performance metrics over time. Use this agent for performance profiling, memory analysis, frame time investigation, or optimization strategy.",
+    "name_cn": "性能分析师 performance-analyst",
+    "description_cn": "分析游戏性能、识别瓶颈、推荐优化方案并追踪性能指标随时间的变化。用于性能分析、内存调查、帧时间分析或优化策略。"
+  },
+  "producer": {
+    "description": "The Producer manages all production concerns: sprint planning, milestone tracking, risk management, scope negotiation, and cross-department coordination. This is the primary coordination agent. Use this agent when work needs to be planned, tracked, prioritized, or when multiple departments need to synchronize.",
+    "name_cn": "制作人 producer",
+    "description_cn": "管理所有制作事务：冲刺规划、里程碑追踪、风险管理、范围谈判和跨部门协调。当工作需要规划、追踪、优先级排序或多个部门需要同步时使用此代理。"
+  },
+  "prototyper": {
+    "description": "Rapid prototyping specialist for pre-production. Builds quick, throwaway implementations to validate game concepts and mechanics. Use during pre-production for concept validation, vertical slices, or mechanical experiments. Standards are intentionally relaxed for speed.",
+    "name_cn": "原型开发专家 prototyper",
+    "description_cn": "预生产阶段的快速原型专家。构建快速、一次性实现来验证游戏概念和机制。用于概念验证、垂直切片或机制实验。标准有意放宽以提高速度。"
+  },
+  "qa-lead": {
+    "description": "The QA Lead owns test strategy, bug triage, release quality gates, and testing process design. Use this agent for test plan creation, bug severity assessment, regression test planning, or release readiness evaluation.",
+    "name_cn": "QA负责人 qa-lead",
+    "description_cn": "掌管测试策略、Bug分类、发布质量关卡和测试流程设计。用于测试计划创建、Bug严重性评估、回归测试规划或发布就绪评估。"
+  },
+  "qa-tester": {
+    "description": "The QA Tester writes detailed test cases, bug reports, and test checklists. Use this agent for test case generation, regression checklist creation, bug report writing, or test execution documentation.",
+    "name_cn": "QA测试员 qa-tester",
+    "description_cn": "编写详细的测试用例、Bug报告和测试清单。用于测试用例生成、回归清单创建、Bug报告编写或测试执行文档。"
+  },
+  "release-manager": {
+    "description": "Owns the release pipeline: certification checklists, store submissions, platform requirements, version numbering, and release-day coordination. Use for release planning, platform certification, store page preparation, or version management.",
+    "name_cn": "发布经理 release-manager",
+    "description_cn": "掌管发布管线：认证清单、商店提交、平台要求、版本编号和发布日协调。用于发布规划、平台认证、商店页面准备或版本管理。"
+  },
+  "security-engineer": {
+    "description": "The Security Engineer protects the game from cheating, exploits, and data breaches. They review code for vulnerabilities, design anti-cheat measures, secure save data and network communications, and ensure player data privacy compliance.",
+    "name_cn": "安全工程师 security-engineer",
+    "description_cn": "保护游戏免受作弊、漏洞利用和数据泄露。审查代码漏洞、设计反作弊措施、保护存档数据和网络通信，确保玩家数据隐私合规。"
+  },
+  "sound-designer": {
+    "description": "The Sound Designer creates detailed specifications for sound effects, documents audio events, and defines mixing parameters. Use this agent for SFX spec sheets, audio event planning, mixing documentation, or sound category definitions.",
+    "name_cn": "音效设计师 sound-designer",
+    "description_cn": "创建详细的音效规范、音频事件文档和混音参数定义。用于音效规范表、音频事件规划、混音文档或声音类别定义。"
+  },
+  "systems-designer": {
+    "description": "The Systems Designer creates detailed mechanical designs for specific game subsystems -- combat formulas, progression curves, crafting recipes, status effect interactions. Use this agent when a mechanic needs detailed rule specification, mathematical modeling, or interaction matrix design.",
+    "name_cn": "系统设计师 systems-designer",
+    "description_cn": "创建特定游戏子系统的详细机制设计——战斗公式、成长曲线、合成配方、状态效果交互。当机制需要详细规则规范、数学建模或交互矩阵设计时使用。"
+  },
+  "technical-artist": {
+    "description": "The Technical Artist bridges art and engineering: shaders, VFX, rendering optimization, art pipeline tools, and performance profiling for visual systems. Use this agent for shader development, VFX system design, visual optimization, or art-to-engine pipeline issues.",
+    "name_cn": "技术美术 technical-artist",
+    "description_cn": "连接美术和工程：着色器、VFX、渲染优化、美术管线工具和视觉系统性能分析。用于着色器开发、VFX系统设计、视觉优化或美术到引擎的管线问题。"
+  },
+  "technical-director": {
+    "description": "The Technical Director owns all high-level technical decisions including engine architecture, technology choices, performance strategy, and technical risk management. Use this agent for architecture-level decisions, technology evaluations, cross-system technical conflicts, and when a technical choice will constrain or enable design possibilities.",
+    "name_cn": "技术总监 technical-director",
+    "description_cn": "掌管所有高层技术决策：引擎架构、技术选型、性能策略和技术风险管理。用于架构级决策、技术评估、跨系统技术冲突，以及技术选择将约束或启用设计可能性时使用。"
+  },
+  "test-foo": {
+    "description": "TODO: Describe the agent's role and when to use it.",
+    "name_cn": "测试代理 test-foo",
+    "description_cn": "测试用代理，用于验证代理框架功能。"
+  },
+  "tools-programmer": {
+    "description": "The Tools Programmer builds internal development tools: editor extensions, content authoring tools, debug utilities, and pipeline automation. Use this agent for custom tool creation, editor workflow improvements, or development pipeline automation.",
+    "name_cn": "工具程序员 tools-programmer",
+    "description_cn": "构建内部开发工具：编辑器扩展、内容创作工具、调试工具和管线自动化。用于自定义工具创建、编辑器工作流改进或开发管线自动化。"
+  },
+  "ui-programmer": {
+    "description": "The UI Programmer implements user interface systems: menus, HUDs, inventory screens, dialogue boxes, and UI framework code. Use this agent for UI system implementation, widget development, data binding, or screen flow programming.",
+    "name_cn": "UI程序员 ui-programmer",
+    "description_cn": "实现用户界面系统：菜单、HUD、背包界面、对话面板和UI框架代码。用于UI系统实现、组件开发、数据绑定或界面流程编程。"
+  },
+  "unity-specialist": {
+    "description": "Unity engine authority. Handles all Unity domains directly using domain skills (unity-shader, unity-dots, unity-addressables, unity-ui) loaded via UseSkill. No sub-agent delegation.",
+    "name_cn": "Unity引擎专家 unity-specialist",
+    "description_cn": "Unity引擎权威。直接使用领域技能处理所有Unity子系统，无需委托子代理。"
+  },
+  "unreal-specialist": {
+    "description": "The Unreal Engine Specialist is the authority on all Unreal-specific patterns, APIs, and optimization techniques. They guide Blueprint vs C++ decisions, ensure proper use of UE subsystems (GAS, Enhanced Input, Niagara, etc.), and enforce Unreal best practices across the codebase.",
+    "name_cn": "Unreal引擎专家 unreal-specialist",
+    "description_cn": "Unreal Engine权威。精通所有Unreal特定模式、API和优化技术。指导Blueprint与C++的决策，确保正确使用UE子系统（GAS、Enhanced Input、Niagara等），在整个代码库中强制执行Unreal最佳实践。"
+  },
+  "ux-designer": {
+    "description": "The UX Designer owns user experience flows, interaction design, accessibility, information architecture, and input handling design. Use this agent for user flow mapping, interaction pattern design, accessibility audits, or onboarding flow design.",
+    "name_cn": "UX设计师 ux-designer",
+    "description_cn": "掌管用户体验流程、交互设计、无障碍、信息架构和输入处理设计。用于用户流程映射、交互模式设计、无障碍审计或新手引导流程设计。"
+  },
+  "world-builder": {
+    "description": "The World Builder designs detailed world lore: factions, cultures, history, geography, ecology, and the rules that govern the game world. Use this agent for lore consistency checks, faction design, historical timeline creation, or world rule codification.",
+    "name_cn": "世界观构建师 world-builder",
+    "description_cn": "设计详细的世界设定：派系、文化、历史、地理、生态和管理游戏世界的规则。用于设定一致性检查、派系设计、历史时间线创建或世界规则编纂。"
+  },
+  "writer": {
+    "description": "The Writer creates dialogue, lore entries, item descriptions, environmental text, and all player-facing written content. Use this agent for dialogue writing, lore creation, item/ability descriptions, or in-game text of any kind.",
+    "name_cn": "文案作家 world-builder",
+    "description_cn": "创作对话、背景故事条目、物品描述、环境文字和所有面向玩家的书面内容。用于对话写作、背景故事创作、物品/技能描述或任何类型的游戏内文本。"
+  }
+}

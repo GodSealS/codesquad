@@ -1,0 +1,279 @@
+# =============================================================================
+# Model Configuration — auto-detected from .codebuddy frontmatter
+# =============================================================================
+# Edit this file to override models per agent/skill/batch.
+# Run `codesquad config show` to view current config.
+# Run `codesquad config import my-models.yaml` to batch import.
+
+version: 1
+
+# ── Per-Agent Overrides ──
+# Models extracted from AICore/agents/*.md frontmatter
+# Total: 39 agents, 7 unique models
+agents:
+  # accessibility-specialist: GLM-5v-Turbo
+  # ai-programmer: Deepseek-V4-Pro
+  # analytics-engineer: Deepseek-V4-Flash
+  # art-director: GLM-5v-Turbo
+  # audio-director: MiniMax-M3
+  # cocos-specialist: Deepseek-V4-Flash
+  # community-manager: GLM-5v-Turbo
+  # creative-director: Kimi-K2.6
+  # devops-engineer: GLM-5.1
+  # economy-designer: Deepseek-V4-Flash
+  # engine-programmer: Deepseek-V4-Pro
+  # game-designer: Kimi-K2.6
+  # gameplay-programmer: Deepseek-V4-Pro
+  # godot-specialist: Deepseek-V4-Flash
+  # lead-programmer: GLM-5.1
+  # level-designer: Kimi-K2.6
+  # live-ops-designer: Deepseek-V4-Flash
+  # localization-lead: Deepseek-V4-Flash
+  # narrative-director: Kimi-K2.6
+  # network-programmer: Deepseek-V4-Pro
+  # performance-analyst: GLM-5.1
+  # producer: Deepseek-V4-Flash
+  # prototyper: Deepseek-V4-Flash
+  # qa-lead: Deepseek-V4-Pro
+  # qa-tester: Deepseek-V4-Flash
+  # release-manager: GLM-5.1
+  # security-engineer: GLM-5.1
+  # sound-designer: GLM-5v-Turbo
+  # systems-designer: Deepseek-V4-Pro
+  # technical-artist: GLM-5v-Turbo
+  # technical-director: GLM-5.1
+  # test-foo: Deepseek-V4-Pro
+  # tools-programmer: Deepseek-V4-Pro
+  # ui-programmer: Deepseek-V4-Pro
+  # unity-specialist: Deepseek-V4-Flash
+  # unreal-specialist: Deepseek-V4-Flash
+  # ux-designer: GLM-5.1
+  # world-builder: MiniMax-M3
+  # writer: Deepseek-V4-Pro
+
+# ── Per-Skill Overrides ──
+# Models extracted from AICore/skills/SKILL.md frontmatter
+# Total: 54 skills, 2 unique models
+skills:
+  # architecture-decision: Deepseek-V4-Flash
+  # art-bible: Deepseek-V4-Flash
+  # asset-audit: Deepseek-V4-Flash
+  # asset-spec: Deepseek-V4-Flash
+  # brainstorm: Deepseek-V4-Flash
+  # bug-report: Deepseek-V4-Flash
+  # bug-triage: Deepseek-V4-Pro
+  # changelog: Deepseek-V4-Flash
+  # consistency-check: Deepseek-V4-Pro
+  # day-one-patch: Deepseek-V4-Flash
+  # design-review: Deepseek-V4-Pro
+  # design-system: Deepseek-V4-Pro
+  # dev-story: Deepseek-V4-Pro
+  # estimate: Deepseek-V4-Flash
+  # gate-check: Deepseek-V4-Pro
+  # map-systems: Deepseek-V4-Pro
+  # milestone-review: Deepseek-V4-Flash
+  # onboard: Deepseek-V4-Flash
+  # perf-profile: Deepseek-V4-Flash
+  # playtest-report: Deepseek-V4-Flash
+  # post-fix-test: Deepseek-V4-Pro
+  # project-stage-detect: Deepseek-V4-Flash
+  # quick-design: Deepseek-V4-Flash
+  # regression-suite: Deepseek-V4-Pro
+  # release-checklist: Deepseek-V4-Pro
+  # retrospective: Deepseek-V4-Flash
+  # reverse-document: Deepseek-V4-Flash
+  # review-all-gdds: Deepseek-V4-Pro
+  # scope-check: Deepseek-V4-Pro
+  # setup-engine: Deepseek-V4-Flash
+  # skill-improve: Deepseek-V4-Flash
+  # skill-test: Deepseek-V4-Flash
+  # smoke-check: Deepseek-V4-Pro
+  # soak-test: Deepseek-V4-Flash
+  # sprint-plan: Deepseek-V4-Flash
+  # sprint-status: Deepseek-V4-Flash
+  # start: Deepseek-V4-Flash
+  # story-done: Deepseek-V4-Flash
+  # story-readiness: Deepseek-V4-Pro
+  # team-audio: Deepseek-V4-Pro
+  # team-combat: Deepseek-V4-Pro
+  # team-level: Deepseek-V4-Pro
+  # team-live-ops: Deepseek-V4-Pro
+  # team-narrative: Deepseek-V4-Pro
+  # team-polish: Deepseek-V4-Pro
+  # team-release: Deepseek-V4-Flash
+  # team-ui: Deepseek-V4-Pro
+  # tech-debt: Deepseek-V4-Flash
+  # test-evidence-review: Deepseek-V4-Pro
+  # test-flakiness: Deepseek-V4-Flash
+  # test-foo-skill: Deepseek-V4-Pro
+  # test-helpers: Deepseek-V4-Flash
+  # test-setup: Deepseek-V4-Pro
+  # to-prd: Deepseek-V4-Pro
+
+# ── Batch Pattern Mapping ───────────────────────────────────────────────────
+# Glob-pattern mapping: matches MODEL NAMES (not agent/skill names).
+# Useful for bulk migration — any model matching the pattern gets replaced.
+# Examples:
+#   "Kimi-*": "claude-haiku"        # All Kimi models → claude-haiku
+#   "Deepseek-*": "gpt-4"           # All Deepseek models → gpt-4
+#   "GLM-*": "claude-sonnet"        # All GLM models → claude-sonnet
+#   "MiniMax-*": "claude-haiku"     # All MiniMax models → claude-haiku
+#   "*-Turbo": "gpt-4-turbo"        # Any model ending in Turbo → gpt-4-turbo
+batch:
+  "Kimi-K2.6": "kimi-k2-7"
+  "Deepseek-V4-Pro*": "deepseek-v4-pro-202606"
+  "Deepseek-V4-Flash*": "deepseek-v4-flash"
+  "GLM-5.1": "glm-5-1"
+  "GLM-5v-Turbo": "glm-5v-turbo"
+
+# ── Global Default ──────────────────────────────────────────────────────────
+# Fallback model when no agent/skill/batch override matches.
+# Set to null to use the tool's built-in default.
+# Set to a model name string to override across the entire project.
+default: deepseek-v4-pro
+# Example: default: claude-sonnet
+
+# ── Custom API Sources ──────────────────────────────────────────────────────
+# Define named API endpoints for model routing.
+# Each source specifies how to reach a provider:
+#   provider   — Provider ID matching built-in providers (deepseek, anthropic, openai)
+#                Used by CLI REPL to resolve per-provider API keys.
+#                Keys are NOT shared between providers — each gets its own key.
+#   baseUrl    — Custom endpoint URL (required for proxies or self-hosted)
+#   apiKey     — API key literal, or ${ENV_VAR_NAME} to read from env
+#   headers    — Additional HTTP headers (optional)
+#
+# After defining a source, reference it in agent/skill overrides:
+#   agent.game-designer: {model: "claude-sonnet", source: "custom-proxy"}
+#   skill.balance-check: {model: "deepseek-v4-pro", source: "deepseek-v4-pro"}
+api:
+  # ═══════════════════════════════════════════════════════════════
+  # 多平台配置示例 — 三个供应商，各自独立 Key
+  # ═══════════════════════════════════════════════════════════════
+  #
+  # 约定：
+  #   provider: 匹配 built-in provider (deepseek / anthropic / openai)
+  #   apiKey:   直接填 key，或 ${ENV_VAR} 读环境变量
+  #   同一 provider 下的多个 source 自动共享 key（如 Tencent Cloud 所有模型）
+  #   不同 provider 间的 key 完全隔离
+  #
+  # ── 示例 1: Tencent Cloud TokenHub ──
+  #   同一 provider + 同一 baseUrl = 共享 key
+  # deepseek-v4-pro:
+  #   provider: deepseek
+  #   baseUrl: https://tokenhub.tencentmaas.com/v1
+  #   apiKey: sk-****-xxx
+  # deepseek-v4-flash:
+  #   provider: deepseek
+  #   baseUrl: https://tokenhub.tencentmaas.com/v1
+  #   apiKey: sk-****-xxx               # ← 同 baseUrl，共享
+  #
+  # ── 示例 2: DeepSeek 官方 API ──
+  #   同一 provider 但不同 baseUrl = key 自动隔离
+  # deepseek-chat:
+  #   provider: deepseek
+  #   baseUrl: https://api.deepseek.com/v1
+  #   apiKey: sk-****-xxx     # ← 另一把 key
+  # deepseek-reasoner:
+  #   provider: deepseek
+  #   baseUrl: https://api.deepseek.com/v1
+  #   apiKey: sk-****-xxx     # ← 同上，共享
+  #
+  # ── 示例 3: 阿里 Qwen（DashScope，OpenAI 兼容） ──
+  # qwen-max:
+  #   provider: openai
+  #   baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
+  #   apiKey: sk-****-xxx        # ← 独立 key
+  # qwen-plus:
+  #   provider: openai
+  #   baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
+  #   apiKey: sk-****-xxx        # ← 同上，共享
+  # ═══════════════════════════════════════════════════════════════
+
+  sources:
+    # ── Tencent Cloud TokenHub (openai-compatible) ──
+    # All models below share the same endpoint + key. Set apiKey to your token.
+    # provider: "deepseek" maps to built-in deepseek provider for CLI auto-detection.
+    #
+    # Optional model capability flags:
+    #   supportsVision: true    — model can process image inputs (enables image upload in UI)
+    #   isReasoning: true       — model supports extended reasoning/thinking
+
+    deepseek-v4-pro-202606:
+      provider: "deepseek"
+      baseUrl: https://tokenhub.tencentmaas.com/v1
+      apiKey: ${TOKENHUB_API_KEY}
+      supportsVision: true
+      isReasoning: true
+
+    deepseek-v4-flash:
+      provider: "deepseek"
+      baseUrl: https://tokenhub.tencentmaas.com/v1
+      apiKey: ${TOKENHUB_API_KEY}
+      supportsVision: true
+      isReasoning: true
+
+    qwen3.5-plus:
+      provider: "deepseek"
+      baseUrl: https://tokenhub.tencentmaas.com/v1
+      apiKey: ${TOKENHUB_API_KEY}
+
+    minimax-m3:
+      provider: "deepseek"
+      baseUrl: https://tokenhub.tencentmaas.com/v1
+      apiKey: ${TOKENHUB_API_KEY}
+      supportsVision: true
+      isReasoning: true
+
+    deepseek-v3.2:
+      provider: "deepseek"
+      baseUrl: https://tokenhub.tencentmaas.com/v1
+      apiKey: ${TOKENHUB_API_KEY}
+      supportsVision: true
+      isReasoning: true
+
+    kimi-k2-7:
+      provider: "deepseek"
+      baseUrl: https://tokenhub.tencentmaas.com/v1
+      apiKey: ${TOKENHUB_API_KEY}
+      supportsVision: true
+      isReasoning: true
+
+    glm-5-1:
+      provider: "deepseek"
+      baseUrl: https://tokenhub.tencentmaas.com/v1
+      apiKey: ${TOKENHUB_API_KEY}
+      supportsVision: true
+      isReasoning: false
+
+    glm-5:
+      provider: "deepseek"
+      baseUrl: https://tokenhub.tencentmaas.com/v1
+      apiKey: ${TOKENHUB_API_KEY}
+      supportsVision: true
+      isReasoning: false
+
+    glm-5v-turbo:
+      provider: "deepseek"
+      baseUrl: https://tokenhub.tencentmaas.com/v1
+      apiKey: ${TOKENHUB_API_KEY}
+      supportsVision: true
+      isReasoning: true
+
+    # ── Example: Anthropic (separate provider, separate key) ──
+    # claude-sonnet:
+    #   provider: anthropic
+    #   baseUrl: https://api.anthropic.com
+    #   apiKey: sk-****xxxx
+
+    # ── Example: OpenAI (separate provider, separate key) ──
+    # gpt-4o:
+    #   provider: openai
+    #   baseUrl: https://api.openai.com/v1
+    #   apiKey: sk-****xxxx
+
+    # ── Example: Self-hosted (separate key) ──
+    # self-hosted:
+    #   provider: openai
+    #   baseUrl: http://localhost:8000/v1
+    #   apiKey: local-key

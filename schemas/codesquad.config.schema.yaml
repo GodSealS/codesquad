@@ -1,0 +1,49 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+title: CodeSquad Project Configuration
+description: Schema for codesquad.config.yaml
+type: object
+additionalProperties: false
+properties:
+  version:
+    type: integer
+    minimum: 1
+    default: 1
+    description: Configuration format version
+  tools:
+    type: array
+    default: []
+    description: List of bound AI tool IDs
+    items:
+      type: string
+  engine:
+    type: object
+    default:
+      name: custom
+      version: ""
+    properties:
+      name:
+        type: string
+        enum: [godot, unity, unreal, cocos, custom]
+        default: custom
+        description: Game engine name
+      version:
+        type: string
+        default: ""
+        description: Engine version string
+    required: [name, version]
+  generation:
+    type: object
+    default:
+      overwriteOnUpdate: true
+      skipSettings: false
+    properties:
+      overwriteOnUpdate:
+        type: boolean
+        default: true
+        description: Whether update overwrites existing files
+      skipSettings:
+        type: boolean
+        default: false
+        description: Skip settings file generation
+    required: [overwriteOnUpdate, skipSettings]
+required: [version, tools, engine, generation]

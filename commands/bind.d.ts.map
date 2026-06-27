@@ -1,1 +1,0 @@
-{"version":3,"file":"bind.d.ts","sourceRoot":"","sources":["../../../AgentTeams_UE/src/commands/bind.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAIH,MAAM,WAAW,kBAAkB;IACjC,GAAG,CAAC,EAAE,MAAM,CAAC;IACb,MAAM,CAAC,EAAE,MAAM,CAAC;IAChB,IAAI,CAAC,EAAE,OAAO,CAAC;CAChB;AAED,wBAAsB,UAAU,CAC9B,UAAU,EAAE,MAAM,EAClB,OAAO,EAAE,kBAAkB,GAC1B,OAAO,CAAC,IAAI,CAAC,CASf"}
