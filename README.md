@@ -78,7 +78,12 @@ git clone https://github.com/GodSealS/codesquad.git
 cd codesquad
 
 # 全局安装
+## 临时关闭 SSL 验证 个人开发者没有申请SSl
+npm config set strict-ssl false
 npm install
+# 装完恢复
+npm config delete strict-ssl
+# npm install
 ```
 
 安装后即可在任意目录使用 `codesquad` 命令。
