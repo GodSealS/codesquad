@@ -10,7 +10,8 @@
  */
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join, resolve, dirname } from 'path';
-import { globSync } from 'fast-glob';
+import fastGlob from 'fast-glob';
+const { globSync } = fastGlob;
 /** Check if a path is within the allowed workspace boundary */
 function resolveSafePath(requestedPath, workspaceRoot) {
     const resolved = resolve(workspaceRoot, requestedPath);

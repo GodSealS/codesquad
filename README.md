@@ -17,7 +17,7 @@
 <p align="center"><strong>AI 原生的游戏开发 CLI —— 多工具代理与技能绑定框架</strong></p>
 <p align="center">
   将单一 AI 会话转变为一个完整的游戏开发工作室。<br>
-  一个协调的 AI 团队，包含 <strong>49 个代理</strong> 和 <strong>72 个技能</strong>，覆盖设计、编程、美术、音频、叙事、QA 和生产全流程。
+  一个协调的 AI 团队，包含 <strong>37 个代理</strong> 和 <strong>99 个技能</strong>，覆盖设计、编程、美术、音频、叙事、QA 和生产全流程。
 </p>
 
 <p align="center">
@@ -27,12 +27,16 @@
   <a href="#-本地知识库集成"><strong>知识库集成</strong></a>
 </p>
 
+
+
 ---
+
 | ![Chat 界面](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/chat.jpg) | ![模型配置](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/Model.jpg) |
 |:--:|:--:|
 | ![MCP 集成](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/MCP.jpg) | |
 
 ---
+
 ## 📖 项目简介
 
 **CodeSquad** 是一个 AI 原生的游戏开发命令行工具，为 **CodeBuddy Game Studios** 提供完整的多工具代理绑定和技能编排框架。它将单一的 AI 会话组织成真实工作室的层级结构：
@@ -76,13 +80,18 @@
 # 克隆仓库
 git clone https://github.com/GodSealS/codesquad.git
 cd codesquad
-
-# 全局安装
 ## 临时关闭 SSL 验证 个人开发者没有申请SSl
 npm config set strict-ssl false
 npm install
 # 装完恢复
 npm config delete strict-ssl
+
+#或者切换到国内镜像源
+# 两行搞定
+npm config set registry https://registry.npmmirror.com/
+npm install
+
+# 全局安装
 # npm install
 ```
 
