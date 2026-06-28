@@ -29,8 +29,12 @@ export declare const ModelOverrideSchema: z.ZodUnion<readonly [z.ZodString, z.Zo
 export declare const ApiEndpointSchema: z.ZodObject<{
     provider: z.ZodOptional<z.ZodEnum<{
         anthropic: "anthropic";
+        openai: "openai";
         "openai-compatible": "openai-compatible";
+        deepseek: "deepseek";
+        kimi: "kimi";
         custom: "custom";
+        gemini: "gemini";
     }>>;
     baseUrl: z.ZodOptional<z.ZodString>;
     apiKey: z.ZodOptional<z.ZodString>;
@@ -53,8 +57,12 @@ export declare const ModelsConfigSchema: z.ZodObject<{
         sources: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodObject<{
             provider: z.ZodOptional<z.ZodEnum<{
                 anthropic: "anthropic";
+                openai: "openai";
                 "openai-compatible": "openai-compatible";
+                deepseek: "deepseek";
+                kimi: "kimi";
                 custom: "custom";
+                gemini: "gemini";
             }>>;
             baseUrl: z.ZodOptional<z.ZodString>;
             apiKey: z.ZodOptional<z.ZodString>;

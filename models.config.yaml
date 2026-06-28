@@ -189,6 +189,32 @@ api:
   #   baseUrl: https://dashscope.aliyuncs.com/compatible-mode/v1
   #   apiKey: sk-****-xxx        # ← 同上，共享
   # ═══════════════════════════════════════════════════════════════
+  # Claude：
+  #  claude-sonnet-4-20250514:
+  #     provider: anthropic            # ← 关键！必须设 "anthropic"
+  #     baseUrl: https://api.anthropic.com
+  #     apiKey: ${ANTHROPIC_API_KEY}   # 或用你的 sk-ant-... 密钥
+  # OpenAI：
+  # openai-v3:
+  #   provider: openai
+  #   baseUrl: https://api.openai.com/v1
+  #   apiKey: <KEY>
+  # openai-v4:
+  #   provider: openai
+  #   baseUrl: https://api.openai.com/v1
+  #   apiKey: <KEY>
+  # Gemini：
+  # gemini-v1:
+  #   provider: gemini
+  #   baseUrl: https://api.gemini.ai/v1
+  #   apiKey: <KEY>
+  #第三方中转
+  # my-proxy:
+  # provider: openai-compatible
+  # baseUrl: https://your-proxy.com/v1
+  # apiKey: sk-****xxxx
+  # headers:
+  #   X-Custom-Route: "gpt-4"
 
   sources:
     # ── Tencent Cloud TokenHub (openai-compatible) ──
@@ -260,20 +286,53 @@ api:
       supportsVision: true
       isReasoning: true
 
-    # ── Example: Anthropic (separate provider, separate key) ──
-    # claude-sonnet:
-    #   provider: anthropic
+    # ── Example: Anthropic (Claude) —— 原生接入，无需中转 ──
+    # CodeSquad 已内置 Anthropic Messages API 适配器，直接调用 api.anthropic.com。
+    # 支持：原生 tool_use、extended thinking、prompt caching。
+    # 取消注释并替换 apiKey 为你的 Anthropic 密钥：
+    # claude-sonnet-4-20250514:
+    #   provider: anthropic            # ← 必须设为 "anthropic"，不能是其他值！
     #   baseUrl: https://api.anthropic.com
-    #   apiKey: sk-****xxxx
+    #   apiKey: ${ANTHROPIC_API_KEY}    # 推荐用环境变量
 
-    # ── Example: OpenAI (separate provider, separate key) ──
+    # ── Example: OpenAI (GPT-4o) ──
+    # uncomment and replace apiKey with your key:
     # gpt-4o:
     #   provider: openai
     #   baseUrl: https://api.openai.com/v1
     #   apiKey: sk-****xxxx
 
-    # ── Example: Self-hosted (separate key) ──
-    # self-hosted:
-    #   provider: openai
-    #   baseUrl: http://localhost:8000/v1
-    #   apiKey: local-key
+    # ── Example: Google Gemini (OpenAI-compatible endpoint) ──
+    # uncomment and replace apiKey with your Gemini API key:
+    # gemini-2.5-flash:
+    #   provider: gemini
+    #   baseUrl: https://generativelanguage.googleapis.com/v1beta/openai
+    #   apiKey: AIza****xxxx
+
+    # ── Example: Third-party proxy (e.g. litellm / one-api / openrouter) ──
+    # Set provider: openai-compatible for any proxy that speaks OpenAI API format.
+    # Use headers to pass custom auth or routing fields.
+    # proxy-gpt4:
+    #   provider: openai-compatible
+    #   baseUrl: https://your-proxy.example.com/v1
+    #   apiKey: sk-****xxxx
+    #   headers:
+    #     X-Custom-Route: "gpt-4"
+    #
+    # ── Example: Self-signed / internal proxy with TLS bypass ──
+    # NOT supported yet in CodeSquad. If your proxy uses a self-signed cert, you
+    # must set the environment variable BEFORE launching CodeSquad:
+    #
+    #   PowerShell: $env:NODE_TLS_REJECT_UNAUTHORIZED = "0"
+    #   Bash:       export NODE_TLS_REJECT_UNAUTHORIZED=0
+    #
+    # Then configure the proxy normally:
+    # internal-proxy:
+    #   provider: openai-compatible
+    #   baseUrl: https://internal-proxy.company.com/v1
+    #   apiKey: ${INTERNAL_API_KEY}
+    #
+    # ⚠️ NODE_TLS_REJECT_UNAUTHORIZED=0 disables ALL TLS verification globally.
+    # Use only in trusted internal networks. Do NOT set to "false" (string) —
+    # Node.js treats the non-empty string "false" as truthy (TLS still enabled).
+    # The correct value is "0" (string) to disable verification.

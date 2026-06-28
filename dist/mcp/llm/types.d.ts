@@ -6,7 +6,7 @@
  */
 import type { ApiEndpoint } from '../../adapters/types.js';
 /** Supported built-in providers */
-export type BuiltInProvider = 'anthropic' | 'openai' | 'openai-compatible' | 'deepseek' | 'kimi' | 'custom';
+export type BuiltInProvider = 'anthropic' | 'openai' | 'openai-compatible' | 'deepseek' | 'kimi' | 'gemini' | 'custom';
 /** Model configuration provided by the caller */
 export interface ModelConfig {
     provider: BuiltInProvider | string;

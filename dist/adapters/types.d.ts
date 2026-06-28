@@ -118,7 +118,7 @@ export type ModelOverride = string | {
 };
 /** API endpoint definition for external model sources */
 export interface ApiEndpoint {
-    provider?: 'openai-compatible' | 'anthropic' | 'custom';
+    provider?: 'openai-compatible' | 'openai' | 'anthropic' | 'deepseek' | 'kimi' | 'gemini' | 'custom';
     baseUrl?: string;
     apiKey?: string;
     headers?: Record<string, string>;

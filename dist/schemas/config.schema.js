@@ -38,7 +38,7 @@ export const DEFAULT_PROJECT_CONFIG = {
 export const ModelOverrideSchema = z.union([z.string(), z.object({ model: z.string(), source: z.string() })]);
 /** Schema for ApiEndpoint */
 export const ApiEndpointSchema = z.object({
-    provider: z.enum(['openai-compatible', 'anthropic', 'custom']).optional(),
+    provider: z.enum(['openai-compatible', 'openai', 'anthropic', 'deepseek', 'kimi', 'gemini', 'custom']).optional(),
     baseUrl: z.string().optional(),
     apiKey: z.string().optional(),
     headers: z.record(z.string(), z.string()).optional(),

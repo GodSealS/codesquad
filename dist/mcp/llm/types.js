@@ -11,5 +11,6 @@ export const PROVIDER_DEFAULTS = {
     'openai-compatible': { baseUrl: 'https://api.openai.com/v1' },
     deepseek: { baseUrl: 'https://api.deepseek.com/v1' },
     kimi: { baseUrl: 'https://api.moonshot.cn/v1' },
+    gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai' },
 };
 //# sourceMappingURL=types.js.map

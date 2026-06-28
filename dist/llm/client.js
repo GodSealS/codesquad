@@ -53,7 +53,7 @@ async function callAnthropic(provider, request) {
         // Ensure max_tokens > budget_tokens (required by Anthropic)
         body.max_tokens = Math.max(body.max_tokens || 4096, budgetTokens + 2048);
     }
-    return fetch(`${provider.baseUrl}/messages`, {
+    return fetch(`${provider.baseUrl}/v1/messages`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

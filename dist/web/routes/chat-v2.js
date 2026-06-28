@@ -301,22 +301,53 @@ export async function handleChatV2(req, res) {
         }
     }
     messages.push({ role: 'user', content: userContent });
-    // Call the API
+    // Determine protocol for the API call
+    const isAnthropic = apiConfig.provider?.toLowerCase() === 'anthropic';
+    // For Anthropic: system prompt goes as a top-level field, not in messages array
+    const anthropicSystem = isAnthropic
+        ? messages.find(m => m.role === 'system')?.content ?? undefined
+        : undefined;
+    const anthropicMessages = isAnthropic
+        ? messages.filter(m => m.role !== 'system')
+        : messages;
     try {
-        const response = await fetch(`${apiConfig.baseUrl}/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${apiConfig.apiKey}`,
-            },
-            body: JSON.stringify({
-                model: apiConfig.resolvedModel,
-                messages,
-                max_tokens: generationConfig?.maxTokens ?? 4096,
-                temperature: generationConfig?.temperature ?? 0.7,
-                top_p: generationConfig?.topP ?? 0.95,
-            }),
-        });
+        let response;
+        if (isAnthropic) {
+            // ── Anthropic Messages API (native, no proxy needed) ──
+            response = await fetch(`${apiConfig.baseUrl}/v1/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiConfig.apiKey,
+                    'anthropic-version': '2023-06-01',
+                },
+                body: JSON.stringify({
+                    model: apiConfig.resolvedModel,
+                    system: anthropicSystem,
+                    messages: anthropicMessages,
+                    max_tokens: generationConfig?.maxTokens ?? 4096,
+                    temperature: generationConfig?.temperature ?? 0.7,
+                    top_p: generationConfig?.topP ?? 0.95,
+                }),
+            });
+        }
+        else {
+            // ── OpenAI-compatible (Chat Completions API) ──
+            response = await fetch(`${apiConfig.baseUrl}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${apiConfig.apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: apiConfig.resolvedModel,
+                    messages,
+                    max_tokens: generationConfig?.maxTokens ?? 4096,
+                    temperature: generationConfig?.temperature ?? 0.7,
+                    top_p: generationConfig?.topP ?? 0.95,
+                }),
+            });
+        }
         if (!response.ok) {
             const errText = await response.text().catch(() => 'Unknown error');
             const note = STATUS_NOTE[response.status];
@@ -326,8 +357,22 @@ export async function handleChatV2(req, res) {
             res.end(JSON.stringify({ error: `API 错误 ${annotated}: ${errText.slice(0, 200)}` }));
             return;
         }
-        const data = (await response.json());
-        const content = data.choices?.[0]?.message?.content ?? '';
+        const raw = (await response.json());
+        // Parse response based on protocol
+        let content;
+        let modelUsed;
+        if (isAnthropic) {
+            // Anthropic format: { content: [{ type: "text", text: "..." }], model: "...", ... }
+            const blocks = raw.content;
+            content = blocks?.filter(b => b.type === 'text').map(b => b.text ?? '').join('') ?? '';
+            modelUsed = raw.model || resolvedModel;
+        }
+        else {
+            // OpenAI format: { choices: [{ message: { content: "..." } }], model: "..." }
+            const data = raw;
+            content = data.choices?.[0]?.message?.content ?? '';
+            modelUsed = data.model || resolvedModel;
+        }
         res.writeHead(200, {
             'Content-Type': 'application/json',
             Deprecation: 'true',
@@ -336,7 +381,7 @@ export async function handleChatV2(req, res) {
         });
         res.end(JSON.stringify({
             content,
-            modelUsed: data.model || resolvedModel,
+            modelUsed,
             modeUsed: effectiveMode,
             _deprecated: true,
             _migration: 'Use POST /api/chat/stream for full vibe coding with tools, SSE streaming, and permission support.',

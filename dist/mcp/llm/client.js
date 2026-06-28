@@ -122,6 +122,7 @@ export class LLMClient {
             'openai-compatible': 'https://api.openai.com/v1',
             deepseek: 'https://api.deepseek.com/v1',
             kimi: 'https://api.moonshot.cn/v1',
+            gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
         };
         return defaults[provider] ?? 'https://api.openai.com/v1';
     }

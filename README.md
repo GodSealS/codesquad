@@ -31,7 +31,8 @@
 
 ---
 
-| ![Chat 界面](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/chat.jpg) | ![模型配置](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/Model.jpg) |
+| ![Chat 界面](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/chat.jpg) 
+![模型配置](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/Model.jpg) |
 |:--:|:--:|
 | ![MCP 集成](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/MCP.jpg) | |
 
@@ -100,15 +101,12 @@ npm install
 ### 方法二：自定义目录安装
 
 ```bash
-# 克隆仓库
-git clone https://github.com/GodSealS/codesquad.git
-cd codesquad
+# 下载
+https://github.com/GodSealS/codesquad/releases
 
 # 安装到自定义目录（生成独立可执行文件）
-node scripts/install.js --exe --bin-dir C:\tools\codesquad
-```
-
-### 注册环境变量
+#丢到任意目录
+### 将目录注册到环境变量
 
 **Windows (PowerShell 管理员)**：
 ```powershell
@@ -129,7 +127,53 @@ codesquad --version
 ```
 
 ---
+### 快速模型配置
+#### 终端设置
+设置源
+```bash
+# 查看当前所有配置（含 sources + batch）
+codesquad config show
 
+# 添加/修改 API source
+codesquad config set api.source.deepseek.baseUrl "https://api.deepseek.com/v1"
+codesquad config set api.source.deepseek.apiKey "sk-xxx"
+codesquad config set api.source.deepseek.provider "deepseek"
+
+# 设置自定义 headers
+codesquad config set api.source.deepseek.headers "{\"X-Custom\":\"val\"}"
+
+# 导入整个 YAML
+codesquad config import my-models.yaml
+
+# 生成模板文件
+codesquad config template
+
+```
+管理 Batch 模型映射
+```bash
+# 查看当前所有配置（含 sources + batch）
+codesquad config show
+# 设置批量映射（对应 models.config.yaml 的 batch: 段）
+codesquad config set batch."Kimi-K2.6" "kimi-k2-7"
+codesquad config set batch."Deepseek-V4-Pro*" "deepseek-v4-pro-202606"
+codesquad config set batch."Deepseek-V4-Flash*" "deepseek-v4-flash"
+codesquad config set batch."GLM-5.1" "glm-5-1"
+codesquad config set batch."GLM-5v-Turbo" "glm-5v-turbo"
+
+# 查看结果
+codesquad config show
+```
+
+#### Web GUI设置
+<p align="center"><strong>模型配置详情</strong></p>
+
+![模型配置1](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/ModelSetting1.jpg)
+
+![模型配置2](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/ModelSetting2.jpg)
+
+![模型配置3](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/ModelSetting3.jpg)
+
+---
 ## 📚 使用手册
 
 > 快速入门见 [docs/translations/CN/Quick-Start.md](docs/translations/CN/Quick-Start.md)

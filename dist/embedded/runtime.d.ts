@@ -8,8 +8,9 @@
 /**
  * Whether the current process is a Bun-compiled binary.
  *
- * Detection: In a compiled binary, `import.meta.url` does NOT start with
- * `file://`. In tsx/node dev mode, it always does.
+ * Detection (Bun v1.0):  import.meta.url = "B:\\~BUN\\root\\codesquad.exe" (no file://)
+ * Detection (Bun v1.1+): import.meta.url = "file:///B:/~BUN/root/codesquad.exe" (has ~BUN)
+ * Detection (dev/tsx):   import.meta.url = "file:///C:/work/codesquad/src/..." (real path)
  */
 export declare const isBunCompiled: boolean;
 /**
