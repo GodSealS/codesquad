@@ -15,6 +15,7 @@ import { createServer } from 'http';
 import { join, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { virtualExists, virtualReadFile } from '../embedded/virtual-fs.js';
+import { readEmbeddedFile, isBunCompiled } from '../embedded/runtime.js';
 import { generateToken, checkAuth, handleLogin, setAuthEnabled } from './middleware/auth.js';
 import { handleSessions } from './routes/sessions.js';
 import { handleChatV2, handleChatStream, handlePermissionResponse } from './routes/chat-v2.js';
@@ -106,6 +107,37 @@ function serveStatic(req, res) {
     const urlPath = rawUrl.split('?')[0] ?? '/';
     if (urlPath === '/login')
         return false; // handled separately
+    // ── Bun-compiled mode: embedded data first ──
+    if (isBunCompiled) {
+        const embeddedKey = (urlPath === '/' || urlPath === '')
+            ? 'UI/web-console/index.html'
+            : `UI/web-console${urlPath}`;
+        let content = readEmbeddedFile(embeddedKey);
+        let resolvedPath = embeddedKey;
+        // SPA fallback: serve index.html for unmatched routes
+        if (content === null) {
+            content = readEmbeddedFile('UI/web-console/index.html');
+            resolvedPath = 'UI/web-console/index.html';
+        }
+        if (content === null) {
+            res.writeHead(404);
+            res.end('Not Found');
+            return true;
+        }
+        const ext = extname(resolvedPath).toLowerCase();
+        const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
+        const headers = { 'Content-Type': contentType };
+        if (ext === '.html') {
+            headers['Content-Security-Policy'] =
+                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
+                    "connect-src 'self'; img-src 'self' data:; font-src 'self'; " +
+                    "frame-src 'none'; object-src 'none';";
+        }
+        res.writeHead(200, headers);
+        res.end(content);
+        return true;
+    }
+    // ── Filesystem mode (npm/dev) ──
     let filePath;
     if (urlPath === '/' || urlPath === '') {
         filePath = join(WEB_CONSOLE_DIR, 'index.html');

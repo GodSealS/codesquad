@@ -164,49 +164,49 @@ async function confirmNextStep(nextStep) {
 function presentPathA() {
     console.log();
     console.log(chalk.bold.cyan('Recommended Workflow Path — Concept Phase:'));
-    console.log(chalk.dim('  brainstorm open          → Discover your game concept'));
-    console.log(chalk.dim('  setup-engine             → Configure the engine'));
-    console.log(chalk.dim('  art-bible                → Define visual identity'));
-    console.log(chalk.dim('  map-systems              → Decompose concept into systems'));
-    console.log(chalk.dim('  design-system            → Author GDDs for each system'));
-    console.log(chalk.dim('  review-all-gdds          → Cross-system consistency check'));
-    console.log(chalk.dim('  gate-check               → Validate readiness'));
+    console.log(chalk.dim('  /brainstorm open         → Discover your game concept'));
+    console.log(chalk.dim('  /setup-engine            → Configure the engine'));
+    console.log(chalk.dim('  /art-bible               → Define visual identity'));
+    console.log(chalk.dim('  /map-systems             → Decompose concept into systems'));
+    console.log(chalk.dim('  /design-system           → Author GDDs for each system'));
+    console.log(chalk.dim('  /review-all-gdds         → Cross-system consistency check'));
+    console.log(chalk.dim('  /gate-check              → Validate readiness'));
     console.log();
     console.log(chalk.bold.cyan('Architecture Phase:'));
-    console.log(chalk.dim('  create-architecture      → Master architecture blueprint'));
-    console.log(chalk.dim('  architecture-decision    → Record key technical decisions'));
-    console.log(chalk.dim('  create-control-manifest  → Actionable rules sheet'));
-    console.log(chalk.dim('  architecture-review      → Validate coverage'));
+    console.log(chalk.dim('  /create-architecture     → Master architecture blueprint'));
+    console.log(chalk.dim('  /architecture-decision   → Record key technical decisions'));
+    console.log(chalk.dim('  /create-control-manifest → Actionable rules sheet'));
+    console.log(chalk.dim('  /architecture-review     → Validate coverage'));
     console.log();
     console.log(chalk.bold.cyan('Pre-Production Phase:'));
-    console.log(chalk.dim('  create-epics / create-stories → Map systems to implementable stories'));
+    console.log(chalk.dim('  /create-epics / /create-stories → Map systems to implementable stories'));
     console.log();
-    logger.info('Next: Run `codesquad brainstorm` to begin.');
+    logger.info('Next: Run `codesquad repl` then type `/brainstorm open` to begin.');
 }
 function presentPathB() {
     console.log();
     console.log(chalk.bold.cyan('Recommended Workflow Path — Concept Phase:'));
-    console.log(chalk.dim('  brainstorm [hint]        → Develop your idea into a full concept'));
-    console.log(chalk.dim('  setup-engine             → Configure the engine'));
-    console.log(chalk.dim('  art-bible                → Define visual identity'));
-    console.log(chalk.dim('  map-systems              → Decompose concept into systems'));
-    console.log(chalk.dim('  design-system            → Author GDDs for each system'));
-    console.log(chalk.dim('  gate-check               → Validate readiness'));
+    console.log(chalk.dim('  /brainstorm [hint]       → Develop your idea into a full concept'));
+    console.log(chalk.dim('  /setup-engine            → Configure the engine'));
+    console.log(chalk.dim('  /art-bible               → Define visual identity'));
+    console.log(chalk.dim('  /map-systems             → Decompose concept into systems'));
+    console.log(chalk.dim('  /design-system           → Author GDDs for each system'));
+    console.log(chalk.dim('  /gate-check              → Validate readiness'));
     console.log();
     console.log(chalk.bold.cyan('Architecture → Pre-Production:'));
-    console.log(chalk.dim('  create-architecture → architecture-decision → create-epics → create-stories'));
+    console.log(chalk.dim('  /create-architecture → /architecture-decision → /create-epics → /create-stories'));
     console.log();
-    logger.info('Next: Run `codesquad brainstorm "your idea hint"` to begin.');
+    logger.info('Next: Run `codesquad repl` then type `/brainstorm "your idea hint"` to begin.');
 }
 function presentPathC() {
     console.log();
     console.log(chalk.bold.cyan('Recommended Workflow Path:'));
-    console.log(chalk.dim('  brainstorm [concept]     → Formalize into a structured document'));
+    console.log(chalk.dim('  /brainstorm [concept]    → Formalize into a structured document'));
     console.log(chalk.dim('    -or-                   → Skip to setup-engine'));
-    console.log(chalk.dim('  setup-engine             → Configure the engine'));
-    console.log(chalk.dim('  design-review            → Validate the concept doc'));
-    console.log(chalk.dim('  map-systems → design-system → gate-check'));
-    console.log(chalk.dim('  create-architecture → create-epics → create-stories'));
+    console.log(chalk.dim('  /setup-engine            → Configure the engine'));
+    console.log(chalk.dim('  /design-review           → Validate the concept doc'));
+    console.log(chalk.dim('  /map-systems → /design-system → /gate-check'));
+    console.log(chalk.dim('  /create-architecture → /create-epics → /create-stories'));
     console.log();
 }
 function presentPathD(state) {
@@ -327,15 +327,20 @@ export async function runStart(options = {}) {
         logger.info('Docs already initialized — skipping template copy.');
     }
     // Phase 4: Confirm next step
-    const recommendedFirst = path === 'A' ? 'brainstorm open' :
-        path === 'B' ? 'brainstorm [your hint]' :
-            path === 'C' ? 'brainstorm [your concept]' :
+    const recommendedFirst = path === 'A' ? '/brainstorm open' :
+        path === 'B' ? '/brainstorm [your hint]' :
+            path === 'C' ? '/brainstorm [your concept]' :
                 !state.engineConfigured ? 'setup-engine' :
                     'project-stage-detect';
     console.log();
     const confirmed = await confirmNextStep(recommendedFirst);
     if (confirmed) {
-        console.log(chalk.cyan(`\nType \`codesquad ${recommendedFirst}\` to begin.`));
+        if (recommendedFirst.startsWith('/')) {
+            console.log(chalk.cyan(`\nRun \`codesquad repl\` then type \`${recommendedFirst}\` to begin.`));
+        }
+        else {
+            console.log(chalk.cyan(`\nType \`codesquad ${recommendedFirst}\` to begin.`));
+        }
     }
     else {
         console.log(chalk.dim('\nTry `codesquad --help` to see all available commands.'));

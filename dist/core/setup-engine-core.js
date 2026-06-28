@@ -415,6 +415,6 @@ export async function runSetupEngine(options = {}) {
     console.log(chalk.dim('Next Steps:'));
     console.log(chalk.dim(`  1. Review docs/engine-reference/${engine}/VERSION.md`));
     console.log(chalk.dim('  2. Verify the engine directory structure'));
-    console.log(chalk.dim('  3. Run `codesquad brainstorm` to discover your game concept'));
+    console.log(chalk.dim('  3. Run `codesquad repl` then type `/brainstorm` to discover your game concept'));
 }
 //# sourceMappingURL=setup-engine-core.js.map

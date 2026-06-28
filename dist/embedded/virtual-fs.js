@@ -14,11 +14,22 @@
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, relative } from 'path';
 import { fileURLToPath } from 'url';
-import { readEmbeddedFile, readEmbeddedDir, existsEmbeddedPath, } from './runtime.js';
-// ── Package root (same as web server's PKG_ROOT) ──
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const PKG_ROOT = join(__dirname, '..', '..');
-const AICORE_ROOT = join(PKG_ROOT, 'AICore');
+import { readEmbeddedFile, readEmbeddedDir, existsEmbeddedPath, isBunCompiled, } from './runtime.js';
+// ── Package root ──
+let PKG_ROOT;
+let AICORE_ROOT;
+if (isBunCompiled) {
+    // In Bun-compiled binary, import.meta.url is not a valid file:// URL,
+    // so fileURLToPath crashes. Use sentinel paths — actual web-console
+    // static file serving bypasses virtual-fs and reads embedded data directly.
+    PKG_ROOT = '/__codesquad_bundle__';
+    AICORE_ROOT = '/__codesquad_bundle__/AICore';
+}
+else {
+    const __dirname = fileURLToPath(new URL('.', import.meta.url));
+    PKG_ROOT = join(__dirname, '..', '..');
+    AICORE_ROOT = join(PKG_ROOT, 'AICore');
+}
 /**
  * Try to map an absolute filesystem path to an embedded-relative key.
  * Returns null if the path doesn't fall under a known embedded root.

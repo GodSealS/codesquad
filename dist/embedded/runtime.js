@@ -5,8 +5,7 @@
  * is embedded in the binary as Base64-encoded string constants.
  * This module decodes on read so callers always get plaintext.
  */
-import { createRequire } from 'module';
-const _require = createRequire(import.meta.url);
+import { EMBEDDED_FILES, IS_BASE64_ENCODED, EMBEDDED_DIRS, EMBEDDED_FILE_SET, EMBEDDED_STATS, } from './aicore-data.js';
 /**
  * Whether the current process is a Bun-compiled binary.
  *
@@ -25,8 +24,6 @@ function decodeEmbedded(encoded) {
  * @returns File content as string, or null if not found
  */
 export function readEmbeddedFile(relativePath) {
-    // Lazy-load to avoid circular dependency at module init time
-    const { EMBEDDED_FILES, IS_BASE64_ENCODED } = _require('./aicore-data.js');
     const raw = EMBEDDED_FILES[relativePath];
     if (!raw)
         return null;
@@ -37,14 +34,12 @@ export function readEmbeddedFile(relativePath) {
  * @returns Array of entry names, or empty array if dir not found
  */
 export function readEmbeddedDir(relativeDir) {
-    const { EMBEDDED_DIRS } = _require('./aicore-data.js');
     return EMBEDDED_DIRS[relativeDir] ?? [];
 }
 /**
  * Check if a path exists in embedded data.
  */
 export function existsEmbeddedPath(relativePath) {
-    const { EMBEDDED_FILE_SET } = _require('./aicore-data.js');
     return EMBEDDED_FILE_SET.has(relativePath);
 }
 /**
@@ -52,7 +47,6 @@ export function existsEmbeddedPath(relativePath) {
  */
 export function getEmbeddedStats() {
     try {
-        const { EMBEDDED_STATS } = _require('./aicore-data.js');
         return EMBEDDED_STATS;
     }
     catch {
