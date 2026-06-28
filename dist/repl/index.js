@@ -14,6 +14,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import { virtualExists, virtualReadFile, virtualReadDir } from '../embedded/virtual-fs.js';
+import { readEmbeddedFile } from '../embedded/runtime.js';
 import { parseInput } from './parser.js';
 import { renderBanner, renderProviderStatus, renderHelp, renderTokenUsage, errorLine, warnLine, okLine, infoLine, separator, startSpinner, stopSpinner, renderFormattedContent, } from './display.js';
 import { createEditor, enterEditMode, appendLine, getFullText, cancelEdit, isInEditMode, editPrompt, getSubmitFallbackHint, } from './editor.js';
@@ -117,15 +118,12 @@ const AICORE_DIR = join(__dirname, '..', '..', 'AICore');
 const PROJECT_ROOT = join(__dirname, '..', '..');
 // Read version with embedded mode fallback (Bun compile)
 function getReplPkg() {
-    if (!import.meta.url.startsWith('file://')) {
-        try {
-            const { readEmbeddedFile } = require('../embedded/runtime.js');
-            const raw = readEmbeddedFile('package.json');
-            if (raw)
-                return JSON.parse(raw);
-        }
-        catch { /* fall through */ }
+    try {
+        const raw = readEmbeddedFile('package.json');
+        if (raw)
+            return JSON.parse(raw);
     }
+    catch { /* fall through */ }
     try {
         return JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf-8'));
     }

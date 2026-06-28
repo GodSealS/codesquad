@@ -190,26 +190,26 @@ api:
   #   apiKey: sk-****-xxx        # ← 同上，共享
   # ═══════════════════════════════════════════════════════════════
   # Claude：
-  #  claude-sonnet-4-20250514:
+  #  claude-sonnet-4-20250514:（Token供应商提供的模型名字）
   #     provider: anthropic            # ← 关键！必须设 "anthropic"
   #     baseUrl: https://api.anthropic.com
   #     apiKey: ${ANTHROPIC_API_KEY}   # 或用你的 sk-ant-... 密钥
   # OpenAI：
-  # openai-v3:
+  # openai-v3: （Token供应商提供的模型名字）
   #   provider: openai
   #   baseUrl: https://api.openai.com/v1
   #   apiKey: <KEY>
-  # openai-v4:
+  # openai-v4: （Token供应商提供的模型名字）
   #   provider: openai
   #   baseUrl: https://api.openai.com/v1
   #   apiKey: <KEY>
   # Gemini：
-  # gemini-v1:
+  # gemini-v1: （Token供应商提供的模型名字）
   #   provider: gemini
   #   baseUrl: https://api.gemini.ai/v1
   #   apiKey: <KEY>
   #第三方中转
-  # my-proxy:
+  # my-proxy: （Token供应商提供的模型名字）
   # provider: openai-compatible
   # baseUrl: https://your-proxy.com/v1
   # apiKey: sk-****xxxx

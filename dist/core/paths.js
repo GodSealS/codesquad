@@ -19,12 +19,26 @@
  */
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const require = createRequire(import.meta.url);
+import { virtualExists, virtualReadFile, virtualReadDir, } from '../embedded/virtual-fs.js';
+import { isBunCompiled } from '../embedded/runtime.js';
+let __filename;
+let __dirname;
+try {
+    __filename = fileURLToPath(import.meta.url);
+    __dirname = dirname(__filename);
+}
+catch {
+    // Bun v1.0 compiled: import.meta.url has no file:// prefix.
+    // fileURLToPath throws → use sentinel that matches virtual-fs.ts fallback.
+    __dirname = '/__codesquad_bundle__';
+    __filename = '/__codesquad_bundle__/src/core/paths.js';
+}
 /** Absolute path to the installed codesquad package root. */
-export const CLI_PACKAGE_ROOT = resolve(__dirname, '..', '..');
+// Bun-compiled: import.meta.url gives the binary's virtual root (no ../.. needed).
+// npm/dev:     __dirname = <pkg>/src/core → go up 2 to reach <pkg>.
+export const CLI_PACKAGE_ROOT = isBunCompiled
+    ? __dirname
+    : resolve(__dirname, '..', '..');
 /** Absolute path to the AICore asset directory (canonical agent & skill defs). */
 export const AICORE_ROOT = join(CLI_PACKAGE_ROOT, 'AICore');
 /** Absolute path to the AICore/agents subdirectory. */
@@ -114,9 +128,6 @@ export function isEmbeddedMode() {
     if (_isEmbeddedMode !== null)
         return _isEmbeddedMode;
     try {
-        // Dynamic import to avoid loading runtime.ts in non-embedded builds
-        // that don't have src/embedded/ available
-        const { isBunCompiled } = require('../embedded/runtime.js');
         _isEmbeddedMode = isBunCompiled;
     }
     catch {
@@ -132,8 +143,6 @@ export function isEmbeddedMode() {
  * @returns File content as string, or null if not found
  */
 export function readAicoreFile(relativePath) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { virtualReadFile, virtualExists } = require('../embedded/virtual-fs.js');
     const fullPath = join(AICORE_ROOT, relativePath);
     if (!virtualExists(fullPath))
         return null;
@@ -152,8 +161,6 @@ export function readAicoreFile(relativePath) {
  * @returns Array of entry names, or empty array if dir not found
  */
 export function readAicoreDir(relativeDir) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { virtualReadDir } = require('../embedded/virtual-fs.js');
     const fullPath = join(AICORE_ROOT, relativeDir);
     try {
         return virtualReadDir(fullPath);
@@ -167,8 +174,6 @@ export function readAicoreDir(relativeDir) {
  * Uses VirtualFS which transparently checks embedded data or disk.
  */
 export function existsAicorePath(relativePath) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { virtualExists } = require('../embedded/virtual-fs.js');
     return virtualExists(join(AICORE_ROOT, relativePath));
 }
 //# sourceMappingURL=paths.js.map

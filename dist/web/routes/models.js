@@ -4,14 +4,32 @@ import { fileURLToPath } from 'url';
 import { resolveEnvValue } from '../../utils/env-resolver.js';
 import { getContextWindow } from '../../context/auto-compact.js';
 import { virtualExists, virtualReadFile } from '../../embedded/virtual-fs.js';
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const PKG_ROOT = join(__dirname, '..', '..', '..');
+import { readEmbeddedFile } from '../../embedded/runtime.js';
+let PKG_ROOT;
+try {
+    const __dirname = fileURLToPath(new URL('.', import.meta.url));
+    PKG_ROOT = join(__dirname, '..', '..', '..');
+}
+catch {
+    PKG_ROOT = process.cwd();
+}
 function loadApiSources() {
+    let raw = null;
+    // 1) Filesystem first (handles user edits in dev mode)
     const configPath = join(PKG_ROOT, 'models.config.yaml');
+    if (virtualExists(configPath)) {
+        raw = virtualReadFile(configPath, 'utf-8');
+    }
+    // 2) Embedded fallback (Bun-compiled mode)
+    if (raw === null) {
+        try {
+            raw = readEmbeddedFile('models.config.yaml');
+        }
+        catch { /* not embedded */ }
+    }
+    if (raw === null)
+        return {};
     try {
-        if (!virtualExists(configPath))
-            return {};
-        const raw = virtualReadFile(configPath, 'utf-8');
         const config = parseYaml(raw);
         const rawSources = config?.api?.sources ?? {};
         const result = {};

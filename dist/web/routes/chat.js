@@ -13,8 +13,14 @@ import { createSSEStream } from '../sse.js';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { virtualExists, virtualReadFile } from '../../embedded/virtual-fs.js';
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const AICORE_DIR = join(__dirname, '..', '..', '..', 'AICore');
+let AICORE_DIR;
+try {
+    const __dirname = fileURLToPath(new URL('.', import.meta.url));
+    AICORE_DIR = join(__dirname, '..', '..', '..', 'AICore');
+}
+catch {
+    AICORE_DIR = join(process.cwd(), 'AICore');
+}
 function loadAgentPrompt(name) {
     const p = join(AICORE_DIR, 'agents', `${name}.md`);
     try {

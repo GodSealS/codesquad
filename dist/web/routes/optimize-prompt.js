@@ -10,8 +10,15 @@ import { fileURLToPath } from 'url';
 import { parse as parseYaml } from 'yaml';
 import { resolveEnvValue } from '../../utils/env-resolver.js';
 import { virtualExists, virtualReadFile } from '../../embedded/virtual-fs.js';
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const PKG_ROOT = join(__dirname, '..', '..', '..');
+import { readEmbeddedFile } from '../../embedded/runtime.js';
+let PKG_ROOT;
+try {
+    const __dirname = fileURLToPath(new URL('.', import.meta.url));
+    PKG_ROOT = join(__dirname, '..', '..', '..');
+}
+catch {
+    PKG_ROOT = process.cwd();
+}
 function readBody(req) {
     return new Promise((resolve, reject) => {
         const chunks = [];
@@ -28,11 +35,20 @@ function readBody(req) {
     });
 }
 function loadApiSources() {
+    let raw = null;
     const configPath = join(PKG_ROOT, 'models.config.yaml');
+    if (virtualExists(configPath)) {
+        raw = virtualReadFile(configPath, 'utf-8');
+    }
+    if (raw === null) {
+        try {
+            raw = readEmbeddedFile('models.config.yaml');
+        }
+        catch { /* not embedded */ }
+    }
+    if (raw === null)
+        return {};
     try {
-        if (!virtualExists(configPath))
-            return {};
-        const raw = virtualReadFile(configPath, 'utf-8');
         const config = parseYaml(raw);
         return config?.api?.sources ?? {};
     }

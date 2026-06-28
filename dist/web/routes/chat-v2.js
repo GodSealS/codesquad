@@ -23,10 +23,19 @@ import { setProjectRoot, saveSession as persistSession } from '../../chat/storag
 import { resolveModel } from '../../generators/model-resolver.js';
 import { resolveEnvValue } from '../../utils/env-resolver.js';
 import { virtualExists, virtualReadFile, sanitizeAicorePaths } from '../../embedded/virtual-fs.js';
+import { readEmbeddedFile } from '../../embedded/runtime.js';
 import { notifyError } from '../../utils/error-logger.js';
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const PKG_ROOT = join(__dirname, '..', '..', '..');
-const AICORE_DIR = join(PKG_ROOT, 'AICore');
+let PKG_ROOT;
+let AICORE_DIR;
+try {
+    const __dirname = fileURLToPath(new URL('.', import.meta.url));
+    PKG_ROOT = join(__dirname, '..', '..', '..');
+    AICORE_DIR = join(PKG_ROOT, 'AICore');
+}
+catch {
+    PKG_ROOT = process.cwd();
+    AICORE_DIR = join(process.cwd(), 'AICore');
+}
 /** Maps HTTP status codes to human-readable Chinese annotations. */
 const STATUS_NOTE = {
     400: '请求参数错误',
@@ -55,13 +64,24 @@ function readBody(req) {
         req.on('error', reject);
     });
 }
-/** Load API source configuration from models.config.yaml (virtual-fs for embedded support) */
-function loadApiSources() {
+/** Try to read models.config.yaml — filesystem first, embedded fallback. */
+function readModelsConfigRaw() {
     const configPath = join(PKG_ROOT, 'models.config.yaml');
+    if (virtualExists(configPath))
+        return virtualReadFile(configPath, 'utf-8');
     try {
-        if (!virtualExists(configPath))
+        return readEmbeddedFile('models.config.yaml');
+    }
+    catch {
+        return null;
+    }
+}
+/** Load API source configuration from models.config.yaml */
+function loadApiSources() {
+    try {
+        const raw = readModelsConfigRaw();
+        if (!raw)
             return {};
-        const raw = virtualReadFile(configPath, 'utf-8');
         const config = parseYaml(raw);
         return config?.api?.sources ?? {};
     }
@@ -71,11 +91,10 @@ function loadApiSources() {
 }
 /** Load full models config (agents, skills, batch, default) for model resolution */
 function loadFullModelsConfig() {
-    const configPath = join(PKG_ROOT, 'models.config.yaml');
     try {
-        if (!virtualExists(configPath))
+        const raw = readModelsConfigRaw();
+        if (!raw)
             return { version: 1, api: { sources: {} } };
-        const raw = virtualReadFile(configPath, 'utf-8');
         const config = parseYaml(raw);
         return {
             version: config.version ?? 1,

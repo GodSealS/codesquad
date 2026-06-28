@@ -15,7 +15,7 @@ import { createServer } from 'http';
 import { join, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { virtualExists, virtualReadFile } from '../embedded/virtual-fs.js';
-import { readEmbeddedFile, isBunCompiled } from '../embedded/runtime.js';
+import { readEmbeddedFile } from '../embedded/runtime.js';
 import { generateToken, checkAuth, handleLogin, setAuthEnabled } from './middleware/auth.js';
 import { handleSessions } from './routes/sessions.js';
 import { handleChatV2, handleChatStream, handlePermissionResponse } from './routes/chat-v2.js';
@@ -58,10 +58,24 @@ import { ToolSearchTool } from '../tools/ToolSearchTool.js';
 import { loadAICoreConfig } from '../config/aicore-config.js';
 import { initHooksFromAICore } from '../hooks/config-loader.js';
 import { initErrorLogger } from '../utils/error-logger.js';
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const PKG_ROOT = join(__dirname, '..', '..');
-const WEB_CONSOLE_DIR = join(PKG_ROOT, 'UI', 'web-console');
-const AICORE_DIR = join(PKG_ROOT, 'AICore');
+let __dirname;
+let PKG_ROOT;
+let WEB_CONSOLE_DIR;
+let AICORE_DIR;
+try {
+    __dirname = fileURLToPath(new URL('.', import.meta.url));
+    PKG_ROOT = join(__dirname, '..', '..');
+    WEB_CONSOLE_DIR = join(PKG_ROOT, 'UI', 'web-console');
+    AICORE_DIR = join(PKG_ROOT, 'AICore');
+}
+catch {
+    // Bun-compiled binary: fileURLToPath may fail.
+    // Static files served via readEmbeddedFile (serveStatic),
+    // AICore content via virtual-fs with fallback PKG_ROOT.
+    PKG_ROOT = process.cwd();
+    WEB_CONSOLE_DIR = join(PKG_ROOT, 'UI', 'web-console');
+    AICORE_DIR = join(PKG_ROOT, 'AICore');
+}
 /** Initialize builtin tools and permissions (does NOT depend on project root). */
 function initBuiltinToolsAndPermissions() {
     // Register all 19 builtin tools (mirrors REPL tool pool)
@@ -103,41 +117,48 @@ const MIME_TYPES = {
 };
 function serveStatic(req, res) {
     const rawUrl = req.url ?? '/';
-    // Strip query string
     const urlPath = rawUrl.split('?')[0] ?? '/';
     if (urlPath === '/login')
         return false; // handled separately
-    // ── Bun-compiled mode: embedded data first ──
-    if (isBunCompiled) {
-        const embeddedKey = (urlPath === '/' || urlPath === '')
-            ? 'UI/web-console/index.html'
-            : `UI/web-console${urlPath}`;
-        let content = readEmbeddedFile(embeddedKey);
-        let resolvedPath = embeddedKey;
-        // SPA fallback: serve index.html for unmatched routes
-        if (content === null) {
-            content = readEmbeddedFile('UI/web-console/index.html');
-            resolvedPath = 'UI/web-console/index.html';
+    // ── Strategy: try embedded data first (works in Bun-compiled mode),
+    //     fall back to filesystem (works in npm/dev mode). ──
+    //     No isBunCompiled check needed — embedded data silently returns
+    //     null if not available and we delegate to the filesystem path.
+    const embeddedKey = (urlPath === '/' || urlPath === '')
+        ? 'UI/web-console/index.html'
+        : `UI/web-console${urlPath}`;
+    let embeddedContent = null;
+    let resolvedExt = '';
+    try {
+        embeddedContent = readEmbeddedFile(embeddedKey);
+        if (embeddedContent !== null) {
+            resolvedExt = extname(embeddedKey).toLowerCase();
         }
-        if (content === null) {
-            res.writeHead(404);
-            res.end('Not Found');
-            return true;
+        else {
+            // SPA fallback in embedded mode
+            embeddedContent = readEmbeddedFile('UI/web-console/index.html');
+            if (embeddedContent !== null) {
+                resolvedExt = '.html';
+            }
         }
-        const ext = extname(resolvedPath).toLowerCase();
-        const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
+    }
+    catch {
+        // readEmbeddedFile threw — not in compiled mode, fall through
+    }
+    if (embeddedContent !== null) {
+        const contentType = MIME_TYPES[resolvedExt] ?? 'application/octet-stream';
         const headers = { 'Content-Type': contentType };
-        if (ext === '.html') {
+        if (resolvedExt === '.html') {
             headers['Content-Security-Policy'] =
                 "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
                     "connect-src 'self'; img-src 'self' data:; font-src 'self'; " +
                     "frame-src 'none'; object-src 'none';";
         }
         res.writeHead(200, headers);
-        res.end(content);
+        res.end(embeddedContent);
         return true;
     }
-    // ── Filesystem mode (npm/dev) ──
+    // ── Filesystem fallback (npm/dev mode) ──
     let filePath;
     if (urlPath === '/' || urlPath === '') {
         filePath = join(WEB_CONSOLE_DIR, 'index.html');
@@ -151,9 +172,7 @@ function serveStatic(req, res) {
     if (!normalized.startsWith(base)) {
         return false;
     }
-    // VirtualFS: embedded-first, filesystem-fallback
     if (!virtualExists(filePath)) {
-        // SPA fallback: serve index.html for any unmatched route
         filePath = join(WEB_CONSOLE_DIR, 'index.html');
         if (!virtualExists(filePath)) {
             res.writeHead(404);
@@ -164,9 +183,8 @@ function serveStatic(req, res) {
     const ext = extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
     try {
-        const content = virtualReadFile(filePath); // returns Buffer for binary or string
+        const content = virtualReadFile(filePath);
         const headers = { 'Content-Type': contentType };
-        // CSP for HTML pages
         if (ext === '.html') {
             headers['Content-Security-Policy'] =
                 "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +

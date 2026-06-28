@@ -16,20 +16,22 @@ import { join, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { readEmbeddedFile, readEmbeddedDir, existsEmbeddedPath, isBunCompiled, } from './runtime.js';
 // ── Package root ──
+// Bun v1.1+ compiled binaries: import.meta.url starts with file://,
+// so fileURLToPath works and gives the virtual ~BUN root.
+// Bun v1.0 or tsx: fileURLToPath works normally.
+// Bun v1.0 compiled (no file://): fileURLToPath throws → try-catch fallback.
 let PKG_ROOT;
 let AICORE_ROOT;
-if (isBunCompiled) {
-    // In Bun-compiled binary, import.meta.url is not a valid file:// URL,
-    // so fileURLToPath crashes. Use sentinel paths — actual web-console
-    // static file serving bypasses virtual-fs and reads embedded data directly.
-    PKG_ROOT = '/__codesquad_bundle__';
-    AICORE_ROOT = '/__codesquad_bundle__/AICore';
-}
-else {
+try {
     const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    PKG_ROOT = join(__dirname, '..', '..');
-    AICORE_ROOT = join(PKG_ROOT, 'AICore');
+    // Bun-compiled: __dirname IS the binary's virtual root (no ../.. needed).
+    PKG_ROOT = isBunCompiled ? __dirname : join(__dirname, '..', '..');
 }
+catch {
+    // Pre-Bun 1.1 compiled binary: import.meta.url lacks file:// prefix.
+    PKG_ROOT = '/__codesquad_bundle__';
+}
+AICORE_ROOT = join(PKG_ROOT, 'AICore');
 /**
  * Try to map an absolute filesystem path to an embedded-relative key.
  * Returns null if the path doesn't fall under a known embedded root.
