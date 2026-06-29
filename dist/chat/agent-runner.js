@@ -53,7 +53,12 @@ async function executeForkSkill(pending, config, rc, messages, parentSession, on
     while (retryCount < FORK_MAX_RETRIES) {
         try {
             // Build system prompt for fork execution
+            // Fix: inject language instruction so fork respects UI language setting
+            const forkLangPrompt = config.lang === 'zh'
+                ? '**你必须使用简体中文回复。** 所有文本输出、思考、工具调用说明必须用中文。'
+                : '';
             const forkSystem = [
+                forkLangPrompt,
                 `You are executing a skill in an isolated context.`,
                 `Skill: ${pending.skillName}`,
                 pending.args ? `Arguments: ${pending.args}` : '',
@@ -123,8 +128,11 @@ async function executeForkSkill(pending, config, rc, messages, parentSession, on
                     continue; // S08: empty response doesn't kill fork
                 }
                 lastResponse = forkResp.content;
-                // Parse tool calls from fork response
-                const pool = assembleToolPool();
+                // Parse tool calls from fork response.
+                // S04: Filter Agent and TodoWrite from fork skill tool pool to prevent
+                // recursive agent nesting (fork skill → AgentTool → sub-agent → ...).
+                const FORK_DISALLOWED_TOOLS = new Set(['Agent', 'TodoWrite']);
+                const pool = assembleToolPool().filter(t => !FORK_DISALLOWED_TOOLS.has(t.name));
                 const toolCalls = parseToolCalls(null, forkResp.content, new Set(pool.map(t => t.name)));
                 if (toolCalls.length > 0) {
                     forkMessages.push({ role: 'assistant', content: forkResp.content });
@@ -290,27 +298,24 @@ export async function runAgent(config) {
     async function fallbackLLMCall(req) {
         // S01: 429 rate-limit retry with exponential backoff
         let lastError = null;
+        const isWebPath = !!configRuntimeConfig;
         for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
             try {
-                if (configRuntimeConfig) {
-                    // Web path: direct call, no fallback chain
+                if (isWebPath) {
+                    // Web path: use pre-built runtime config directly
                     return await callLLM(rc, req);
                 }
                 else {
                     // REPL path: primary → fallback_chain → Ollama (last resort)
-                    try {
-                        const routed = await callWithFallback(req, providerId, modelId, projectRoot);
-                        return { content: routed.content, model: routed.model, usage: routed.usage, toolCalls: routed.toolCalls };
-                    }
-                    catch {
-                        return await callLLM(rc, req);
-                    }
+                    const routed = await callWithFallback(req, providerId, modelId, projectRoot);
+                    return { content: routed.content, model: routed.model, usage: routed.usage, toolCalls: routed.toolCalls };
                 }
             }
             catch (err) {
                 lastError = err;
-                // Only retry on rate-limit (429) or temporary server errors
-                if (err instanceof LlmError && (err.status === 429 || err.status === 503 || err.status === 502)) {
+                // Only retry on rate-limit (429) or temporary server errors (502/503)
+                const isRetryable = err instanceof LlmError && (err.status === 429 || err.status === 503 || err.status === 502);
+                if (isRetryable) {
                     if (attempt < MAX_429_RETRIES) {
                         const delayMs = Math.min(BASE_RETRY_DELAY_MS * Math.pow(2, attempt), 30_000);
                         logDiagnostic('WARN', 'agent-runner', `LLM retry ${attempt + 1}/${MAX_429_RETRIES} after ${delayMs}ms (status ${err.status})`, {
@@ -319,9 +324,46 @@ export async function runAgent(config) {
                         await new Promise(r => setTimeout(r, delayMs));
                         continue;
                     }
+                    // S02: Retries exhausted for web path 502/503 → don't throw, let fallback chain run
+                    if (isWebPath && (err.status === 502 || err.status === 503)) {
+                        logDiagnostic('WARN', 'agent-runner', 'LLM retries exhausted — will attempt fallback chain', {
+                            sessionId: session.id, turn, model: modelId, status: err.status, attempts: attempt + 1,
+                        });
+                        break;
+                    }
                 }
-                // Non-retryable error or retries exhausted → throw
+                // Non-retryable error or REPL path retries exhausted → throw immediately
+                logDiagnostic('ERROR', 'agent-runner', 'LLM retries exhausted', {
+                    sessionId: session.id,
+                    turn,
+                    model: modelId,
+                    provider: rc.name,
+                    status: err instanceof LlmError ? err.status : undefined,
+                    attempts: attempt + 1,
+                    lastError: lastError?.message,
+                });
                 throw lastError;
+            }
+        }
+        // S02: Web path — primary provider exhausted on 502/503 → try fallback chain
+        if (isWebPath && lastError instanceof LlmError && (lastError.status === 502 || lastError.status === 503)) {
+            logDiagnostic('WARN', 'agent-runner', 'Primary provider exhausted, attempting fallback chain', {
+                sessionId: session.id, turn, primaryProvider: rc.name,
+            });
+            try {
+                // callWithFallback tries the full chain: primary → fallback_chain → Ollama.
+                // The primary lookup may skip (web path uses model keys not in the registry),
+                // but fallback_chain entries and Ollama will still be attempted.
+                const routed = await callWithFallback(req, rc.id, modelId, projectRoot);
+                logDiagnostic('INFO', 'agent-runner', 'Fallback chain succeeded', {
+                    sessionId: session.id, routedVia: routed.routedVia,
+                });
+                return { content: routed.content, model: routed.model, usage: routed.usage, toolCalls: routed.toolCalls };
+            }
+            catch (fbErr) {
+                logDiagnostic('ERROR', 'agent-runner', 'Fallback chain also failed', {
+                    sessionId: session.id, turn, error: fbErr.message,
+                });
             }
         }
         throw lastError ?? new Error('LLM call failed after retries');
@@ -510,7 +552,11 @@ export async function runAgent(config) {
                             streamed = event.response;
                         }
                         else if (event.type === 'error') {
-                            throw new LlmError(event.error || 'Stream error', 0, providerId);
+                            // S03: Preserve HTTP status from error message (e.g. "API 错误 502（上游服务异常）from ...")
+                            const errMsg = event.error || 'Stream error';
+                            const statusMatch = errMsg.match(/API 错误 (\d+)/);
+                            const streamStatus = statusMatch ? parseInt(statusMatch[1], 10) : 0;
+                            throw new LlmError(errMsg, streamStatus, providerId);
                         }
                     }
                     if (!streamed)

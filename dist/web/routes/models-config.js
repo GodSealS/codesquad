@@ -8,11 +8,10 @@
  *            fall back to filesystem (npm/dev mode).
  *            POST always writes to working directory.
  */
-import { writeFileSync } from 'fs';
+import { writeFileSync, existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as parseYaml } from 'yaml';
-import { virtualExists, virtualReadFile } from '../../embedded/virtual-fs.js';
 import { readEmbeddedFile } from '../../embedded/runtime.js';
 // Package root for dev mode — compiled mode bypasses this
 let PKG_ROOT;
@@ -32,22 +31,29 @@ function readBody(req) {
     });
 }
 export async function handleModelsConfig(req, res, services, _path, method) {
-    // GET — filesystem first (dev mode reflects live edits), embedded fallback (compiled mode)
+    // GET — real filesystem first (user may have edited / POST-saved), embedded fallback
     if (method === 'GET') {
         let yaml = null;
-        // 1) Filesystem first (handles user edits in dev mode)
-        const configPath = join(PKG_ROOT, 'models.config.yaml');
-        if (virtualExists(configPath)) {
-            yaml = virtualReadFile(configPath, 'utf-8');
+        // S05: Read from real filesystem FIRST — bypass virtual-fs which would
+        // return stale embedded content. models.config.yaml is user-editable and
+        // POST saves to cwd; the embedded copy is a build-time snapshot.
+        // 1) Working directory (where POST writes) — highest priority
+        const cwdPath = join(process.cwd(), 'models.config.yaml');
+        try {
+            if (existsSync(cwdPath))
+                yaml = readFileSync(cwdPath, 'utf-8');
         }
-        // 1b) Working directory fallback — POST saves to cwd/models.config.yaml
+        catch { /* fall through */ }
+        // 1b) Package root (dev mode) — next priority
         if (yaml === null) {
-            const cwdPath = join(process.cwd(), 'models.config.yaml');
-            if (virtualExists(cwdPath)) {
-                yaml = virtualReadFile(cwdPath, 'utf-8');
+            const configPath = join(PKG_ROOT, 'models.config.yaml');
+            try {
+                if (existsSync(configPath))
+                    yaml = readFileSync(configPath, 'utf-8');
             }
+            catch { /* fall through */ }
         }
-        // 2) Embedded fallback (Bun-compiled mode where filesystem path doesn't exist)
+        // 2) Embedded fallback (Bun-compiled mode where filesystem paths don't exist)
         if (yaml === null) {
             try {
                 yaml = readEmbeddedFile('models.config.yaml');

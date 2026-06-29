@@ -69,13 +69,22 @@ async function callOpenAI(provider, request) {
         model: request.model,
         max_tokens: request.maxTokens ?? 4096,
         temperature: request.temperature ?? 0.7,
-        messages: request.messages.map((m) => {
-            const msg = { role: m.role, content: m.content };
-            // Support native tool_calls in assistant messages (for conversation continuity)
-            if (m.tool_calls)
-                msg.tool_calls = m.tool_calls;
-            return msg;
-        }),
+        messages: [
+            // S04: Inject systemContentBlocks as system role messages for OpenAI-compatible APIs.
+            // Anthropic uses a separate "system" field, but OpenAI/DeepSeek expect system as a
+            // { role: 'system', content: '...' } message in the messages array.
+            // Without this, the language instruction and agent system prompt are silently dropped.
+            ...(request.systemContentBlocks && request.systemContentBlocks.length > 0
+                ? request.systemContentBlocks.map((b) => ({ role: 'system', content: b.text }))
+                : []),
+            ...request.messages.map((m) => {
+                const msg = { role: m.role, content: m.content };
+                // Support native tool_calls in assistant messages (for conversation continuity)
+                if (m.tool_calls)
+                    msg.tool_calls = m.tool_calls;
+                return msg;
+            }),
+        ],
     };
     // Streaming: OpenAI expects "stream": true in the body for SSE
     if (request.stream) {

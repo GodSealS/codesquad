@@ -47,6 +47,7 @@ export function createEphemeralSession(name, modelConfig) {
         turnCount: 0,
         lastCompactTurn: 0,
         lastAssistantTimestamp: '',
+        agentSpawnCount: 0,
     };
 }
 // ── Fork Markers on Session ──

@@ -141,6 +141,17 @@ export const AgentTool = buildTool({
     },
     async call(input, context) {
         const { subagent_type, description, prompt, run_in_background } = input;
+        // S04: Per-session agent spawn limit — prevents infinite nesting and "ball-kicking"
+        // where the main agent delegates to sub-agents in a loop across turns.
+        const MAX_AGENT_SPAWNS = 5;
+        if (context.session.agentSpawnCount >= MAX_AGENT_SPAWNS) {
+            return {
+                toolCallId: '',
+                output: { summary: '' },
+                content: `[Error] Agent spawn limit reached (${MAX_AGENT_SPAWNS}). This session has already spawned ${context.session.agentSpawnCount} sub-agents. To prevent infinite nesting loops, no more agents can be spawned. Start a new conversation if you need more sub-agents.`,
+                isError: true,
+            };
+        }
         // Register with instance manager (anchor for future scheduling)
         const mgr = getAgentInstanceManager();
         let instance = null;
@@ -203,6 +214,8 @@ export const AgentTool = buildTool({
                         continue;
                     }
                     try {
+                        // S04: Increment spawn counter for each coordinator sub-agent
+                        context.session.agentSpawnCount++;
                         const subResult = await runAgent({
                             definition: subAgent,
                             task: st.description,
@@ -244,6 +257,8 @@ export const AgentTool = buildTool({
         }
         // ── Background (async fire-and-forget) ──
         if (run_in_background || agent.background) {
+            // S04: Increment spawn counter to prevent infinite nesting
+            context.session.agentSpawnCount++;
             // Background tasks use their own abort controller (independent from parent)
             const bgAbortController = new AbortController();
             const instanceId = instance?.id;
@@ -291,6 +306,8 @@ export const AgentTool = buildTool({
         }
         // ── Synchronous execution ──
         try {
+            // S04: Increment spawn counter to prevent infinite nesting
+            context.session.agentSpawnCount++;
             const result = await runAgent({
                 definition: agent,
                 task: prompt,

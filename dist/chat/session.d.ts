@@ -55,6 +55,8 @@ export interface Session {
     lastCompactTurn: number;
     /** Defensive execution (S09): timestamp of the last assistant message (ISO 8601). */
     lastAssistantTimestamp: string;
+    /** S04: Agent spawn counter — caps nested agent calls to prevent infinite recursion. */
+    agentSpawnCount: number;
 }
 export declare function createSession(agent: string, modelConfig: ModelConfig, name?: string): Session;
 export declare function save(session: Session): Promise<void>;
