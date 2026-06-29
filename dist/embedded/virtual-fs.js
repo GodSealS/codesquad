@@ -51,12 +51,17 @@ function toEmbeddedPath(absPath) {
     }
     return null;
 }
-/** Check existence (embedded first, then disk). */
+/** Check existence (embedded first, then disk). Never throws. */
 export function virtualExists(absPath) {
     const embeddedPath = toEmbeddedPath(absPath);
     if (embeddedPath && existsEmbeddedPath(embeddedPath))
         return true;
-    return existsSync(absPath);
+    try {
+        return existsSync(absPath);
+    }
+    catch {
+        return false;
+    }
 }
 export function virtualReadFile(absPath, encoding) {
     const embeddedPath = toEmbeddedPath(absPath);
@@ -68,7 +73,12 @@ export function virtualReadFile(absPath, encoding) {
                 : Buffer.from(content, 'utf-8');
         }
     }
-    return readFileSync(absPath, encoding);
+    try {
+        return readFileSync(absPath, encoding);
+    }
+    catch {
+        throw new Error(`ENOENT: no such file or directory, stat '${absPath}'`);
+    }
 }
 /**
  * List directory entries (strings only — no withFileTypes).
@@ -129,5 +139,47 @@ export function sanitizeAicorePaths(text) {
     // Fix double-prefix: AICore/AICore/xxx → AICore/xxx
     result = result.replace(/\bAICore\/AICore\//g, 'AICore/');
     return result;
+}
+/**
+ * Pre-expand AICore file references in text by inlining the file content.
+ * Handles backtick-quoted paths like `AICore/docs/xxx.md` and bare paths
+ * like "Read AICore/docs/xxx.md" by replacing them with the file contents
+ * from the virtual filesystem.
+ *
+ * This is essential for Bun-compiled binaries where the LLM cannot read
+ * AICore files from disk — the content must be pre-inlined in the prompt.
+ */
+export function expandAicoreRefs(text) {
+    // Step 1: Expand backtick-quoted AICore paths: `AICore/xxx/yyy.md`
+    let result = text.replace(/`(AICore\/([^\s`]+\.md))`/gi, (_match, fullPath) => {
+        const content = tryReadAicoreFile(fullPath);
+        if (content !== null) {
+            return `[Content of ${fullPath}]\n\n${content}`;
+        }
+        return _match; // keep original if not found
+    });
+    // Step 2: Expand "Read AICore/xxx.md" or "读取 AICore/xxx.md" patterns
+    result = result.replace(/(?:Read|读取|查看|Check|检查)\s+`?(AICore\/([^\s`,.]+\.md))`?/gi, (_match, fullPath) => {
+        const content = tryReadAicoreFile(fullPath);
+        if (content !== null) {
+            return `[Content of ${fullPath} — pre-loaded below]\n\n${content}`;
+        }
+        return _match;
+    });
+    return result;
+}
+/** Try to read an AICore file from the virtual filesystem. Returns null if not found. */
+function tryReadAicoreFile(relativePath) {
+    // Strip leading AICore/ prefix — AICORE_ROOT already points to the AICore directory
+    const cleanPath = relativePath.replace(/^AICore[\/\\]/i, '');
+    const absPath = join(AICORE_ROOT, cleanPath);
+    if (!virtualExists(absPath))
+        return null;
+    try {
+        return virtualReadFile(absPath, 'utf-8');
+    }
+    catch {
+        return null;
+    }
 }
 //# sourceMappingURL=virtual-fs.js.map

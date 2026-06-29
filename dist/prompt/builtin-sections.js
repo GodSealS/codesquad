@@ -9,7 +9,7 @@
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join, dirname, resolve, parse } from 'path';
 import { platform, release } from 'os';
-import { CODESQUAD_USER_ROOT } from '../core/paths.js';
+import { CODESQUAD_USER_ROOT, existsAicorePath, readAicoreFile } from '../core/paths.js';
 import { systemPromptSection, uncachedSystemPromptSection } from './sections.js';
 import { getMemoryLimit } from '../chat/settings.js';
 import { summarizeHistory, formatHistorySummary } from '../chat/memory-summarizer.js';
@@ -23,6 +23,8 @@ import { getRulesContext } from '../rules/loader.js';
 import { listTasks } from '../tasks/store.js';
 // DiskCache for file summaries
 import { getDiskCache } from '../cache/disk-cache.js';
+// Virtual file system for embedded content in Bun-compiled builds
+import { fileExists, fileRead } from '../embedded/virtual-fs.js';
 // ── Cache: project guidance loaded once per project ──
 const _projectGuidanceCache = new Map();
 function _cacheKey(projectRoot, extraDirs, bare) {
@@ -124,14 +126,33 @@ function getAncestorDirectories(cwd) {
 /**
  * Resolve @include directives in markdown content.
  * Syntax: @path/to/file.md (relative to the including file's directory)
+ *
+ * Uses virtual file system (embedded-first) so @AICore/... references work in
+ * Bun-compiled binaries where AICore content is baked into the executable.
+ * When resolving @AICore/... from a project directory that differs from the
+ * binary's package root, falls back to AICORE_ROOT (which maps to embedded keys).
  */
 function resolveIncludes(content, baseDir) {
     const includeRegex = /^@(.+\.md)$/gm;
     return content.replace(includeRegex, (_match, relativePath) => {
-        const fullPath = resolve(baseDir, relativePath.trim());
+        const trimmed = relativePath.trim();
+        const fullPath = resolve(baseDir, trimmed);
         try {
-            if (existsSync(fullPath)) {
-                return readFileSync(fullPath, 'utf-8');
+            // 1. Try the resolved filesystem path (works when AICore is on disk)
+            if (fileExists(fullPath)) {
+                return fileRead(fullPath);
+            }
+            // 2. Fallback for @AICore/... in bun-compiled mode:
+            //    The resolved path is <projectRoot>/AICore/<sub>, but the embedded
+            //    content is at <PKG_ROOT>/AICore/<sub>. Extract the sub-path and
+            //    look it up via the AICORE_ROOT-based helpers.
+            const aicoreMatch = trimmed.match(/^AICore[\/\\](.+)$/i);
+            const aicoreSub = aicoreMatch?.[1];
+            if (aicoreSub) {
+                const subPath = aicoreSub.replace(/\\/g, '/');
+                if (existsAicorePath(subPath)) {
+                    return readAicoreFile(subPath) ?? `[!] Error reading: ${relativePath}`;
+                }
             }
             return `[!] Included file not found: ${relativePath}`;
         }
@@ -155,6 +176,8 @@ function loadProjectGuidance(projectRoot, extraDirs, bare) {
     }
     // Read CODESQUAD.md from project locations (rule 4), then fall back to CLI's AICore template (rule 3).
     // Priority: .codesquad/CODESQUAD.md → project root CODESQUAD.md → AICore/CODESQUAD.md (CLI template)
+    // All paths resolve @AICore/... includes so the LLM receives inlined content instead of
+    // raw @ references that it would try to file-stat (which fails in Bun-compiled mode).
     const dotCodesquadMd = join(projectRoot, '.codesquad', 'CODESQUAD.md');
     const projectRootMd = join(projectRoot, 'CODESQUAD.md');
     const codebuddyMd = join(projectRoot, 'CODEBUDDY.md');
@@ -162,7 +185,7 @@ function loadProjectGuidance(projectRoot, extraDirs, bare) {
     for (const p of [dotCodesquadMd, projectRootMd]) {
         try {
             if (existsSync(p)) {
-                parts.push(readFileSync(p, 'utf-8'));
+                parts.push(resolveIncludes(readFileSync(p, 'utf-8'), dirname(p)));
                 CODESQUADFound = true;
                 break;
             }
@@ -173,13 +196,15 @@ function loadProjectGuidance(projectRoot, extraDirs, bare) {
     if (!CODESQUADFound) {
         const cliTemplate = join(projectRoot, 'AICore', 'CODESQUAD.md');
         try {
-            if (existsSync(cliTemplate))
-                parts.push(readFileSync(cliTemplate, 'utf-8'));
+            if (existsSync(cliTemplate)) {
+                parts.push(resolveIncludes(readFileSync(cliTemplate, 'utf-8'), dirname(cliTemplate)));
+            }
         }
         catch { /* optional */ }
     }
+    // CODEBUDDY.md: resolve @AICore/... includes to inline content
     try {
-        parts.push(readFileSync(codebuddyMd, 'utf-8'));
+        parts.push(resolveIncludes(readFileSync(codebuddyMd, 'utf-8'), projectRoot));
     }
     catch { /* optional */ }
     const result = parts.join('\n\n---\n\n');

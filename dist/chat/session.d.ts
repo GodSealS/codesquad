@@ -49,6 +49,12 @@ export interface Session {
     status: 'active' | 'idle' | 'archived';
     /** Current chat mode (persisted across sessions).  Defaults to DEFAULT_MODE if absent. */
     mode?: import('../repl/mode.js').ChatMode;
+    /** Defensive execution (S05): per-session turn counter. */
+    turnCount: number;
+    /** Defensive execution (S05): turn number when last compact occurred. */
+    lastCompactTurn: number;
+    /** Defensive execution (S09): timestamp of the last assistant message (ISO 8601). */
+    lastAssistantTimestamp: string;
 }
 export declare function createSession(agent: string, modelConfig: ModelConfig, name?: string): Session;
 export declare function save(session: Session): Promise<void>;

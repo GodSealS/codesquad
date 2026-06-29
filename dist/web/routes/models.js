@@ -20,6 +20,13 @@ function loadApiSources() {
     if (virtualExists(configPath)) {
         raw = virtualReadFile(configPath, 'utf-8');
     }
+    // 1b) Working directory fallback (user-saved config via POST /api/models-config)
+    if (raw === null) {
+        const cwdPath = join(process.cwd(), 'models.config.yaml');
+        if (virtualExists(cwdPath)) {
+            raw = virtualReadFile(cwdPath, 'utf-8');
+        }
+    }
     // 2) Embedded fallback (Bun-compiled mode)
     if (raw === null) {
         try {

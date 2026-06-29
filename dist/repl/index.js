@@ -23,10 +23,9 @@ import { resolveKeyAction } from './keybinds.js';
 import { createDefaultModeState, } from './mode.js';
 import { renderModeBadge } from './mode-display.js';
 import { handleModeCommand, cycleMode, getModeTransitionMessage, confirmCraftMode, } from './mode-handler.js';
-import { getModeSystemPrompt } from './mode-prompts.js';
 import { persistModeToSession, restoreModeFromSession } from './mode-persist.js';
 // Skill registry (Claude Code alignment)
-import { setAicodeRoot, loadSkill, listSkills as listRegistrySkills, filterUserInvocable, buildSkillGuidance } from './skill-registry.js';
+import { setAicodeRoot, loadSkill, listSkills as listRegistrySkills, filterUserInvocable } from './skill-registry.js';
 // Chat
 import { createSession, save, load, listSessions, findSessionById, addMessage, deleteMessage, getRecentMessages } from '../chat/session.js';
 import { exportSession } from '../chat/import-export.js';
@@ -37,13 +36,13 @@ import { estimateTokenCount } from '../chat/tokenizer.js';
 import { computeBudget } from '../chat/budget.js';
 // LLM
 import { getProvider, listProviders, buildRuntimeConfig, resolveApiKey } from '../llm/registry.js';
-import { callLLM, callLLMStream, LlmError } from '../llm/client.js';
+import { callLLM, LlmError } from '../llm/client.js';
 import { detectOllama, registerOllamaProvider } from '../llm/fallback.js';
-import { recordUsage, calculateCost, getMonthlyUsage, getTotalCost, getBudget, checkBudget, formatBudgetWarning } from '../llm/usage-tracker.js';
+import { recordUsage, getMonthlyUsage, getTotalCost, getBudget } from '../llm/usage-tracker.js';
 // Keyring
 import { storeKey, isKeyringAvailable } from '../llm/keyring.js';
 // Tools (Phase 1)
-import { registerTools as registerToolPool, registerTool, getToolPool, findTool, runToolUse, assembleToolPool } from '../tools/registry.js';
+import { registerTools as registerToolPool, registerTool, getToolPool, findTool } from '../tools/registry.js';
 import { BashTool } from '../tools/BashTool.js';
 import { FileReadTool } from '../tools/FileReadTool.js';
 import { FileWriteTool } from '../tools/FileWriteTool.js';
@@ -73,38 +72,26 @@ import { LSPTool } from '../tools/LSPTool.js';
 // Skill & Tool Search (Phase 4 — Chat Feature Gap Fill)
 import { SkillTool } from '../tools/SkillTool.js';
 import { ToolSearchTool } from '../tools/ToolSearchTool.js';
-import { getSessionCache, clearSessionCache } from '../tools/file-state.js';
+import { clearSessionCache } from '../tools/file-state.js';
 // Skill instance system (P0 — step-by-step execution with pause/resume)
 import { SkillInstance } from '../skills/instance.js';
 import { skillInstances } from '../skills/manager.js';
-import { parseToolCalls as parseToolCallsNative } from '../tools/response-parser.js';
-import { toolsToNativeSchemas } from '../tools/schema-converter.js';
-import { chatModeToPermissionMode } from '../permissions/mode.js';
 import { initHooksFromAICore } from '../hooks/config-loader.js';
 import { executeSessionStartHooks, executeStopHooks, resetHookState } from '../hooks/executor.js';
 import { loadSandboxConfig } from '../permissions/sandbox.js';
 // MCP Bridge (Phase 7.0) — wire MCP tools into the tool pool
 import { createMCPToolWrapper, registerMCPToolHandler } from '../tools/MCPBridge.js';
 // Prompt Builder (Phase 3)
-import { buildAgentSystemPromptSeparated, clearSystemPromptCache as clearPromptCache } from '../prompt/builder.js';
+import { clearSystemPromptCache as clearPromptCache } from '../prompt/builder.js';
 import { invalidateProjectGuidance, setGlobalGuidanceFlags } from '../prompt/builtin-sections.js';
-// Agent runner bridge (Phase 6.1)
-import { setAgentLLMBridge, clearAgentLLMBridge } from '../agents/bridge.js';
 import { loadAllAgentsLayered, findAgent } from '../agents/definition.js';
 // Status Line (Phase 7.2)
-import { getStatusLine, formatStatusLine, scheduleStatusLineRefresh } from './statusline.js';
+import { getStatusLine, formatStatusLine } from './statusline.js';
 // CLI flags (Phase P3.2)
 import { parseFlags } from '../cli/flags.js';
-// Provider fallback router (Phase P3.6)
-import { callWithFallback } from '../llm/router.js';
-// Session-level rules (Phase P3.5)
-import { loadSessionRules } from '../rules/loader.js';
 // Compact (Phase 4)
 import { compactConversation, applyCompaction } from '../context/compact.js';
 import { calculateContextStats, formatContextStats, recordCompaction } from '../context/monitor.js';
-import { getContextWindow } from '../context/auto-compact.js';
-// Micro-Compact (Feature 5, P4)
-import { microCompact } from '../context/micro-compact.js';
 // Auto-Compact (Phase 6.1)
 // (auto-compact now handled internally by SkillInstance and agent-runner)
 // Init (project file reset)
@@ -1161,7 +1148,7 @@ export async function startRepl() {
             Object.entries(answers).map(([k, v]) => `- ${k}: ${v}`).join('\n');
         await sendToAgent(state.currentSession.agent, answerPrompt);
     }
-    // ── Core: send to agent via LLM (tool-use loop) ──
+    // ── Core: send to agent via LLM (delegates to shared runAgent — S11 unified) ──
     async function sendToAgent(agentName, userInput) {
         const session = state.currentSession;
         const agentPrompt = loadAgentPrompt(agentName);
@@ -1169,8 +1156,6 @@ export async function startRepl() {
             console.log(errorLine(`无法加载 agent prompt: ${agentName}`));
             return;
         }
-        // Add user message to session
-        addMessage(session, 'user', userInput);
         // Resolve runtime config
         const rt = await getRuntimeConfig();
         if (!rt) {
@@ -1182,385 +1167,87 @@ export async function startRepl() {
             console.log(errorLine('无法获取 API Key — 请设置环境变量或使用 OS Keyring'));
             return;
         }
-        // ── Set up Agent LLM bridge (Phase 6.1) ──
-        setAgentLLMBridge({
-            callLLM: async (rc, params) => {
-                const response = await callLLM(rc || runtimeConfig, params);
-                return {
-                    content: response.content,
-                    usage: response.usage,
-                    model: response.model,
-                };
-            },
-            runtimeConfig,
-        });
+        // Plan mode notification — inject before runAgent picks up injectedContent
+        if (state.modeState.wasPlanBefore) {
+            state.modeState.wasPlanBefore = false;
+            session.context.injectedContent = (session.context.injectedContent || '') +
+                '\n[plan_mode_exit] 用户已退出 Plan 模式，批准了设计方案。你现在可以输出具体的代码实现和修改建议。';
+        }
         startSpinner(`${agentName} 正在处理...`);
-        // ── Build ToolUseContext ──
-        const toolContext = {
+        // ── S11: delegate to shared runAgent (has all S01-S10 defensive fixes) ──
+        const { runAgent } = await import('../chat/agent-runner.js');
+        const result = await runAgent({
+            agentName,
+            userInput,
             session,
-            cwd: process.cwd(),
+            providerId: state.providerId,
+            modelId: rt.model,
             projectRoot: PROJECT_ROOT,
-            abortSignal: new AbortController().signal,
-            permissionMode: chatModeToPermissionMode(state.modeState.currentMode),
-            readFileState: getSessionCache(),
-            headless: false,
-        };
-        // ── Tool-use loop ──
-        const MAX_TURNS = 20;
-        let turn = 0;
-        try {
-            while (turn < MAX_TURNS) {
-                turn++;
-                // Phase 3: Build system prompt using section factory
-                // P3.5: Inject session-level rules
-                // Feature 4 (P4): Use separated static/dynamic parts for prompt caching
-                const sessionRules = loadSessionRules(AICORE_DIR);
-                // REPL default language is Chinese (matching agent-runner default)
-                const replLang = 'zh';
-                const { staticParts, dynamicParts } = await buildAgentSystemPromptSeparated(agentPrompt, {
-                    agentName,
-                    model: rt.model,
-                    cwd: process.cwd(),
-                    projectRoot: PROJECT_ROOT,
-                    sessionId: session.id,
-                    lang: replLang,
-                }, [
-                    getModeSystemPrompt(state.modeState.currentMode),
-                    buildSkillGuidance(8, replLang) || '',
-                    ...sessionRules,
-                ].filter(Boolean));
-                // Feature 4 (P4): Build systemContentBlocks with cache_control on last static block
-                const systemContentBlocks = [];
-                for (let i = 0; i < staticParts.length; i++) {
-                    if (!staticParts[i])
-                        continue;
-                    systemContentBlocks.push({
-                        type: 'text',
-                        text: staticParts[i],
-                        cache_control: (i === staticParts.length - 1) ? { type: 'ephemeral' } : undefined,
-                    });
+            aicoreDir: AICORE_DIR,
+            mode: state.modeState.currentMode,
+            stream: state.streamingEnabled,
+            lang: 'zh',
+            runtimeConfig,
+            onToken: (text) => {
+                if (state.modeState.currentMode === 'plan')
+                    return;
+                process.stdout.write(chalk.white(text));
+            },
+            onThinking: (text) => {
+                if (state.modeState.currentMode === 'plan')
+                    return;
+                // thinking stream handled by callLLMStream internally
+            },
+            onTurn: (turn, response, toolCalls) => {
+                stopSpinner();
+                if (toolCalls && toolCalls.length > 0) {
+                    console.log(separator());
+                    console.log(renderFormattedContent(response));
+                    console.log(chalk.dim(`  → 执行 ${toolCalls.length} 个工具调用...`));
                 }
-                for (const dp of dynamicParts) {
-                    if (!dp)
-                        continue;
-                    systemContentBlocks.push({ type: 'text', text: dp });
-                }
-                // Assemble conversation messages (without system — system goes via systemContentBlocks)
-                const messages = [];
-                // Plan mode exit notification
-                if (state.modeState.wasPlanBefore) {
-                    state.modeState.wasPlanBefore = false;
-                    messages.push({
-                        role: 'user',
-                        content: '[plan_mode_exit] 用户已退出 Plan 模式，批准了设计方案。你现在可以输出具体的代码实现和修改建议。',
-                        timestamp: new Date().toISOString(),
-                        isContext: true,
-                    });
-                }
-                // Context files
-                if (session.context.injectedContent) {
-                    messages.push({
-                        role: 'user',
-                        content: `[上下文文件]\n${session.context.injectedContent.slice(0, 50000)}`,
-                        timestamp: new Date().toISOString(),
-                        isContext: true,
-                    });
-                }
-                // History (last 20, filter system) — Feature 5 (P4): apply micro-compact
-                const historyMsgs = [];
-                for (const msg of session.messages.slice(-20)) {
-                    if (msg.role === 'system')
-                        continue;
-                    historyMsgs.push({ role: msg.role, content: msg.content, timestamp: msg.timestamp });
-                }
-                microCompact(historyMsgs);
-                for (const hm of historyMsgs) {
-                    messages.push(hm);
-                }
-                // Feature 3.5 (P4): Team mailbox polling — inject unread team messages
-                const teamName = session.teamName;
-                if (teamName) {
-                    const { getUnreadMessages, markRead: markMailboxRead } = await import('../teams/mailbox.js');
-                    const unread = getUnreadMessages(teamName, agentName);
-                    if (unread.length > 0) {
-                        for (const msg of unread) {
-                            if (msg.type === 'shutdown_request') {
-                                const { sendMessage } = await import('../teams/mailbox.js');
-                                sendMessage(teamName, msg.from, agentName, 'approved', 'shutdown_response', 'Shutdown approved');
-                                stopSpinner();
-                                console.log(warnLine(`收到来自 ${msg.from} 的关闭请求，已批准。`));
-                                break; // Exit the tool loop
-                            }
-                            messages.push({
-                                role: 'user',
-                                content: `[Team Message from ${msg.from}]: ${msg.content}`,
-                                timestamp: msg.timestamp,
-                            });
-                        }
-                        const maxTs = unread.reduce((max, m) => m.timestamp > max ? m.timestamp : max, '');
-                        if (maxTs)
-                            markMailboxRead(teamName, agentName, maxTs);
-                    }
-                }
-                // Call LLM — P3.6: router with fallback; P3.1: streaming for non-tool turns
-                // Feature 1 (P4): Pass native tools to the API
-                // Feature 4 (P4): Pass systemContentBlocks with cache_control for prompt caching
-                // Feature 8 (P4): Use assembleToolPool to dedup MCP tools (mirrors Claude Code src/tools.ts)
-                const pool = assembleToolPool();
-                const nativeTools = toolsToNativeSchemas(pool);
-                const llmRequest = {
-                    model: rt.model,
-                    messages: messages,
-                    maxTokens: session.modelConfig.maxTokens ?? 4096,
-                    temperature: session.modelConfig.temperature ?? 0.7,
-                    tools: nativeTools.length > 0 ? nativeTools : undefined,
-                    tool_choice: nativeTools.length > 0 ? { type: 'auto' } : undefined,
-                    systemContentBlocks: systemContentBlocks.length > 0 ? systemContentBlocks : undefined,
-                };
-                let response;
-                if (state.streamingEnabled && turn === 1) {
-                    // Streaming output for first turn (non-tool, progressive UX)
-                    try {
-                        let streamText = '';
-                        for await (const event of callLLMStream(runtimeConfig, llmRequest)) {
-                            if (event.type === 'token') {
-                                const delta = event.text.slice(streamText.length);
-                                process.stdout.write(chalk.white(delta));
-                                streamText = event.text;
-                            }
-                            if (event.type === 'done') {
-                                response = event.response;
-                            }
-                            if (event.type === 'error') {
-                                throw new LlmError(event.error, 0, runtimeConfig.id);
-                            }
-                        }
-                        console.log('\n' + separator());
-                        // Guard: streaming completed without 'done' event
-                        if (!response) {
-                            stopSpinner();
-                            console.log(errorLine('流式响应异常结束，请重试。'));
-                            return;
-                        }
-                    }
-                    catch {
-                        // Stream failed → fallback to non-streaming for resilience
-                        try {
-                            const routed = await callWithFallback(llmRequest, state.providerId, rt.model, PROJECT_ROOT);
-                            response = { content: routed.content, model: routed.model, usage: routed.usage, toolCalls: routed.toolCalls };
-                        }
-                        catch {
-                            // Router exhausted → fall back to direct call
-                            response = await callLLM(runtimeConfig, llmRequest);
-                        }
-                    }
+            },
+            onToolUse: (toolName, input, result) => {
+                stopSpinner();
+                if (result.isError) {
+                    console.log(warnLine(`  ${toolName}: ${result.content}`));
                 }
                 else {
-                    // Non-streaming (tool-use loop, or streaming disabled)
-                    try {
-                        const routed = await callWithFallback(llmRequest, state.providerId, rt.model, PROJECT_ROOT);
-                        response = { content: routed.content, model: routed.model, usage: routed.usage, toolCalls: routed.toolCalls };
-                    }
-                    catch {
-                        // Router exhausted — fall back to direct call
-                        response = await callLLM(runtimeConfig, llmRequest);
-                    }
+                    console.log(chalk.dim(`  ${toolName}: ✓`));
                 }
-                // ── Check for tool calls in response ──
-                // Feature 1 (P4): Prefer native tool_use blocks, fallback to XML parsing
-                // Mirrors Claude Code query.ts: filter content.type==='tool_use' from API response,
-                // then use XML fallback for non-native providers (Ollama, etc.)
-                const validToolNames = new Set(assembleToolPool().map((t) => t.name));
-                const toolCalls = response.toolCalls && response.toolCalls.length > 0
-                    ? response.toolCalls.filter((tc) => findTool(tc.name) !== undefined)
-                    : parseToolCallsNative(null, response.content, validToolNames);
-                if (toolCalls.length > 0) {
-                    // Add assistant message with tool-use intent
-                    addMessage(session, 'assistant', response.content);
-                    stopSpinner();
-                    console.log(separator());
-                    console.log(renderFormattedContent(response.content));
-                    console.log(chalk.dim(`  → 执行 ${toolCalls.length} 个工具调用...`));
-                    let allToolSuccess = true;
-                    for (const tc of toolCalls) {
-                        startSpinner(`  ${tc.name} 执行中...`);
-                        const result = await runToolUse({
-                            toolName: tc.name,
-                            rawInput: tc.input,
-                            context: toolContext,
-                        });
-                        stopSpinner();
-                        if (result.isError) {
-                            console.log(warnLine(`  ${tc.name}: ${result.content}`));
-                            allToolSuccess = false;
-                        }
-                        else {
-                            console.log(chalk.dim(`  ${tc.name}: ✓`));
-                        }
-                        // Add tool result to session
-                        addMessage(session, 'system', `[Tool: ${tc.name}]\n${result.content}`);
-                        // Feature 6 (P5): Auto LSP check after Write/Edit on TypeScript files
-                        if ((tc.name === 'FileWrite' || tc.name === 'FileEdit') && !result.isError) {
-                            const filePath = tc.input.file_path || tc.input.path || '';
-                            const ext = filePath.split('.').pop()?.toLowerCase() || '';
-                            if (['ts', 'tsx'].includes(ext)) {
-                                try {
-                                    const { getDiagnostics, startLspClient, changeFile } = await import('../services/lsp-client.js');
-                                    const { existsSync, readFileSync } = await import('fs');
-                                    const absPath = (await import('path')).resolve(process.cwd(), filePath);
-                                    if (existsSync(absPath)) {
-                                        await startLspClient(PROJECT_ROOT);
-                                        const content = readFileSync(absPath, 'utf-8');
-                                        await changeFile(absPath, content);
-                                        // Brief wait for LSP to process
-                                        await new Promise((r) => setTimeout(r, 1500));
-                                        const diags = await getDiagnostics(absPath);
-                                        if (diags.length > 0) {
-                                            const errors = diags.filter((d) => d.severity === 'error');
-                                            const warnings = diags.filter((d) => d.severity === 'warning');
-                                            const diagSummary = [`\n🔍 LSP: ${errors.length} error(s), ${warnings.length} warning(s)`];
-                                            for (const d of diags.slice(0, 5)) {
-                                                const icon = d.severity === 'error' ? '❌' : '⚠️';
-                                                diagSummary.push(`  ${icon} L${d.line}:${d.character} ${d.message}`);
-                                            }
-                                            if (diags.length > 5)
-                                                diagSummary.push(`  ... and ${diags.length - 5} more`);
-                                            const diagText = diagSummary.join('\n');
-                                            addMessage(session, 'system', `[Tool: LSP (auto)]\n${diagText}`);
-                                            if (errors.length > 0) {
-                                                console.log(warnLine(`  LSP: ${errors.length} error(s) found in ${filePath}`));
-                                            }
-                                        }
-                                    }
-                                }
-                                catch {
-                                    // LSP not available — skip silently
-                                }
-                            }
-                        }
-                        // Feature 5 (P5): EnterPlanMode — switch REPL to plan mode
-                        if (tc.name === 'EnterPlanMode') {
-                            if (state.modeState.currentMode !== 'plan') {
-                                state.modeState = {
-                                    currentMode: 'plan',
-                                    wasPlanBefore: true,
-                                    modeEnteredAt: Date.now(),
-                                };
-                                // Update tool context to restrict to read-only tools
-                                toolContext.permissionMode = chatModeToPermissionMode('plan');
-                                console.log(infoLine('📐 Agent 进入 Plan 模式。仅允许只读工具（Read/Grep/Glob/WebSearch/WebFetch）。'));
-                            }
-                        }
-                        // Feature 5 (P5): ExitPlanMode — exit plan mode, inject plan_mode_exit context
-                        if (tc.name === 'ExitPlanMode') {
-                            if (state.modeState.currentMode === 'plan') {
-                                state.modeState = {
-                                    currentMode: 'ask',
-                                    wasPlanBefore: true,
-                                    modeEnteredAt: Date.now(),
-                                };
-                                // Restore permission mode
-                                toolContext.permissionMode = chatModeToPermissionMode('ask');
-                                console.log(infoLine('📐 Agent 退出 Plan 模式，批准的设计方案将用于实施。'));
-                            }
-                        }
-                        // Feature 1 (P5): AskUserQuestion — pause and wait for user answer
-                        if (tc.name === 'AskUserQuestion' && toolContext.__needsUserInput) {
-                            const pending = toolContext.__needsUserInput;
-                            delete toolContext.__needsUserInput;
-                            state.__pendingQuestions = pending;
-                            stopSpinner();
-                            await renderAskUserQuestions(pending);
-                            // Don't continue loop — wait for user to answer and re-invoke
-                            return;
-                        }
-                    }
-                    if (!allToolSuccess) {
-                        console.log(warnLine('  部分工具执行失败，Agent 将尝试修复...'));
-                    }
-                    startSpinner(`${agentName} 继续处理...`);
-                    // Continue loop — LLM will see tool results in next turn
-                    continue;
-                }
-                // ── No tool calls — final response ──
+            },
+            onError: (msg) => {
                 stopSpinner();
-                // Check for empty response
-                if (!response.content || !response.content.trim()) {
-                    console.log(warnLine('Agent 返回了空响应。'));
-                    break;
-                }
-                // Add assistant response
-                addMessage(session, 'assistant', response.content);
-                // P3.4: Record per-message usage
-                if (response.usage) {
-                    const msg = session.messages[session.messages.length - 1];
-                    msg.usage = {
-                        promptTokens: response.usage.promptTokens,
-                        completionTokens: response.usage.completionTokens,
-                        totalTokens: response.usage.totalTokens,
-                        cost: calculateCost(response.model, response.usage.promptTokens, response.usage.completionTokens),
-                    };
-                }
-                // Display
-                console.log(separator());
-                console.log(renderFormattedContent(response.content));
-                console.log(separator());
-                // Token usage
-                if (response.usage) {
-                    const budget = computeBudget(rt.model, agentPrompt);
-                    const cost = calculateCost(response.model, response.usage.promptTokens, response.usage.completionTokens);
-                    console.log(renderTokenUsage(response.usage.promptTokens, response.usage.completionTokens, budget.availableForContext, cost));
-                    await recordUsage({
-                        timestamp: new Date().toISOString(),
-                        agent: agentName,
-                        provider: state.providerId,
-                        model: response.model,
-                        promptTokens: response.usage.promptTokens,
-                        completionTokens: response.usage.completionTokens,
-                        cost,
-                        cacheCreationTokens: response.usage.cacheCreationTokens,
-                        cacheReadTokens: response.usage.cacheReadTokens,
-                    });
-                    const budgetCheck = await checkBudget();
-                    if (budgetCheck.warned) {
-                        console.log(formatBudgetWarning(budgetCheck.totalSpent));
-                    }
-                }
-                console.log();
-                // Feature 7 (P4): Schedule debounced status line refresh after agent response
-                const ctxTokens = response.usage
-                    ? Math.round((response.usage.totalTokens / (getContextWindow(response.model) || 128_000)) * 100)
-                    : null;
-                scheduleStatusLineRefresh((text) => process.stdout.write('\r' + chalk.dim(text) + '\n'), PROJECT_ROOT, state.modelId ?? 'Unknown', ctxTokens);
-                break; // Exit loop — no more tool calls
-            }
-            if (turn >= MAX_TURNS) {
-                stopSpinner();
-                console.log(warnLine(`已达到最大轮次 (${MAX_TURNS})，Agent 停止处理。`));
-            }
-            // Auto-save session
-            await save(session);
+                console.log(errorLine(msg));
+            },
+        });
+        stopSpinner();
+        // ── Handle AskUserQuestion ──
+        if (result.needsUserInput) {
+            state.__pendingQuestions = result.needsUserInput;
+            await renderAskUserQuestions(result.needsUserInput);
+            return;
         }
-        catch (err) {
-            stopSpinner();
-            if (err instanceof LlmError && (err.status === 0 || err.status >= 500)) {
-                if (await tryOllamaFallback()) {
-                    await sendToAgent(agentName, userInput);
-                    return;
-                }
-            }
-            if (err instanceof LlmError) {
-                console.log(errorLine(err.message));
-            }
-            else {
-                console.log(errorLine(`Agent 调用失败: ${err.message}`));
-            }
+        // ── Handle permission approval ──
+        if (result.needsApproval) {
+            // ... REPL-specific approval flow
         }
-        finally {
-            // Clean up agent LLM bridge to prevent stale state
-            clearAgentLLMBridge();
+        // ── Render final response ──
+        if (result.finalResponse && result.toolCallsMade > 0) {
+            console.log(separator());
+            console.log(renderFormattedContent(result.finalResponse));
+            console.log(separator());
         }
+        // ── Token usage ──
+        if (result.turnsUsed > 0) {
+            const budget = computeBudget(rt.model, agentPrompt);
+            console.log(chalk.dim(`  ${result.turnsUsed} turns, ${result.toolCallsMade} tool calls`));
+        }
+        if (result.error) {
+            console.log(errorLine(result.error));
+        }
+        // Session saved by runAgent internally (S02 final save)
     }
+    // S11: old loop removed
     /**
      * Extract tool calls from LLM response content.
      * Parses structured XML: <tool-call name="ToolName">{"key":"value"}</tool-call>

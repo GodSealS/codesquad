@@ -12,12 +12,14 @@
  *   Claude Code src/services/compact/microCompact.ts
  *
  * Feature 5 — P4 Micro-Compact
+ * S09 — Defensive Execution: tool-type filtering + time-based trigger
  */
+import type { Session } from '../chat/session.js';
 /**
  * Apply micro-compaction to a conversation history.
  *
  * Strategy:
- * 1. Identify tool-use → tool-result pairs
+ * 1. Identify tool-use → tool-result pairs (S09: only COMPACTABLE_TOOLS)
  * 2. Keep the most recent RECENT_TOOL_INTERACTIONS pairs fully intact
  * 3. For older pairs: replace tool_result content with a short stub
  * 4. Non-tool messages are left untouched
@@ -30,6 +32,20 @@ export declare function microCompact(messages: Array<{
     role: string;
     content: string;
 }>): Array<{
+    role: string;
+    content: string;
+}>;
+/**
+ * S09: micro-compact with time-based trigger.
+ *
+ * If the gap since the last assistant message exceeds the threshold,
+ * force-clear ALL compactable results (keeping only the most recent 1)
+ * because the server-side prompt cache has expired.
+ */
+export declare function microCompactWithSession(messages: Array<{
+    role: string;
+    content: string;
+}>, session: Session): Array<{
     role: string;
     content: string;
 }>;

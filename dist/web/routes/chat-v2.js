@@ -22,9 +22,9 @@ import { createSession, addMessage, load as loadSession } from '../../chat/sessi
 import { setProjectRoot, saveSession as persistSession } from '../../chat/storage.js';
 import { resolveModel } from '../../generators/model-resolver.js';
 import { resolveEnvValue } from '../../utils/env-resolver.js';
-import { virtualExists, virtualReadFile, sanitizeAicorePaths } from '../../embedded/virtual-fs.js';
+import { virtualExists, virtualReadFile, sanitizeAicorePaths, expandAicoreRefs } from '../../embedded/virtual-fs.js';
 import { readEmbeddedFile } from '../../embedded/runtime.js';
-import { notifyError } from '../../utils/error-logger.js';
+import { notifyError, logDiagnostic } from '../../utils/error-logger.js';
 let PKG_ROOT;
 let AICORE_DIR;
 try {
@@ -66,9 +66,15 @@ function readBody(req) {
 }
 /** Try to read models.config.yaml — filesystem first, embedded fallback. */
 function readModelsConfigRaw() {
+    // 1) PKG_ROOT (bundled config)
     const configPath = join(PKG_ROOT, 'models.config.yaml');
     if (virtualExists(configPath))
         return virtualReadFile(configPath, 'utf-8');
+    // 1b) Working directory (user-saved config via POST /api/models-config)
+    const cwdPath = join(process.cwd(), 'models.config.yaml');
+    if (virtualExists(cwdPath))
+        return virtualReadFile(cwdPath, 'utf-8');
+    // 2) Embedded fallback (Bun-compiled mode)
     try {
         return readEmbeddedFile('models.config.yaml');
     }
@@ -490,20 +496,29 @@ export async function handleChatStream(req, res) {
         'Connection': 'keep-alive',
         'X-Accel-Buffering': 'no',
     });
+    let sseClosedWarned = false;
     const sendSSE = (data) => {
         try {
             const payload = JSON.stringify(data);
             try {
                 res.write(`data: ${payload}\n\n`);
             }
-            catch { /* connection closed */ }
+            catch {
+                if (!sseClosedWarned) {
+                    console.warn('[chat-v2] SSE write failed — client likely disconnected');
+                    logDiagnostic('WARN', 'chat-v2', 'SSE write failed — client likely disconnected');
+                    sseClosedWarned = true;
+                }
+            }
         }
-        catch {
+        catch (serializeErr) {
             // JSON.stringify can throw on circular references / BigInt
+            console.error('[chat-v2] Failed to serialize SSE data:', serializeErr);
+            logDiagnostic('ERROR', 'chat-v2', 'Failed to serialize SSE data', { error: String(serializeErr) });
             try {
                 res.write(`data: ${JSON.stringify({ error: 'Failed to serialize response', type: 'error' })}\n\n`);
             }
-            catch { /* connection closed */ }
+            catch { /* double-fault: connection already dead */ }
         }
     };
     // Map mode string to ChatMode
@@ -545,17 +560,45 @@ export async function handleChatStream(req, res) {
                 const { setAicodeRoot, loadSkill } = await import('../../repl/skill-registry.js');
                 setAicodeRoot(AICORE_DIR);
                 const skill = loadSkill(skillId);
+                console.log(`[chat-v2] Skill "${skillId}" loaded: context=${skill?.context}, model=${skill?.model}, allowedTools=${skill?.allowedTools?.length ?? 0}`);
+                logDiagnostic('INFO', 'chat-v2', `Skill "${skillId}" loaded`, {
+                    context: skill?.context,
+                    model: skill?.model,
+                    allowedToolsCount: skill?.allowedTools?.length ?? 0,
+                });
                 if (skill) {
                     const skillMdPath = join(AICORE_DIR, 'skills', skillId, 'SKILL.md');
                     if (virtualExists(skillMdPath)) {
                         const skillContent = virtualReadFile(skillMdPath, 'utf-8');
-                        session.context.injectedContent =
-                            `## Activated Skill: ${skillId}\n${sanitizeAicorePaths(skillContent)}\n`;
+                        const sanitized = expandAicoreRefs(sanitizeAicorePaths(skillContent));
+                        // Fork context: mark for isolated execution instead of injecting into parent session.
+                        // agent-runner will pick up the marker and execute the skill in an ephemeral session,
+                        // returning only the summary to the parent conversation.
+                        if (skill.context === 'fork') {
+                            const { markForkSkill } = await import('../../context/fork-executor.js');
+                            markForkSkill(session, {
+                                skillName: skillId,
+                                content: sanitized,
+                                model: skill.model,
+                            });
+                        }
+                        else {
+                            session.context.injectedContent =
+                                `## Activated Skill: ${skillId}\n${sanitized}\n`;
+                        }
                     }
                 }
             }
-            catch {
-                // Skill guidance is non-critical — skip on failure
+            catch (skillErr) {
+                // Skill guidance failed — notify the frontend via SSE error event
+                // so the user knows why the skill didn't activate as expected.
+                const msg = skillErr instanceof Error ? skillErr.message : 'Unknown skill load error';
+                console.error(`[chat-v2] Skill "${skillId}" load failed:`, msg);
+                logDiagnostic('ERROR', 'chat-v2', `Skill "${skillId}" load failed`, { error: msg });
+                sendSSE({
+                    type: 'error',
+                    error: `技能 "${skillId}" 加载失败: ${msg}`,
+                });
             }
         }
     }
@@ -622,8 +665,11 @@ export async function handleChatStream(req, res) {
         setProjectRoot(process.cwd());
         await persistSession(session);
     }
-    catch {
-        // Persistence failure is non-critical
+    catch (persistErr) {
+        // Persistence failure is non-critical for the current request,
+        // but log it so we know sessions may be lost on restart.
+        console.warn('[chat-v2] Session persist failed:', persistErr);
+        logDiagnostic('WARN', 'chat-v2', 'Session persist failed', { error: String(persistErr) });
     }
     // ── Handle permission approval pause (Phase 3) ──
     if (result.needsApproval) {
@@ -667,6 +713,18 @@ export async function handleChatStream(req, res) {
     const contextStats = session.messages.length > 0
         ? calculateContextStats(session.messages, resolvedModel)
         : null;
+    // 🔍 Critical diagnostic: log exact finalResponse being sent to frontend
+    logDiagnostic('INFO', 'chat-v2', 'runAgent completed', {
+        finalResponseLen: result.finalResponse?.length ?? 0,
+        finalResponseStart: (result.finalResponse ?? '').slice(0, 200),
+        turnsUsed: result.turnsUsed,
+        toolCallsMade: result.toolCallsMade,
+        hasError: !!result.error,
+        errorMsg: result.error?.slice(0, 200),
+        needsUserInput: !!result.needsUserInput,
+        needsApproval: !!result.needsApproval,
+        sessionMsgCount: session.messages.length,
+    });
     if (result.error) {
         sendSSE({ type: 'error', error: result.error });
     }

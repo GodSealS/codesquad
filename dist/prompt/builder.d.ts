@@ -51,4 +51,6 @@ export declare function buildAgentSystemPromptSeparated(agentPrompt: string, con
     dynamicParts: string[];
 }>;
 export { clearCache as clearSystemPromptCache };
+/** S10: clear cached static parts for a specific session. */
+export declare function clearStaticCache(sessionId?: string): void;
 //# sourceMappingURL=builder.d.ts.map

@@ -9,7 +9,8 @@
 import { join } from 'path';
 import { z } from 'zod';
 import { buildTool } from './types.js';
-import { fileExists, fileRead, sanitizeAicorePaths } from '../embedded/virtual-fs.js';
+import { fileExists, fileRead, sanitizeAicorePaths, expandAicoreRefs } from '../embedded/virtual-fs.js';
+import { markForkSkill, isForkContext } from '../context/fork-executor.js';
 const inputSchema = z.object({
     skill: z.string().describe('Skill ID to invoke (e.g. "brainstorm", "gate-check", "design-review")'),
     args: z.string().optional().describe('Optional arguments passed to the skill'),
@@ -65,7 +66,29 @@ export const SkillTool = buildTool({
             // Use virtual-fs for reading (supports embedded AICore in published builds)
             const rawContent = assembledBody || fileRead(skillPath);
             // Inject skill body (with matched sub-files) into session context for subsequent turns
-            const sanitized = sanitizeAicorePaths(rawContent);
+            // Pre-expand AICore file references so the LLM gets inlined content
+            const sanitized = expandAicoreRefs(sanitizeAicorePaths(rawContent));
+            // Check if this skill should run in fork (isolated) context
+            const { parseSkillFrontmatter } = await import('../repl/skill-frontmatter.js');
+            const fm = parseSkillFrontmatter(rawContent);
+            const isFork = isForkContext(fm);
+            if (isFork) {
+                // Fork context: mark for isolation instead of injecting into parent session.
+                // agent-runner will pick up the marker and execute in ephemeral session.
+                markForkSkill(context.session, {
+                    skillName: skill,
+                    content: sanitized,
+                    args,
+                    model: fm.model,
+                });
+                const firstPara = rawContent.split('\n\n')[0]?.replace(/^#+\s*/gm, '').slice(0, 200) || skill;
+                return {
+                    toolCallId: crypto.randomUUID(),
+                    output: { skill, args, loaded: true, forked: true },
+                    content: `[Skill Forked: ${skill}] ${firstPara}...\nThis skill will execute in an isolated context. Only the final result will be returned to this conversation.`,
+                };
+            }
+            // Non-fork: inject directly into parent session (existing behavior)
             const injected = `\n## Activated Skill: ${skill}\n${args ? `Args: ${args}\n` : ''}\n${sanitized}\n`;
             context.session.context.injectedContent =
                 (context.session.context.injectedContent || '') + injected;

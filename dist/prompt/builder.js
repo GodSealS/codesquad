@@ -15,6 +15,8 @@
  */
 import { resolveSystemPromptSections, clearSystemPromptSections as clearCache } from './sections.js';
 import { getDefaultSections } from './builtin-sections.js';
+// S10: cross-turn cache — avoid rebuilding static parts every loop iteration.
+const _staticCache = new Map();
 // ── Builder ──
 /**
  * Build the effective system prompt.
@@ -63,15 +65,43 @@ export async function buildAgentSystemPrompt(agentPrompt, context, extraPrompts 
  * Feature 4 (P4): Enables Anthropic prompt caching for static sections.
  */
 export async function buildAgentSystemPromptSeparated(agentPrompt, context, extraPrompts = []) {
+    // S10: cache key = sessionId + agentName (agentPrompt can change mid-session)
+    const cacheKey = context.sessionId ? `${context.sessionId}:${context.agentName}` : undefined;
+    const cached = cacheKey ? _staticCache.get(cacheKey) : undefined;
+    if (cached && cached.model === context.model) {
+        return {
+            staticParts: cached.parts,
+            dynamicParts: extraPrompts,
+        };
+    }
     const sections = [
         ...getDefaultSections(),
     ];
     const { staticPrompts, dynamicPrompts } = await resolveSystemPromptSections(sections, context);
     // Agent prompt is always static (cacheable — it doesn't change per turn)
+    const staticParts = [agentPrompt, ...staticPrompts];
+    // S10: store in cache (key = sessionId:agentName)
+    if (cacheKey) {
+        _staticCache.set(cacheKey, { parts: staticParts, model: context.model });
+    }
     return {
-        staticParts: [agentPrompt, ...staticPrompts],
+        staticParts,
         dynamicParts: [...dynamicPrompts, ...extraPrompts],
     };
 }
 export { clearCache as clearSystemPromptCache };
+/** S10: clear cached static parts for a specific session. */
+export function clearStaticCache(sessionId) {
+    if (sessionId) {
+        // Composite key: "sessionId:agentName" — delete all entries for this session
+        const prefix = `${sessionId}:`;
+        for (const key of _staticCache.keys()) {
+            if (key.startsWith(prefix))
+                _staticCache.delete(key);
+        }
+    }
+    else {
+        _staticCache.clear();
+    }
+}
 //# sourceMappingURL=builder.js.map

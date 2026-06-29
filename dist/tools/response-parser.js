@@ -10,6 +10,7 @@
  *
  * Feature 1.3 — P4 Tool Use native mechanism
  */
+import { logDiagnostic } from '../utils/error-logger.js';
 import { findTool } from './registry.js';
 // ── Main Parser ──
 /**
@@ -74,6 +75,9 @@ export function extractOpenAIToolCalls(toolCalls) {
             input = JSON.parse(tc.function.arguments);
         }
         catch {
+            logDiagnostic('WARN', 'response-parser', 'Failed to parse OpenAI tool call arguments', {
+                toolName: tc.function.name,
+            });
             input = { _raw: tc.function.arguments };
         }
         results.push({
@@ -107,6 +111,9 @@ export function extractXmlToolCalls(content, availableTools) {
             input = jsonStr ? JSON.parse(jsonStr) : {};
         }
         catch {
+            logDiagnostic('WARN', 'response-parser', 'Malformed JSON in XML tool-call', {
+                toolName: name, rawLen: jsonStr.length,
+            });
             input = { _error: 'Malformed JSON', _raw: jsonStr.slice(0, 200) };
         }
         results.push({ id: generateToolCallId(name), name, input });
@@ -140,7 +147,9 @@ export function extractXmlToolCalls(content, availableTools) {
                     }
                 }
             }
-            catch { /* skip */ }
+            catch {
+                logDiagnostic('DEBUG', 'response-parser', 'Failed to parse JSON block tool_calls');
+            }
         }
     }
     // Filter

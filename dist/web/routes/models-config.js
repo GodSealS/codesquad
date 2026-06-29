@@ -40,6 +40,13 @@ export async function handleModelsConfig(req, res, services, _path, method) {
         if (virtualExists(configPath)) {
             yaml = virtualReadFile(configPath, 'utf-8');
         }
+        // 1b) Working directory fallback — POST saves to cwd/models.config.yaml
+        if (yaml === null) {
+            const cwdPath = join(process.cwd(), 'models.config.yaml');
+            if (virtualExists(cwdPath)) {
+                yaml = virtualReadFile(cwdPath, 'utf-8');
+            }
+        }
         // 2) Embedded fallback (Bun-compiled mode where filesystem path doesn't exist)
         if (yaml === null) {
             try {

@@ -6,7 +6,7 @@
  *
  * Phase 1.3
  */
-import { readFileSync, statSync, existsSync } from 'fs';
+import { readFileSync, statSync } from 'fs';
 import { extname, resolve, join } from 'path';
 import { z } from 'zod';
 import { buildTool } from './types.js';
@@ -70,8 +70,8 @@ export const FileReadTool = buildTool({
     validateInput(input, context) {
         let filePath = resolve(context.projectRoot, input.file_path);
         // If not found in project root and path starts with AICore/, try aicoreDir fallback
-        // Use fileExists (virtual-fs aware) for the fallback path
-        if (!existsSync(filePath) && context.aicoreDir && !input.file_path.startsWith('..')) {
+        // Use fileExists (virtual-fs aware) for both the initial check and fallback
+        if (!fileExists(filePath) && context.aicoreDir && !input.file_path.startsWith('..')) {
             // Strip leading AICore/ prefix since aicoreDir already points to the AICore directory
             const relPath = input.file_path.replace(/^AICore[\\/]/, '');
             const aicorePath = join(context.aicoreDir, relPath);
@@ -123,7 +123,7 @@ export const FileReadTool = buildTool({
     async call(input, context) {
         let filePath = resolve(context.projectRoot, input.file_path);
         // Fallback to aicoreDir if not found in project root (virtual-fs aware)
-        if (!existsSync(filePath) && context.aicoreDir && !input.file_path.startsWith('..')) {
+        if (!fileExists(filePath) && context.aicoreDir && !input.file_path.startsWith('..')) {
             const relPath = input.file_path.replace(/^AICore[\\/]/, '');
             const aicorePath = join(context.aicoreDir, relPath);
             if (fileExists(aicorePath))

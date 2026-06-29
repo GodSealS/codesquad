@@ -98,27 +98,6 @@ npm install
 
 安装后即可在任意目录使用 `codesquad` 命令。
 
-### 方法二：自定义目录安装
-
-```bash
-# 下载
-https://github.com/GodSealS/codesquad/releases
-
-# 安装到自定义目录（生成独立可执行文件）
-#丢到任意目录
-### 将目录注册到环境变量
-
-**Windows (PowerShell 管理员)**：
-```powershell
-[Environment]::SetEnvironmentVariable('PATH', $env:PATH + ';' + $env:USERPROFILE + '\.codesquad\bin', 'User')
-```
-
-**macOS / Linux**：
-```bash
-echo 'export PATH="$HOME/.codesquad/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-```
-
 ### 验证安装
 
 ```bash

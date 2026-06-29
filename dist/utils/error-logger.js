@@ -45,6 +45,24 @@ function getLogPath() {
     return join(dir, `error-${date}.log`);
 }
 // ── Logging ──
+/**
+ * Write a diagnostic trace to the daily log file.
+ * Levels: INFO, WARN, ERROR, FATAL, DEBUG.
+ * This is the general-purpose file logger — use it anywhere you'd use console.log
+ * so traces persist in .codesquad/logs/error-<date>.log even after terminal exits.
+ */
+export function logDiagnostic(level, source, message, context) {
+    const logPath = getLogPath();
+    const timestamp = new Date().toISOString();
+    const ctx = context ? `\n  Context: ${JSON.stringify(context)}` : '';
+    const line = `[${timestamp}] [${level}] [${source}] ${message}${ctx}\n`;
+    try {
+        appendFileSync(logPath, line, 'utf-8');
+    }
+    catch {
+        // Best-effort — don't let logging failures cascade
+    }
+}
 export function logError(report) {
     const logPath = getLogPath();
     const line = [

@@ -22,6 +22,9 @@ export function createSession(agent, modelConfig, name) {
         context: { injectedFiles: [], injectedContent: '' },
         modelConfig,
         status: 'active',
+        turnCount: 0,
+        lastCompactTurn: 0,
+        lastAssistantTimestamp: '',
     };
 }
 // ── CRUD ──
@@ -125,7 +128,8 @@ export async function listSessions() {
                 }
             }
             catch {
-                // Skip corrupted files
+                // S12: skip corrupted files but log the warning
+                console.warn(`[session] Skipped corrupted file: ${file}`);
             }
         }
         // Sort by updatedAt descending
@@ -133,6 +137,8 @@ export async function listSessions() {
         return summaries;
     }
     catch {
+        // S12: directory read failed — log and return empty list
+        console.warn('[session] Failed to read session directory');
         return [];
     }
 }

@@ -113,7 +113,8 @@ export async function saveSession(data) {
         }
     }
     catch {
-        // Backup failure is non-fatal — proceed without backup
+        // S12: backup failure is non-fatal but worth logging
+        console.warn('[storage] Backup rename failed, proceeding without backup');
     }
     // Write to temp file first (with retry)
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -122,8 +123,10 @@ export async function saveSession(data) {
             break;
         }
         catch {
+            // S12: retryable write failure
             if (attempt === 2)
                 throw new Error('SESSION_SAVE_FAILED');
+            console.warn(`[storage] Write attempt ${attempt + 1}/3 failed, retrying...`);
             await new Promise(r => setTimeout(r, 100));
         }
     }

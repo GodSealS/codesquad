@@ -61,6 +61,7 @@ async function callAnthropic(provider, request) {
             'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify(body),
+        signal: request.signal,
     });
 }
 async function callOpenAI(provider, request) {
@@ -111,6 +112,7 @@ async function callOpenAI(provider, request) {
             Authorization: `Bearer ${provider.apiKey}`,
         },
         body: JSON.stringify(body),
+        signal: request.signal,
     });
 }
 // ── Error handling ──
@@ -144,18 +146,28 @@ function formatError(status, providerName) {
     return `API 错误 ${status} from ${providerName}`;
 }
 // ── Main client ──
+// S01: default LLM timeout (prevents permanent hang on network stall)
+const DEFAULT_LLM_TIMEOUT_MS = 60_000;
 export async function callLLM(provider, request) {
+    // S01: enforce default timeout if caller didn't provide a signal
+    const requestWithTimeout = {
+        ...request,
+        signal: request.signal ?? AbortSignal.timeout(DEFAULT_LLM_TIMEOUT_MS),
+    };
     let response;
     try {
         if (provider.protocol === 'anthropic') {
-            response = await callAnthropic(provider, { ...request, stream: false });
+            response = await callAnthropic(provider, { ...requestWithTimeout, stream: false });
         }
         else {
-            response = await callOpenAI(provider, { ...request, stream: false });
+            response = await callOpenAI(provider, { ...requestWithTimeout, stream: false });
         }
     }
     catch (err) {
         const error = err;
+        if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+            throw new LlmError(`请求超时 (${DEFAULT_LLM_TIMEOUT_MS / 1000}s)`, 0, provider.id);
+        }
         if (error.code === 'ECONNREFUSED') {
             throw new LlmError(`无法连接到 ${provider.name} — 检查网络 / 尝试离线模式`, 0, provider.id);
         }
@@ -226,7 +238,10 @@ export async function callLLM(provider, request) {
             try {
                 input = JSON.parse(tc.function.arguments);
             }
-            catch { /* raw string */ }
+            catch {
+                // S12: log malformed JSON but continue with raw string
+                console.warn(`[client] Failed to parse OpenAI tool arguments for ${tc.function.name}`);
+            }
             toolCalls.push({ id: tc.id, name: tc.function.name, input });
         }
     }
@@ -399,7 +414,7 @@ export async function* callLLMStream(provider, request) {
                     }
                 }
                 catch {
-                    // Skip malformed SSE chunks
+                    // S12: skip malformed SSE chunks (debug level — high volume)
                 }
             }
         }

@@ -22,6 +22,13 @@ export interface ErrorReport {
     context?: Record<string, unknown>;
 }
 export declare function initErrorLogger(projectRoot: string): void;
+/**
+ * Write a diagnostic trace to the daily log file.
+ * Levels: INFO, WARN, ERROR, FATAL, DEBUG.
+ * This is the general-purpose file logger — use it anywhere you'd use console.log
+ * so traces persist in .codesquad/logs/error-<date>.log even after terminal exits.
+ */
+export declare function logDiagnostic(level: 'INFO' | 'WARN' | 'ERROR' | 'FATAL' | 'DEBUG', source: string, message: string, context?: Record<string, unknown>): void;
 export declare function logError(report: ErrorReport): void;
 /** Convenience: log an Error object with source context. */
 export declare function logException(source: string, err: Error, context?: Record<string, unknown>): void;

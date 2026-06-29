@@ -139,6 +139,15 @@ export async function runToolUse(options) {
     try {
         const result = await tool.call(input, context);
         result.toolCallId = toolCallId;
+        // S03: enforce maxResultSizeChars — truncate tool results to prevent
+        // a single tool result from consuming the entire context window.
+        const maxSize = tool.maxResultSizeChars ?? 20_000;
+        if (typeof result.content === 'string' && result.content.length > maxSize) {
+            const originalLen = result.content.length;
+            const truncated = result.content.slice(0, maxSize);
+            result.content = truncated +
+                `\n\n[... result truncated: ${originalLen} → ${maxSize} chars, ${originalLen - maxSize} chars omitted]`;
+        }
         // Step 8: PostToolUse hooks
         await executePostToolHooks(toolName, {
             tool_name: toolName,

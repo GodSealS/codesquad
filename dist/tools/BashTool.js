@@ -104,7 +104,19 @@ function translateForWindows(command) {
     if (process.platform !== 'win32')
         return command;
     let cmd = command.trim();
+    // Step 1: stderr redirect
     cmd = cmd.replace(/2>\/dev\/null/g, '2>$null');
+    // Step 2: handle shell-OR (||) BEFORE cat/ls/mkdir so cat doesn't capture it
+    if (cmd.includes('||')) {
+        cmd = cmd.replace(/\|\|\s*/g, '; if ($LASTEXITCODE -ne 0) { ');
+        const openBraces = (cmd.match(/\{/g) || []).length;
+        const closeBraces = (cmd.match(/\}/g) || []).length;
+        if (openBraces > closeBraces) {
+            cmd += ' }'.repeat(openBraces - closeBraces);
+        }
+        return cmd;
+    }
+    // Step 3: translate Unix commands (only when they start the command)
     const mkdirMatch = cmd.match(/^mkdir\s+(?:-p\s+)?(.+)$/i);
     if (mkdirMatch) {
         const target = mkdirMatch[1].trim();
@@ -116,18 +128,12 @@ function translateForWindows(command) {
     }
     if (/^ls$/i.test(cmd))
         return 'Get-ChildItem';
-    const catMatch = cmd.match(/^cat\s+(.+)$/i);
+    // Fix: use non-greedy (\S+) for filename — prevents capturing || and other suffixes
+    const catMatch = cmd.match(/^cat\s+(\S+)(.*)$/i);
     if (catMatch) {
-        return `Get-Content "${catMatch[1].trim()}"`;
-    }
-    if (cmd.includes('||')) {
-        cmd = cmd.replace(/\|\|\s*/g, '; if ($LASTEXITCODE -ne 0) { ');
-        const openBraces = (cmd.match(/\{/g) || []).length;
-        const closeBraces = (cmd.match(/\}/g) || []).length;
-        if (openBraces > closeBraces) {
-            cmd += ' }'.repeat(openBraces - closeBraces);
-        }
-        return cmd;
+        const filename = catMatch[1].trim();
+        const rest = catMatch[2] ?? '';
+        return `Get-Content "${filename}"${rest}`;
     }
     return cmd;
 }

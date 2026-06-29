@@ -44,6 +44,8 @@ export interface SkillFrontmatter {
     maxTokens?: number;
     /** Sub-files for multi-file skills (lazy-loaded on demand based on trigger keywords). */
     subFiles: SkillSubFile[];
+    /** Execution context: 'fork' means run in isolated context, return only summary. */
+    context?: string;
     /** Raw SKILL.md body (everything after frontmatter). */
     body: string;
 }

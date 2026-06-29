@@ -6,17 +6,17 @@
   },
   "ai-programmer": {
     "description": "The AI Programmer implements game AI systems: behavior trees, state machines, pathfinding, perception systems, decision-making, and NPC behavior. Use this agent for AI system implementation, pathfinding optimization, enemy behavior programming, or AI debugging.",
-    "name_cn": "AI程序员 AI Programmer",
+    "name_cn": "AI程序员 ai-programmer",
     "description_cn": "实现游戏AI系统：行为树、状态机、寻路、感知系统、决策系统和NPC行为。用于AI系统实现、寻路优化、敌人行为编程或AI调试。"
   },
   "analytics-engineer": {
     "description": "The Analytics Engineer designs telemetry systems, player behavior tracking, A/B test frameworks, and data analysis pipelines. Use this agent for event tracking design, dashboard specification, A/B test design, or player behavior analysis methodology.",
-    "name_cn": "数据分析工程师 Analytics Engineer",
+    "name_cn": "数据分析工程师 analytics-engineer",
     "description_cn": "设计遥测系统、玩家行为追踪、A/B测试框架和数据分析管线。用于事件追踪设计、仪表板规范、A/B测试设计或玩家行为分析方法论。"
   },
   "art-director": {
     "description": "The Art Director owns the visual identity of the game: style guides, art bible, asset standards, color palettes, UI/UX visual design, and the art production pipeline. Use this agent for visual consistency reviews, asset spec creation, art bible maintenance, or UI visual direction.",
-    "name_cn": "美术总监 Art Director",
+    "name_cn": "美术总监 art-director",
     "description_cn": "掌管游戏的视觉标识：风格指南、美术圣经、资产标准、调色板、UI/UX视觉设计以及美术生产管线。用于视觉一致性审查、资产规范创建、美术圣经维护或UI视觉指导。"
   },
   "audio-director": {
@@ -196,7 +196,7 @@
   },
   "writer": {
     "description": "The Writer creates dialogue, lore entries, item descriptions, environmental text, and all player-facing written content. Use this agent for dialogue writing, lore creation, item/ability descriptions, or in-game text of any kind.",
-    "name_cn": "文案作家 world-builder",
+    "name_cn": "文案作家 writer",
     "description_cn": "创作对话、背景故事条目、物品描述、环境文字和所有面向玩家的书面内容。用于对话写作、背景故事创作、物品/技能描述或任何类型的游戏内文本。"
   }
 }

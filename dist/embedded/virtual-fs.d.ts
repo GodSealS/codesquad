@@ -11,7 +11,7 @@
  *   PKG_ROOT/codesquad.config.yaml         → embedded key "codesquad.config.yaml"
  *   PKG_ROOT/AGENTS.md                     → embedded key "AGENTS.md"
  */
-/** Check existence (embedded first, then disk). */
+/** Check existence (embedded first, then disk). Never throws. */
 export declare function virtualExists(absPath: string): boolean;
 /** Read file content as UTF-8 string (embedded first, then disk). */
 export declare function virtualReadFile(absPath: string, encoding: BufferEncoding): string;
@@ -53,4 +53,14 @@ export declare function fileRead(absPath: string): string;
  *      `AICore/` (prevents double-prefix like `AICore/AICore/...`)
  */
 export declare function sanitizeAicorePaths(text: string): string;
+/**
+ * Pre-expand AICore file references in text by inlining the file content.
+ * Handles backtick-quoted paths like `AICore/docs/xxx.md` and bare paths
+ * like "Read AICore/docs/xxx.md" by replacing them with the file contents
+ * from the virtual filesystem.
+ *
+ * This is essential for Bun-compiled binaries where the LLM cannot read
+ * AICore files from disk — the content must be pre-inlined in the prompt.
+ */
+export declare function expandAicoreRefs(text: string): string;
 //# sourceMappingURL=virtual-fs.d.ts.map

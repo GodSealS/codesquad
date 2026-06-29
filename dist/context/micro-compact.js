@@ -12,18 +12,34 @@
  *   Claude Code src/services/compact/microCompact.ts
  *
  * Feature 5 — P4 Micro-Compact
+ * S09 — Defensive Execution: tool-type filtering + time-based trigger
  */
 // ── Constants ──
 /** Number of most recent tool interactions to keep fully intact. */
 const RECENT_TOOL_INTERACTIONS = 5;
+/** Minimum retained on time-based force-clear (always keep at least 1). */
+const TIME_BASED_MIN_KEEP = 1;
+/** Time gap threshold: if last assistant message > this, force-clear old results. */
+const GAP_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 /** Stub text for compacted tool results. */
 const TOOL_RESULT_STUB = '[Previous tool output omitted by micro-compact]';
+/**
+ * S09: Tools eligible for micro-compaction.
+ * Heavy I/O tools whose results are large and become stale quickly.
+ * Excludes: AgentTool, SkillTool, TaskCreateTool, AskUserQuestionTool — these
+ * contain structured context that the LLM needs to understand subtask progress.
+ */
+const COMPACTABLE_TOOLS = new Set([
+    'BashTool', 'Bash', 'Read', 'Grep', 'Glob',
+    'WebSearch', 'WebFetch', 'FileEdit', 'FileWrite',
+    'LSPTool',
+]);
 // ── Main ──
 /**
  * Apply micro-compaction to a conversation history.
  *
  * Strategy:
- * 1. Identify tool-use → tool-result pairs
+ * 1. Identify tool-use → tool-result pairs (S09: only COMPACTABLE_TOOLS)
  * 2. Keep the most recent RECENT_TOOL_INTERACTIONS pairs fully intact
  * 3. For older pairs: replace tool_result content with a short stub
  * 4. Non-tool messages are left untouched
@@ -34,26 +50,54 @@ const TOOL_RESULT_STUB = '[Previous tool output omitted by micro-compact]';
  */
 export function microCompact(messages) {
     if (messages.length < 4)
-        return messages; // Too few to compact
-    // 1. Find tool pairs: (assistant with tool call → result message)
+        return messages;
     const pairs = findToolPairs(messages);
     if (pairs.length <= RECENT_TOOL_INTERACTIONS)
         return messages;
-    // 2. Separate recent vs old pairs
-    const recentPairs = pairs.slice(-RECENT_TOOL_INTERACTIONS);
+    return applyCompaction(messages, pairs, RECENT_TOOL_INTERACTIONS);
+}
+/**
+ * S09: micro-compact with time-based trigger.
+ *
+ * If the gap since the last assistant message exceeds the threshold,
+ * force-clear ALL compactable results (keeping only the most recent 1)
+ * because the server-side prompt cache has expired.
+ */
+export function microCompactWithSession(messages, session) {
+    if (messages.length < 4)
+        return messages;
+    // S09: time-based trigger
+    const shouldForceClear = checkTimeBasedTrigger(session);
+    const keepCount = shouldForceClear ? TIME_BASED_MIN_KEEP : RECENT_TOOL_INTERACTIONS;
+    const pairs = findToolPairs(messages);
+    if (pairs.length <= keepCount)
+        return messages;
+    return applyCompaction(messages, pairs, keepCount);
+}
+// ── Internal ──
+function applyCompaction(messages, pairs, keepCount) {
+    const recentPairs = pairs.slice(-keepCount);
     const recentIndices = new Set();
     for (const p of recentPairs) {
         recentIndices.add(p.assistantIdx);
         recentIndices.add(p.resultIdx);
     }
-    // 3. Compact old pairs
-    for (const pair of pairs.slice(0, -RECENT_TOOL_INTERACTIONS)) {
+    for (const pair of pairs.slice(0, -keepCount)) {
         const resultMsg = messages[pair.resultIdx];
         if (resultMsg && !recentIndices.has(pair.resultIdx)) {
             resultMsg.content = TOOL_RESULT_STUB;
         }
     }
     return messages;
+}
+/** S09: check if the prompt cache has likely expired (gap > threshold). */
+function checkTimeBasedTrigger(session) {
+    if (!session.lastAssistantTimestamp)
+        return false;
+    const lastMs = new Date(session.lastAssistantTimestamp).getTime();
+    if (!Number.isFinite(lastMs))
+        return false;
+    return (Date.now() - lastMs) > GAP_THRESHOLD_MS;
 }
 /**
  * Estimate the token savings from micro-compacting a message array.
@@ -93,14 +137,12 @@ function findToolPairs(messages) {
         const nextMsg = messages[i + 1];
         if (!msg || !nextMsg)
             continue;
-        // Assistant message with tool calls (XML or metadata)
-        const hasToolCall = msg.role === 'assistant' &&
-            (hasXmlToolCall(msg.content) || hasNativeToolCalls(msg));
-        if (!hasToolCall)
+        // S09: only compact COMPACTABLE_TOOLS (heavy I/O tools).
+        // AgentTool, SkillTool results are preserved — they contain subtask context.
+        const toolNames = extractCompactableToolNames(msg);
+        if (toolNames.length === 0)
             continue;
         // Next message should be a tool result
-        // Note: REPL stores results as role='system', agent-runner stores as role='user'
-        // Both paths are valid — detect by content prefix or role==='tool_result'
         const isToolResult = nextMsg.content.startsWith('[Tool:') ||
             nextMsg.content.startsWith('[Tool Result:') ||
             nextMsg.role === 'tool_result' ||
@@ -111,11 +153,27 @@ function findToolPairs(messages) {
     }
     return pairs;
 }
-function hasXmlToolCall(content) {
-    return /<tool-call\s+name="[^"]+"/i.test(content);
-}
-function hasNativeToolCalls(msg) {
-    return Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
+/** S09: extract tool names from assistant content that match COMPACTABLE_TOOLS. */
+function extractCompactableToolNames(msg) {
+    if (msg.role !== 'assistant')
+        return [];
+    const names = new Set();
+    // XML pattern: <tool-call name="ToolName">
+    const xmlRe = /<tool-call\s+name="([^"]+)"/gi;
+    let m;
+    while ((m = xmlRe.exec(msg.content)) !== null) {
+        if (COMPACTABLE_TOOLS.has(m[1]))
+            names.add(m[1]);
+    }
+    // Native tool_calls metadata
+    if (Array.isArray(msg.tool_calls)) {
+        for (const tc of msg.tool_calls) {
+            const name = tc.name || tc.function?.name;
+            if (name && COMPACTABLE_TOOLS.has(name))
+                names.add(name);
+        }
+    }
+    return [...names];
 }
 // ── Integration helpers ──
 /**

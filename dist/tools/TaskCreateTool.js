@@ -84,7 +84,8 @@ function spawnBackgroundTask(task, parentContext) {
 }
 // ── Input Schema ──
 const InputSchema = z.object({
-    name: z.string().describe('Short task name'),
+    name: z.string().describe('Short task name').optional(),
+    description: z.string().describe('Short task name (alias for name)').optional(),
     prompt: z.string().describe('What the agent should do'),
     subagent_type: z.string().describe('Agent type to use'),
     run_in_background: z.boolean().optional().default(false),
@@ -123,8 +124,9 @@ Returns task status and result. Use TaskGet to check background task status.`;
         return false;
     },
     validateInput(input, _ctx) {
-        if (!input.name.trim())
-            return { valid: false, message: 'Task name is required' };
+        const taskName = input.name?.trim() || input.description?.trim();
+        if (!taskName)
+            return { valid: false, message: 'Task name is required (use "name" or "description")' };
         if (!input.prompt.trim())
             return { valid: false, message: 'Task prompt is required' };
         if (!input.subagent_type.trim())
@@ -138,8 +140,10 @@ Returns task status and result. Use TaskGet to check background task status.`;
         return { behavior: 'allow' };
     },
     async call(input, context) {
+        // Fix: accept "description" as fallback for "name" (LLMs often use "description" instead)
+        const taskName = input.name?.trim() || input.description?.trim() || input.subagent_type;
         const task = createTask({
-            name: input.name,
+            name: taskName,
             prompt: input.prompt,
             agentType: input.subagent_type,
             parentSessionId: context.session.id,

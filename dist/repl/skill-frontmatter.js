@@ -25,6 +25,7 @@ const DEFAULTS = {
     agent: undefined,
     model: undefined,
     subFiles: [],
+    context: undefined,
 };
 // ── Parse ──
 /**
@@ -87,6 +88,7 @@ export function parseSkillFrontmatter(raw, dirPath) {
         model: fm['model'] || undefined,
         maxTokens: Number.isNaN(maxTokens) ? undefined : maxTokens,
         subFiles,
+        context: fm['context'] || undefined,
         body,
     };
 }

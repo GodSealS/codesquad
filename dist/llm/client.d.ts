@@ -36,6 +36,8 @@ export interface LlmRequest {
             type: 'ephemeral';
         };
     }>;
+    /** Defensive execution: abort signal for timeout/cancellation (S01). */
+    signal?: AbortSignal;
 }
 export interface LlmResponse {
     content: string;

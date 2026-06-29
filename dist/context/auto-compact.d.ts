@@ -15,7 +15,7 @@ export declare function cleanupSessionTracking(sessionId?: string): void;
  * Check if auto-compaction should be triggered.
  * Called before each sendToAgent() call.
  */
-export declare function shouldAutoCompact(messages: Message[], model: string, sessionId?: string): {
+export declare function shouldAutoCompact(messages: Message[], model: string, sessionOrId?: Session | string): {
     should: boolean;
     tokenUsage: number;
     thresholdTokens: number;
@@ -45,10 +45,11 @@ export declare function autoCompactWithResult(messages: Message[], session: Sess
     }>;
     maxTokens: number;
 }) => Promise<string>, onWarning?: (pct: number) => void): Promise<TaskResult<CompactionResult | null>>;
-/** Increment turn counter. Call at the start of each sendToAgent(). */
-export declare function incrementTurn(sessionId?: string): boolean;
+/** Increment turn counter. Call at the start of each sendToAgent().
+ * S05: prefers session.turnCount (per-session), falls back to global Map. */
+export declare function incrementTurn(session?: Session): boolean;
 /** Reset compaction tracking (on /new or /clear). */
-export declare function resetCompactTracking(sessionId?: string): boolean;
+export declare function resetCompactTracking(session?: Session): boolean;
 declare function getContextWindow(model: string): number;
 export { getContextWindow };
 //# sourceMappingURL=auto-compact.d.ts.map

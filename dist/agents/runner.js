@@ -14,6 +14,7 @@
  */
 import { runToolUse } from '../tools/registry.js';
 import { executeSubagentStartHooks, executeSubagentStopHooks } from '../hooks/executor.js';
+import { createEphemeralSession } from '../context/fork-executor.js';
 // ── Tool restriction for agents ──
 /**
  * Tools that ALL agents (except main thread) are disallowed from using.
@@ -126,10 +127,13 @@ export async function* runAgentStream(options) {
         });
     }
     // ── ToolUseContext for subagent ──
+    // Use ephemeral session to prevent subagent tool results from polluting parent session.
+    const agentSession = createEphemeralSession(`subagent:${agentName}`, modelConfig);
     const toolContext = {
-        session: parentSession,
+        session: agentSession,
         cwd: projectRoot,
         projectRoot,
+        aicoreDir: options.aicoreDir,
         abortSignal: abortSignal || new AbortController().signal,
         permissionMode,
         readFileState: { get: () => undefined, set: () => { }, has: () => false, clear: () => { } },
