@@ -1,17 +1,17 @@
 /**
- * AICore Stub Loader
+ * .codesquad Stub Loader
  *
- * Parses AICore agent/skill stub files (schema: aicore-mcp-stub/v2).
+ * Parses .codesquad agent/skill stub files (schema: aicore-mcp-stub/v2).
  * Provides discovery, filtering, and schema retrieval for MCP tools.
  *
  * Stubs are lightweight interface declarations that map to MCP tool calls.
- * They do NOT contain full agent/skill prompts (those are in AICore/).
+ * They do NOT contain full agent/skill prompts (those are in .codesquad/).
  */
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join, extname } from 'path';
 import { parse as parseYaml } from 'yaml';
 import { AICORE_AGENTS_DIR, AICORE_SKILLS_DIR, CLI_PACKAGE_ROOT } from '../core/paths.js';
-/** Fallback directory for generated MCP stubs (when AICore/ files haven't been converted yet) */
+/** Fallback directory for generated MCP stubs (when .codesquad/ files haven't been converted yet) */
 const MCP_STUBS_DIR = join(CLI_PACKAGE_ROOT, '.aicore-mcp-stubs');
 const MCP_STUBS_AGENTS_DIR = join(MCP_STUBS_DIR, 'agents');
 const MCP_STUBS_SKILLS_DIR = join(MCP_STUBS_DIR, 'skills');
@@ -77,9 +77,9 @@ export function parseStubFile(filePath) {
         return null;
     }
 }
-/** Find all agent stub files in AICore/agents/ (with fallback to .aicore-mcp-stubs/) */
+/** Find all agent stub files in .codesquad/agents/ (with fallback to .aicore-mcp-stubs/) */
 export function loadAgentStubs() {
-    // Primary: AICore/agents/ (expected after Phase 6 in-place conversion)
+    // Primary: .codesquad/agents/ (expected after Phase 6 in-place conversion)
     if (existsSync(AICORE_AGENTS_DIR)) {
         const files = readdirSync(AICORE_AGENTS_DIR)
             .filter(f => extname(f) === '.md')
@@ -101,9 +101,9 @@ export function loadAgentStubs() {
     }
     return [];
 }
-/** Find all skill stub files in AICore/skills/ (with fallback to .aicore-mcp-stubs/) */
+/** Find all skill stub files in .codesquad/skills/ (with fallback to .aicore-mcp-stubs/) */
 export function loadSkillStubs() {
-    // Primary: AICore/skills/ (expected after Phase 6 in-place conversion)
+    // Primary: .codesquad/skills/ (expected after Phase 6 in-place conversion)
     if (existsSync(AICORE_SKILLS_DIR)) {
         const entries = readdirSync(AICORE_SKILLS_DIR, { withFileTypes: true })
             .filter(e => e.isDirectory())
@@ -140,9 +140,9 @@ export function loadAllStubs() {
         skills: loadSkillStubs(),
     };
 }
-/** Find a specific agent stub by name (checks AICore/ first, then .aicore-mcp-stubs/) */
+/** Find a specific agent stub by name (checks .codesquad/ first, then .aicore-mcp-stubs/) */
 export function findAgentStub(name) {
-    // Primary: AICore/agents/
+    // Primary: .codesquad/agents/
     let filePath = join(AICORE_AGENTS_DIR, `${name}.md`);
     if (existsSync(filePath)) {
         const stub = parseStubFile(filePath);
@@ -157,9 +157,9 @@ export function findAgentStub(name) {
     }
     return undefined;
 }
-/** Find a specific skill stub by name (checks AICore/ first, then .aicore-mcp-stubs/) */
+/** Find a specific skill stub by name (checks .codesquad/ first, then .aicore-mcp-stubs/) */
 export function findSkillStub(name) {
-    // Primary: AICore/skills/
+    // Primary: .codesquad/skills/
     let filePath = join(AICORE_SKILLS_DIR, name, 'SKILL.md');
     if (existsSync(filePath)) {
         const stub = parseStubFile(filePath);

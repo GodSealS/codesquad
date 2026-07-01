@@ -1,5 +1,5 @@
 /**
- * Skill registry — scans skills from three layers (AICore → User → Project).
+ * Skill registry — scans skills from three layers (.codesquad → User → Project).
  *
  * Two skill types:
  *   - workflow: Standalone multi-step guided workflow (user-invocable, /skill-name)
@@ -26,13 +26,13 @@ export function setAicodeRoot(dir) {
 function skillRoot() {
     if (_aicodeRoot)
         return join(_aicodeRoot, 'skills');
-    return join(process.cwd(), 'AICore', 'skills');
+    return join(process.cwd(), '.codesquad', 'skills');
 }
-/** Get both skill source dirs: AICore/skills/ + ~/.codesquad/skills/ + project .codesquad/skills/ */
+/** Get both skill source dirs: .codesquad/skills/ + ~/.codesquad/skills/ + project .codesquad/skills/ */
 function getAllSkillDirs() {
     const dirs = [];
     const aicoreDir = skillRoot();
-    // Embedded mode: AICore is not on disk, but available via readAicoreDir / VirtualFS
+    // Embedded mode: .codesquad is not on disk, but available via readAicoreDir / VirtualFS
     if (isEmbeddedMode() || virtualExists(aicoreDir))
         dirs.push(aicoreDir);
     // User home directory skill installs (e.g. graphify install --platform codesquad)
@@ -51,7 +51,7 @@ export function listSkills() {
     const seen = new Map();
     const skillDirs = getAllSkillDirs();
     // Layer label mapping by position in getAllSkillDirs():
-    //   [0] = AICore/skills/  → undefined (system, no badge)
+    //   [0] = .codesquad/skills/  → undefined (system, no badge)
     //   [1] = ~/.codesquad/skills/ → 'user'
     //   [2] = .codesquad/skills/   → 'project'
     const layerByIndex = [undefined, 'user', 'project'];
@@ -59,7 +59,7 @@ export function listSkills() {
     for (let i = 0; i < skillDirs.length; i++) {
         const root = skillDirs[i];
         const layer = layerByIndex[i];
-        // ── Layer 0 (AICore built-in): use readAicoreDir/readAicoreFile (VirtualFS) ──
+        // ── Layer 0 (.codesquad built-in): use readAicoreDir/readAicoreFile (VirtualFS) ──
         if (i === 0) {
             const entries = readAicoreDir('skills');
             for (const entry of entries) {
@@ -74,8 +74,8 @@ export function listSkills() {
                     const fm = parseSkillFrontmatter(content, entry);
                     seen.set(entry, { ...fm, dirName: entry, layer, sourcePath: `skills/${entry}` });
                 }
-                catch {
-                    // Skip unreadable skills
+                catch (err) {
+                    console.warn(`[skill-registry] Failed to parse skill frontmatter for "${entry}": ${err.message}`);
                 }
             }
             continue;

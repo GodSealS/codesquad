@@ -10,7 +10,7 @@
  * Phase 1.5
  */
 import { join, resolve, dirname } from 'path';
-import { writeFile, mkdir, rename } from 'fs';
+import { writeFile, mkdir, rename, realpathSync } from 'fs';
 import { promisify } from 'util';
 import { z } from 'zod';
 import { buildTool } from './types.js';
@@ -33,7 +33,7 @@ const DENIED_PREFIXES = ['.env', '.git/', 'node_modules/'];
 // ── Tool ──
 export const FileEditTool = buildTool({
     name: 'Edit',
-    description: 'Edit a file by replacing exact text. Use the Read tool first to see line numbers and content.',
+    description: 'Edit a file by replacing exact text. Use the Read tool first to see line numbers and content. Can be batched with edits/writes to DIFFERENT files in one response.',
     searchHint: 'edit file modify replace',
     inputSchema: FileEditInputSchema,
     maxResultSizeChars: 10_000,
@@ -90,6 +90,20 @@ export const FileEditTool = buildTool({
                 errorCode: 'ENOENT',
             };
         }
+        // Resolve symlinks to prevent path traversal
+        try {
+            const realPath = realpathSync(filePath);
+            if (!realPath.startsWith(context.projectRoot)) {
+                return {
+                    valid: false,
+                    message: 'File path resolves outside the project directory (symlink traversal).',
+                    errorCode: 'PATH_OUTSIDE_PROJECT',
+                };
+            }
+        }
+        catch {
+            return { valid: false, message: 'Broken symlink.', errorCode: 'ENOENT' };
+        }
         // Check size (OOM protection)
         const content = fileRead(filePath);
         if (content.length > MAX_FILE_SIZE_BYTES) {
@@ -144,7 +158,7 @@ export const FileEditTool = buildTool({
         // Inject path-matched rules into context
         const aicoreRulesDir = context.aicoreDir
             ? join(context.aicoreDir, 'rules')
-            : join(context.projectRoot, 'AICore', 'rules');
+            : join(context.projectRoot, '.codesquad', 'rules');
         const rulesCtx = getRulesForFileOperation(input.file_path, aicoreRulesDir);
         if (rulesCtx) {
             context.session.context.injectedContent =

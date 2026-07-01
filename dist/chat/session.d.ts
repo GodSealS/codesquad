@@ -1,7 +1,7 @@
 /**
  * Session data model and CRUD operations.
  *
- * Each REPL conversation is stored as a Session object identified by ULID.
+ * Each REPL conversation is stored as a Session object identified by numeric ID.
  * Phase 1.2 — Steps 1.2.1, 1.2.3.
  */
 import type { TaskResult } from '../core/task-result.js';

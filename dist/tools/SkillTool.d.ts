@@ -1,7 +1,7 @@
 /**
  * SkillTool — Allow agents to dynamically invoke skills during execution.
  *
- * Enabled for all agents. The tool loads a skill's SKILL.md from AICore/skills/
+ * Enabled for all agents. The tool loads a skill's SKILL.md from .codesquad/skills/
  * and injects its body (instructions) into the session context for subsequent turns.
  *
  * Phase 4 — Chat Feature Gap Fill

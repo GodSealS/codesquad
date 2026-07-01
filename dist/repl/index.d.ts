@@ -10,7 +10,7 @@
  */
 /**
  * Load MCP server configurations and register their tools.
- * Reads from AICore/settings.json mcpServers block (if present),
+ * Reads from .codesquad/settings.json mcpServers block (if present),
  * or from Config/mcp.config.yaml fallback.
  *
  * Mirrors Claude Code's MCP client initialization in bootstrap.

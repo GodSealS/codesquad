@@ -1,9 +1,9 @@
 /**
  * Agent definition system — loads and manages agent configs.
  *
- * Supports three-layer loading: Project > User > AICore.
+ * Supports three-layer loading: Project > User > .codesquad.
  *
- * Embedded mode (Bun compile): Layer 1 (AICore built-in) reads from
+ * Embedded mode (Bun compile): Layer 1 (.codesquad built-in) reads from
  * in-memory string constants instead of disk.
  *
  * References:
@@ -35,7 +35,7 @@ export interface AgentDefinition {
     initialPrompt?: string;
     /** Whether this agent can be spawned as a subagent via AgentTool. */
     subagent?: boolean;
-    /** Source layer: 'user' (AICore/) or 'project' (.codesquad/). */
+    /** Source layer: 'user' (.codesquad/) or 'project' (.codesquad/). */
     layer?: 'user' | 'project';
     /** Source file path. */
     sourcePath?: string;
@@ -46,7 +46,7 @@ export interface AgentDefinition {
  */
 export declare function loadAllAgents(agentsDir: string): AgentDefinition[];
 /**
- * Load agents from two layers (Project .codesquad/ > User AICore/).
+ * Load agents from two layers (Project .codesquad/ > User .codesquad/).
  * Override semantics: same-named agent from project wins.
  *
  * In embedded mode, Layer 1 reads from in-memory constants.

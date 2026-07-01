@@ -44,8 +44,8 @@ export async function updateProject(options) {
         return;
     }
     logger.info(`Tools: ${toolIds.join(', ')}`);
-    // Load canonical agents and skills from AICore content source
-    // Uses @codesquad/aicore-content private package if installed, else bundled AICore/
+    // Load canonical agents and skills from .codesquad content source
+    // Uses @codesquad/aicore-content private package if installed, else bundled .codesquad/
     const aicoreRoot = AICORE_CONTENT_ROOT;
     const agents = await loadAgents(aicoreRoot);
     const skills = await loadSkills(join(aicoreRoot, 'skills'));

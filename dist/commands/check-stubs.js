@@ -3,8 +3,8 @@
  *
  * codesquad check --stubs
  *
- * Validates consistency between AICore MCP stubs (.aicore-mcp-stubs/)
- * and AICore/ implementations. Ensures every stub has a matching
+ * Validates consistency between .codesquad MCP stubs (.aicore-mcp-stubs/)
+ * and .codesquad/ implementations. Ensures every stub has a matching
  * implementation and vice versa.
  */
 import { existsSync, readdirSync, readFileSync } from 'fs';
@@ -18,7 +18,7 @@ export async function handleCheckStubs(mode = 'stubs', projectRoot) {
     console.log(`   Skills: ${result.skillCount} stubs`);
     console.log('');
     if (result.issues.length === 0) {
-        console.log('✅ All stubs consistent with AICore/ implementations.\n');
+        console.log('✅ All stubs consistent with .codesquad/ implementations.\n');
         return;
     }
     const errors = result.issues.filter(i => i.type === 'error');
@@ -56,14 +56,14 @@ export function runStubCheck(projectRoot, mode) {
     const agents = loadAgentStubs();
     const skills = loadSkillStubs();
     // ── Agent checks ──
-    const codebuddyAgentsDir = join(projectRoot, 'AICore', 'agents');
+    const codebuddyAgentsDir = join(projectRoot, '.codesquad', 'agents');
     for (const stub of agents) {
         const implPath = join(codebuddyAgentsDir, `${stub.name}.md`);
         if (!existsSync(implPath)) {
             issues.push({
                 type: mode === 'stubs-strict' ? 'error' : 'warning',
                 file: `stub:${stub.name}`,
-                message: `AICore/agents/${stub.name}.md not found — run 'codesquad init --tools codebuddy'`,
+                message: `.codesquad/agents/${stub.name}.md not found — run 'codesquad init --tools codebuddy'`,
             });
             continue;
         }
@@ -85,12 +85,12 @@ export function runStubCheck(projectRoot, mode) {
             issues.push({
                 type: 'error',
                 file: `stub:${stub.name}`,
-                message: `Failed to read AICore/agents/${stub.name}.md`,
+                message: `Failed to read .codesquad/agents/${stub.name}.md`,
             });
         }
     }
     // ── Skill checks ──
-    const codebuddySkillsDir = join(projectRoot, 'AICore', 'skills');
+    const codebuddySkillsDir = join(projectRoot, '.codesquad', 'skills');
     for (const stub of skills) {
         if (stub.userInvocable === false)
             continue; // Skip agent-coupled engine skills
@@ -99,7 +99,7 @@ export function runStubCheck(projectRoot, mode) {
             issues.push({
                 type: mode === 'stubs-strict' ? 'error' : 'warning',
                 file: `stub:${stub.name}`,
-                message: `AICore/skills/${stub.name}/SKILL.md not found — run 'codesquad init --tools codebuddy'`,
+                message: `.codesquad/skills/${stub.name}/SKILL.md not found — run 'codesquad init --tools codebuddy'`,
             });
             continue;
         }
@@ -121,11 +121,11 @@ export function runStubCheck(projectRoot, mode) {
             issues.push({
                 type: 'error',
                 file: `stub:${stub.name}`,
-                message: `Failed to read AICore/skills/${stub.name}/SKILL.md`,
+                message: `Failed to read .codesquad/skills/${stub.name}/SKILL.md`,
             });
         }
     }
-    // ── Reverse check: orphaned AICore/ files without stubs ──
+    // ── Reverse check: orphaned .codesquad/ files without stubs ──
     if (existsSync(codebuddyAgentsDir)) {
         const stubNames = new Set(agents.map(a => a.name));
         const implFiles = readdirSync(codebuddyAgentsDir).filter((f) => f.endsWith('.md'));
@@ -134,7 +134,7 @@ export function runStubCheck(projectRoot, mode) {
             if (!stubNames.has(name)) {
                 issues.push({
                     type: 'info',
-                    file: `AICore/agents/${file}`,
+                    file: `.codesquad/agents/${file}`,
                     message: `No MCP stub found for agent '${name}'`,
                 });
             }

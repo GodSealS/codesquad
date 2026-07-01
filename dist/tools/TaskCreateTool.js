@@ -30,7 +30,7 @@ async function executeTask(task, parentContext) {
             providerId: parentContext.session.id, // inherit provider context
             modelId: parentContext.session.modelConfig?.model || 'claude-sonnet-4-20250514',
             projectRoot: parentContext.projectRoot,
-            aicoreDir: parentContext.aicoreDir || parentContext.projectRoot + '/AICore',
+            aicoreDir: parentContext.aicoreDir || parentContext.projectRoot + '/.codesquad',
             mode: 'ask',
             maxTurns: 15,
         });

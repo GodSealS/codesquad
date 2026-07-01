@@ -54,8 +54,8 @@ export async function addBinding(options) {
             logger.warn(`Failed to load models.config.yaml: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
-    // Load canonical definitions from AICore content source
-    // Uses @codesquad/aicore-content private package if installed, else bundled AICore/
+    // Load canonical definitions from .codesquad content source
+    // Uses @codesquad/aicore-content private package if installed, else bundled .codesquad/
     const aicoreRoot = AICORE_CONTENT_ROOT;
     const agents = await loadAgents(aicoreRoot);
     const skills = await loadSkills(join(aicoreRoot, 'skills'));

@@ -60,7 +60,13 @@ export interface LlmResponse {
 export declare class LlmError extends Error {
     status: number;
     providerId: string;
-    constructor(message: string, status: number, providerId: string);
+    /** Raw error response body (for upstream error classification). */
+    errorBody?: string | undefined;
+    constructor(message: string, status: number, providerId: string, 
+    /** Raw error response body (for upstream error classification). */
+    errorBody?: string | undefined);
+    /** Check if this 502 is an upstream (backend model provider) error vs proxy error. */
+    isUpstreamError(): boolean;
 }
 export declare function callLLM(provider: RuntimeProviderConfig, request: LlmRequest): Promise<LlmResponse>;
 export interface StreamEvent {

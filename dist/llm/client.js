@@ -5,8 +5,22 @@
  * (Anthropic native, OpenAI, or OpenAI-compatible).
  * Phase 1.4 — Step 1.4.1 base.
  */
+import { getGateway } from './tokenhub-gateway.js';
 // ── Protocols ──
 async function callAnthropic(provider, request) {
+    const sysBlocks = request.systemContentBlocks ?? [];
+    const convoMsgs = request.messages ?? [];
+    const tools = request.tools ?? [];
+    const sysChars = sysBlocks.reduce((s, b) => s + (b.text?.length ?? 0), 0);
+    const msgsChars = convoMsgs.reduce((s, m) => s + (m.content?.length ?? 0), 0);
+    const toolsChars = JSON.stringify(tools).length;
+    const actualBodySize = JSON.stringify({
+        model: request.model,
+        messages: convoMsgs.length,
+        systemBlocks: sysBlocks.length,
+        tools: tools.length,
+    }).length;
+    console.log(`[LLM] callAnthropic → ${request.model} | body est ${((sysChars + msgsChars + toolsChars) / 1024).toFixed(0)}KB | sys:${sysBlocks.length}/${(sysChars / 1024).toFixed(0)}KB | msgs:${convoMsgs.length}/${(msgsChars / 1024).toFixed(0)}KB | tools:${tools.length}/${(toolsChars / 1024).toFixed(0)}KB`);
     const body = {
         model: request.model,
         max_tokens: request.maxTokens ?? 4096,
@@ -53,18 +67,57 @@ async function callAnthropic(provider, request) {
         // Ensure max_tokens > budget_tokens (required by Anthropic)
         body.max_tokens = Math.max(body.max_tokens || 4096, budgetTokens + 2048);
     }
-    return fetch(`${provider.baseUrl}/v1/messages`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': provider.apiKey,
-            'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify(body),
-        signal: request.signal,
+    const url = `${provider.baseUrl}/v1/messages`;
+    const gateway = getGateway(provider.apiKey, provider.baseUrl);
+    const response = await gateway.send(request.model, async () => {
+        const t0 = Date.now();
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': provider.apiKey,
+                'anthropic-version': '2023-06-01',
+                'Connection': 'close',
+            },
+            body: JSON.stringify(body),
+            signal: request.signal,
+        });
+        // ── Diagnostic: log HTTP round-trip (before gateway pacing delay) ──
+        const elapsed = Date.now() - t0;
+        const respHeaders = {};
+        const interestingHeaders = ['content-type', 'content-length', 'x-request-id', 'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset', 'x-proxy-by', 'x-upstream-status', 'retry-after', 'server', 'via', 'cf-ray'];
+        for (const h of interestingHeaders) {
+            const val = resp.headers.get(h);
+            if (val)
+                respHeaders[h] = val;
+        }
+        const headerStr = Object.entries(respHeaders).map(([k, v]) => `${k}=${v}`).join(', ');
+        const level = resp.ok ? 'OK' : 'FAIL';
+        let errorBodyStr = '';
+        if (!resp.ok) {
+            try {
+                const cloned = resp.clone();
+                errorBodyStr = await cloned.text();
+            }
+            catch { /* best effort */ }
+        }
+        console.log(`[LLM] ← ${level} HTTP ${resp.status} in ${elapsed}ms${headerStr ? ` | headers: ${headerStr}` : ''}${errorBodyStr ? ` | body: ${errorBodyStr.slice(0, 500)}` : ''}`);
+        return resp;
     });
+    return response;
 }
 async function callOpenAI(provider, request) {
+    const sysBlocks = request.systemContentBlocks ?? [];
+    const convoMsgs = request.messages ?? [];
+    const tools = request.tools ?? [];
+    // ── Diagnostic: log request body composition before sending ──
+    const sysChars = sysBlocks.reduce((s, b) => s + (b.text?.length ?? 0), 0);
+    const msgsChars = convoMsgs.reduce((s, m) => s + (m.content?.length ?? 0), 0);
+    const toolsChars = JSON.stringify(tools).length;
+    const largestMsg = convoMsgs.reduce((max, m) => {
+        const len = m.content?.length ?? 0;
+        return len > max.len ? { role: m.role, len } : max;
+    }, { role: '', len: 0 });
     const body = {
         model: request.model,
         max_tokens: request.maxTokens ?? 4096,
@@ -114,25 +167,68 @@ async function callOpenAI(provider, request) {
             body.thinking = { type: 'enabled' };
         }
     }
-    return fetch(`${provider.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${provider.apiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal: request.signal,
+    const actualBodySize = JSON.stringify(body).length;
+    const url = `${provider.baseUrl}/chat/completions`;
+    // ── Diagnostic: include thinking/reasoning params in log ──
+    const thinkingInfo = request.thinkingMode && request.thinkingMode !== 'fast'
+        ? `thinking=${request.thinkingMode} reasoning_effort=${body.reasoning_effort || 'none'}`
+        : 'thinking=off';
+    console.log(`[LLM] callOpenAI → ${request.model} | body est ${((sysChars + msgsChars + toolsChars) / 1024).toFixed(0)}KB (actual ${(actualBodySize / 1024).toFixed(0)}KB) | sys:${sysBlocks.length} blocks/${(sysChars / 1024).toFixed(0)}KB | msgs:${convoMsgs.length}/${(msgsChars / 1024).toFixed(0)}KB | tools:${tools.length}/${(toolsChars / 1024).toFixed(0)}KB | largest:${largestMsg.role}(${(largestMsg.len / 1024).toFixed(0)}KB) | ${thinkingInfo} | url:${url}`);
+    // ── Route through shared gateway for cross-session throttling ──
+    const gateway = getGateway(provider.apiKey, provider.baseUrl);
+    const response = await gateway.send(request.model, async () => {
+        const t0 = Date.now();
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${provider.apiKey}`,
+                'Connection': 'close',
+            },
+            body: JSON.stringify(body),
+            signal: request.signal,
+        });
+        // ── Diagnostic: log HTTP round-trip (before gateway pacing delay) ──
+        const elapsed = Date.now() - t0;
+        const respHeaders = {};
+        const interestingHeaders = ['content-type', 'content-length', 'x-request-id', 'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset', 'x-proxy-by', 'x-upstream-status', 'retry-after', 'server', 'via', 'cf-ray'];
+        for (const h of interestingHeaders) {
+            const val = resp.headers.get(h);
+            if (val)
+                respHeaders[h] = val;
+        }
+        const headerStr = Object.entries(respHeaders).map(([k, v]) => `${k}=${v}`).join(', ');
+        const level = resp.ok ? 'OK' : 'FAIL';
+        let errorBodyStr = '';
+        if (!resp.ok) {
+            try {
+                const cloned = resp.clone();
+                errorBodyStr = await cloned.text();
+            }
+            catch { /* best effort */ }
+        }
+        console.log(`[LLM] ← ${level} HTTP ${resp.status} in ${elapsed}ms${headerStr ? ` | headers: ${headerStr}` : ''}${errorBodyStr ? ` | body: ${errorBodyStr.slice(0, 500)}` : ''}`);
+        return resp;
     });
+    return response;
 }
 // ── Error handling ──
 export class LlmError extends Error {
     status;
     providerId;
-    constructor(message, status, providerId) {
+    errorBody;
+    constructor(message, status, providerId, 
+    /** Raw error response body (for upstream error classification). */
+    errorBody) {
         super(message);
         this.status = status;
         this.providerId = providerId;
+        this.errorBody = errorBody;
         this.name = 'LlmError';
+    }
+    /** Check if this 502 is an upstream (backend model provider) error vs proxy error. */
+    isUpstreamError() {
+        return this.status === 502 && !!this.errorBody?.includes('"source":"upstream"');
     }
 }
 /** Maps HTTP status codes to human-readable Chinese annotations. */
@@ -186,7 +282,13 @@ export async function callLLM(provider, request) {
         throw new LlmError(error.message || `Request failed for ${provider.name}`, 0, provider.id);
     }
     if (!response.ok) {
-        throw new LlmError(formatError(response.status, provider.name), response.status, provider.id);
+        // Read error body for upstream classification (TokenHub returns JSON like {"error":{"source":"upstream"}})
+        let errorBody;
+        try {
+            errorBody = await response.text();
+        }
+        catch { /* best effort */ }
+        throw new LlmError(formatError(response.status, provider.name), response.status, provider.id, errorBody);
     }
     if (provider.protocol === 'anthropic') {
         let json;
@@ -247,9 +349,8 @@ export async function callLLM(provider, request) {
             try {
                 input = JSON.parse(tc.function.arguments);
             }
-            catch {
-                // S12: log malformed JSON but continue with raw string
-                console.warn(`[client] Failed to parse OpenAI tool arguments for ${tc.function.name}`);
+            catch (err) {
+                console.warn(`[client] Failed to parse tool arguments for ${tc.function.name}: ${err.message}`);
             }
             toolCalls.push({ id: tc.id, name: tc.function.name, input });
         }

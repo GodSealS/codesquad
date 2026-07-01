@@ -7,7 +7,7 @@
  * Phase 2.2
  */
 import type { HookEventName, HookConfig, HookInput, HookResult, HooksSettings } from './types.js';
-/** Load hooks configuration (from AICore/settings.json or programmatic). */
+/** Load hooks configuration (from .codesquad/settings.json or programmatic). */
 export declare function loadHooksConfig(config: HooksSettings): void;
 /** Register a single hook config for an event. */
 export declare function registerHook(event: HookEventName, config: HookConfig): void;

@@ -8,6 +8,7 @@
  *   CodeSquad src/repl/index.ts sendToAgent() (~240 lines)
  */
 import type { Session } from '../chat/session.js';
+import { type QueueProgress } from '../tools/execution-queue.js';
 import type { ChatMode } from '../repl/mode.js';
 import type { RuntimeProviderConfig } from '../llm/provider.js';
 export interface AgentRunConfig {
@@ -49,6 +50,8 @@ export interface AgentRunConfig {
         content: string;
         isError: boolean;
     }) => void;
+    /** Called with queue progress during tool batch execution (Web UI SSE). */
+    onToolProgress?: (progress: QueueProgress) => void;
     /** Called when the agent encounters an error. */
     onError?: (message: string) => void;
 }
@@ -57,6 +60,8 @@ export interface AgentRunResult {
     turnsUsed: number;
     toolCallsMade: number;
     error?: string;
+    /** Total wall-clock duration from start to finish (milliseconds). */
+    durationMs: number;
     /** Feature 1 (P5): Pending AskUserQuestion when agent needs user input. */
     needsUserInput?: {
         toolCallId: string;

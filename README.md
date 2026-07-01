@@ -201,7 +201,7 @@ CodeSquad 内置三级代理架构，对应真实游戏工作室：
 | `codesquad mcp status` | 查看 MCP 服务状态 |
 | `codesquad build` | 委托 AI 执行构建 |
 | `codesquad test` | 委托 AI 运行测试 |
-| `codesquad update` | 更新 AICore 资源 |
+| `codesquad update` | 更新 .codesquad 资源 |
 
 ### 4. 新项目第一步
 先确定自己用什么引擎
@@ -252,7 +252,7 @@ Unreal 适合 大型AAA游戏
 
 ```
 CODESQUAD.md                    # 主配置文件
-AICore/
+.codesquad/
   agents/                        # 49 个代理定义
   skills/                        # 72 个技能定义
   hooks/                         # 12 个钩子脚本

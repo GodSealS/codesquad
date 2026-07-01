@@ -1,7 +1,7 @@
 /**
  * Settings Generator
  *
- * Generates tool-specific settings files (e.g., AICore/settings.json for CodeBuddy)
+ * Generates tool-specific settings files (e.g., .codesquad/settings.json for CodeBuddy)
  * from the canonical Agent and Skill definitions.
  */
 export interface SettingsGenerateOptions {

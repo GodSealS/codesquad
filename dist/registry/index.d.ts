@@ -1,7 +1,7 @@
 /**
  * Registry index — unified facade for two-layer registration.
  *
- * Layers: Project (.codesquad/) > User (AICore/)
+ * Layers: Project (.codesquad/) > User (.codesquad/)
  *
  * Usage:
  *   import { registerSource } from '../registry/index.js';
@@ -18,7 +18,7 @@ export { scanRuleDir, registerRuleFile, registerRuleDir, listRegisteredRules, un
 export { scanHookDir, registerHookFile, registerHookDir, listRegisteredHooks, unregisterHook } from './hook-registry.js';
 import type { RegisterResult, RegistryCategory } from './types.js';
 /**
- * Register an external source into AICore/ (user-level).
+ * Register an external source into .codesquad/ (user-level).
  */
 export declare function registerSource(aicoreRoot: string, options: {
     name: string;

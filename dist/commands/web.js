@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, copyFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 // In Bun compile mode, import.meta.url is not a file:// URL.
-// Fall back to process.cwd()/../../AICore for embedded mode.
+// Fall back to process.cwd()/../../.codesquad for embedded mode.
 const _resolveRoot = () => {
     try {
         const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -20,13 +20,13 @@ const _resolveRoot = () => {
     }
 };
 const PKG_ROOT = _resolveRoot();
-const AICORE_DIR = join(PKG_ROOT, 'AICore');
+const AICORE_DIR = join(PKG_ROOT, '.codesquad');
 /**
  * Create missing project directories (non-destructive).
- * AICore/ stays in CLI installation only — NOT copied to user projects.
+ * .codesquad/ stays in CLI installation only — NOT copied to user projects.
  */
 function scaffoldProject(cwd) {
-    // ── .codesquad/settings.json — copy from AICore template ──
+    // ── .codesquad/settings.json — copy from .codesquad template ──
     const codesquadDir = join(cwd, '.codesquad');
     const targetSettings = join(codesquadDir, 'settings.json');
     if (!existsSync(targetSettings)) {

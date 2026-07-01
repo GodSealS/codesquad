@@ -13,6 +13,8 @@
  * Multi-file skills: sub-files in the skill directory auto-loaded based on context
  *   (e.g., cocos_editor/workflow-character.md loaded when user says "character")
  */
+import { readdirSync } from 'fs';
+import { join } from 'path';
 const DEFAULTS = {
     name: '',
     description: '',
@@ -101,11 +103,6 @@ export function parseSkillFrontmatter(raw, dirPath) {
  *   | character, player, NPC | `workflow-character.md` |
  */
 function discoverSubFiles(dirPath, parentBody) {
-    // Use dynamic import for ESM compatibility (no top-level fs/path import in this module)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { readdirSync } = require('fs');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { join } = require('path');
     const results = [];
     try {
         const entries = readdirSync(dirPath, { withFileTypes: true });

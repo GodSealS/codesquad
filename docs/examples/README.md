@@ -353,5 +353,5 @@ If the agent skips any of these, remind it:
 
 - **Full Principle Documentation:** [docs/COLLABORATIVE-DESIGN-PRINCIPLE.md](../COLLABORATIVE-DESIGN-PRINCIPLE.md)
 - **Workflow Guide:** [docs/WORKFLOW-GUIDE.md](../WORKFLOW-GUIDE.md)
-- **Agent Roster:** [AICore/docs/agent-roster.md](../../AICore/docs/agent-roster.md)
+- **Agent Roster:** [.codesquad/docs/agent-roster.md](../../.codesquad/docs/agent-roster.md)
 - **CODESQUAD.md (Collaboration Protocol):** [CODESQUAD.md](../../CODESQUAD.md#collaboration-protocol)

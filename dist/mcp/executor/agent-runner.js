@@ -2,7 +2,7 @@
  * Agent Runner — Tool-Call Loop Execution Engine
  *
  * Implements the full agentic execution cycle:
- * 1. Load agent prompt template from AICore/
+ * 1. Load agent prompt template from .codesquad/
  * 2. Inject context + input → build system prompt
  * 3. Enter tool-call loop (up to maxTurns)
  * 4. Call LLM API, execute tool calls, feed results back
@@ -21,7 +21,7 @@ import { sandboxAgentContext } from '../security/prompt-sandbox.js';
 import { startSpan, endSpan } from '../observability/tracer.js';
 // ── Prompt Loading ──
 const CODEBUDDY_DIR = '.codebuddy';
-/** Load agent prompt template from AICore/agents/{name}.md */
+/** Load agent prompt template from .codesquad/agents/{name}.md */
 function loadAgentPrompt(projectRoot, agentName) {
     const agentPath = join(projectRoot, CODEBUDDY_DIR, 'agents', `${agentName}.md`);
     if (!existsSync(agentPath)) {

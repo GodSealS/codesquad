@@ -5,7 +5,7 @@
  * historical sessions and formats it as an injected system message.
  * Mitigates the "new chat loses history" problem for LLM context windows.
  *
- * Phase 8.2-8.3.
+ * Phase 8.2-8.3. Step 7: semantic cross-session retrieval.
  */
 export interface HistorySummary {
     /** ISO 8601 timestamp when this summary was generated. */
@@ -22,13 +22,19 @@ export interface HistorySummary {
 }
 /**
  * Extract summaries from the most recent N historical sessions.
- * Excludes the session identified by `excludeId` (the currently active session).
- * Each session contributes its last 3 assistant messages (first 200 chars each,
- * truncated at nearest word boundary).
  *
- * Returns null if there are no historical sessions to summarize.
+ * If `userInput` is provided and semantic context is enabled, uses
+ * embedding-based cross-session retrieval to find semantically relevant
+ * messages from past sessions. Otherwise falls back to time-based recency.
+ *
+ * Excludes the session identified by `excludeId` (the currently active session).
+ *
+ * @param limit Maximum number of sessions to include
+ * @param excludeId Current session ID to exclude
+ * @param userInput Optional user input for semantic matching
+ * @returns HistorySummary or null if no relevant sessions found
  */
-export declare function summarizeHistory(limit: number, excludeId?: string): Promise<HistorySummary | null>;
+export declare function summarizeHistory(limit: number, excludeId?: string, userInput?: string): Promise<HistorySummary | null>;
 /**
  * Format a HistorySummary as a Markdown text block suitable for
  * injection into the system prompt or context.

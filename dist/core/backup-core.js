@@ -59,7 +59,8 @@ function readBackupManifest() {
         const data = parseYaml(content);
         return data.backups ?? [];
     }
-    catch {
+    catch (err) {
+        console.error(`[backup] Failed to read backup manifest ${manifestPath}: ${err.message}`);
         return [];
     }
 }
@@ -110,7 +111,7 @@ export function listBackups() {
 /**
  * Restore a backup by ID.
  * Restores to ~/.codesquad/backups/restore-target/ instead of directly
- * overwriting AICore content.
+ * overwriting .codesquad content.
  */
 export function restoreBackup(backupId) {
     const manifest = readBackupManifest();

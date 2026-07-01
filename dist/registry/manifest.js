@@ -1,5 +1,5 @@
 /**
- * Manifest management — read/write AICore/.codesquad/manifest.yaml.
+ * Manifest management — read/write .codesquad/.codesquad/manifest.yaml.
  */
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
@@ -53,7 +53,7 @@ export function removeEntriesFromManifest(aicoreRoot, category, names) {
     manifest.entries = manifest.entries.filter(e => !(e.category === category && names.includes(e.name)));
     writeManifest(aicoreRoot, manifest);
 }
-/** Update AICore metadata. */
+/** Update .codesquad metadata. */
 export function updateAicoreMeta(aicoreRoot, version, entryCount) {
     const manifest = ensureManifest(aicoreRoot);
     manifest.aicore = { type: 'aicore', path: aicoreRoot, version, registeredAt: new Date().toISOString(), entryCount };

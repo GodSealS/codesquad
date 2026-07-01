@@ -1,5 +1,5 @@
 /**
- * Agent registry — external registration into AICore/agents/ (user-level).
+ * Agent registry — external registration into .codesquad/agents/ (user-level).
  */
 import { existsSync, readdirSync, copyFileSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
@@ -28,7 +28,7 @@ export function loadAgentFile(filePath) {
         return null;
     }
 }
-/** Register an external agent file to AICore/agents/. */
+/** Register an external agent file to .codesquad/agents/. */
 export function registerAgentFile(aicoreRoot, sourcePath, sourceName) {
     const agent = loadAgentFile(sourcePath);
     if (!agent)
@@ -49,7 +49,7 @@ export function registerAgentFile(aicoreRoot, sourcePath, sourceName) {
         return `Failed to copy agent: ${err.message}`;
     }
 }
-/** Register an entire external agent directory to AICore/agents/. */
+/** Register an entire external agent directory to .codesquad/agents/. */
 export function registerAgentDir(aicoreRoot, sourceDir, sourceName) {
     const result = { count: 0, updated: 0, skipped: 0, errors: [] };
     const destDir = getUserCategoryDir(aicoreRoot, 'agent');
@@ -79,7 +79,7 @@ export function registerAgentDir(aicoreRoot, sourceDir, sourceName) {
 export function listRegisteredAgents(aicoreRoot) {
     return ensureManifest(aicoreRoot).entries.filter(e => e.category === 'agent');
 }
-/** Unregister an agent from AICore/agents/. */
+/** Unregister an agent from .codesquad/agents/. */
 export function unregisterAgent(aicoreRoot, name) {
     const dir = getUserCategoryDir(aicoreRoot, 'agent');
     const filePath = join(dir, `${name}.md`);

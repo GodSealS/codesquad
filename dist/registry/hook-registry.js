@@ -1,9 +1,9 @@
 /**
- * Hook registry — external registration into AICore/hooks/ (user-level).
+ * Hook registry — external registration into .codesquad/hooks/ (user-level).
  *
  * Pattern: graphify hook install/uninstall
- * - Copies hook script to AICore/hooks/
- * - Updates AICore/settings.json → hooks.SessionStart to register the command
+ * - Copies hook script to .codesquad/hooks/
+ * - Updates .codesquad/settings.json → hooks.SessionStart to register the command
  * - Unregister reverses both operations
  */
 import { existsSync, readdirSync, copyFileSync, mkdirSync, unlinkSync, readFileSync, writeFileSync } from 'fs';
@@ -23,7 +23,7 @@ export function scanHookDir(dir) {
         return [];
     }
 }
-/** Add a hook command to AICore/settings.json → hooks.SessionStart. */
+/** Add a hook command to .codesquad/settings.json → hooks.SessionStart. */
 function addHookToSettings(aicoreRoot, command) {
     const settingsPath = join(aicoreRoot, 'settings.json');
     let settings = {};
@@ -47,7 +47,7 @@ function addHookToSettings(aicoreRoot, command) {
     mkdirSync(join(aicoreRoot), { recursive: true });
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
 }
-/** Remove a hook command from AICore/settings.json. */
+/** Remove a hook command from .codesquad/settings.json. */
 function removeHookFromSettings(aicoreRoot, command) {
     const settingsPath = join(aicoreRoot, 'settings.json');
     if (!existsSync(settingsPath))
@@ -76,7 +76,7 @@ function removeHookFromSettings(aicoreRoot, command) {
 }
 /** Build the expected settings.json command for a registered hook name. */
 function getHookSettingsCommand(name, ext) {
-    const relPath = `AICore/hooks/${name}${ext}`;
+    const relPath = `.codesquad/hooks/${name}${ext}`;
     if (ext === '.ps1')
         return `powershell -File ${relPath}`;
     if (ext === '.bat' || ext === '.cmd')

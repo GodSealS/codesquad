@@ -1,5 +1,5 @@
 /**
- * Rule registry — external registration into AICore/rules/ (user-level).
+ * Rule registry — external registration into .codesquad/rules/ (user-level).
  */
 import type { RegistryEntry, RegisterResult } from './types.js';
 export declare function scanRuleDir(dir: string): Array<{

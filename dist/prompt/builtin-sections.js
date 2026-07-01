@@ -127,9 +127,9 @@ function getAncestorDirectories(cwd) {
  * Resolve @include directives in markdown content.
  * Syntax: @path/to/file.md (relative to the including file's directory)
  *
- * Uses virtual file system (embedded-first) so @AICore/... references work in
- * Bun-compiled binaries where AICore content is baked into the executable.
- * When resolving @AICore/... from a project directory that differs from the
+ * Uses virtual file system (embedded-first) so @.codesquad/... references work in
+ * Bun-compiled binaries where .codesquad content is baked into the executable.
+ * When resolving @.codesquad/... from a project directory that differs from the
  * binary's package root, falls back to AICORE_ROOT (which maps to embedded keys).
  */
 function resolveIncludes(content, baseDir) {
@@ -138,15 +138,15 @@ function resolveIncludes(content, baseDir) {
         const trimmed = relativePath.trim();
         const fullPath = resolve(baseDir, trimmed);
         try {
-            // 1. Try the resolved filesystem path (works when AICore is on disk)
+            // 1. Try the resolved filesystem path (works when .codesquad is on disk)
             if (fileExists(fullPath)) {
                 return fileRead(fullPath);
             }
-            // 2. Fallback for @AICore/... in bun-compiled mode:
-            //    The resolved path is <projectRoot>/AICore/<sub>, but the embedded
-            //    content is at <PKG_ROOT>/AICore/<sub>. Extract the sub-path and
+            // 2. Fallback for @.codesquad/... in bun-compiled mode:
+            //    The resolved path is <projectRoot>/.codesquad/<sub>, but the embedded
+            //    content is at <PKG_ROOT>/.codesquad/<sub>. Extract the sub-path and
             //    look it up via the AICORE_ROOT-based helpers.
-            const aicoreMatch = trimmed.match(/^AICore[\/\\](.+)$/i);
+            const aicoreMatch = trimmed.match(/^.codesquad[\/\\](.+)$/i);
             const aicoreSub = aicoreMatch?.[1];
             if (aicoreSub) {
                 const subPath = aicoreSub.replace(/\\/g, '/');
@@ -174,9 +174,9 @@ function loadProjectGuidance(projectRoot, extraDirs, bare) {
             parts.push(...discovered);
         }
     }
-    // Read CODESQUAD.md from project locations (rule 4), then fall back to CLI's AICore template (rule 3).
-    // Priority: .codesquad/CODESQUAD.md → project root CODESQUAD.md → AICore/CODESQUAD.md (CLI template)
-    // All paths resolve @AICore/... includes so the LLM receives inlined content instead of
+    // Read CODESQUAD.md from project locations (rule 4), then fall back to CLI's .codesquad template (rule 3).
+    // Priority: .codesquad/CODESQUAD.md → project root CODESQUAD.md → .codesquad/CODESQUAD.md (CLI template)
+    // All paths resolve @.codesquad/... includes so the LLM receives inlined content instead of
     // raw @ references that it would try to file-stat (which fails in Bun-compiled mode).
     const dotCodesquadMd = join(projectRoot, '.codesquad', 'CODESQUAD.md');
     const projectRootMd = join(projectRoot, 'CODESQUAD.md');
@@ -192,9 +192,9 @@ function loadProjectGuidance(projectRoot, extraDirs, bare) {
         }
         catch { /* try next */ }
     }
-    // Fallback: CLI template from AICore (backward compat, rule 3)
+    // Fallback: CLI template from .codesquad (backward compat, rule 3)
     if (!CODESQUADFound) {
-        const cliTemplate = join(projectRoot, 'AICore', 'CODESQUAD.md');
+        const cliTemplate = join(projectRoot, '.codesquad', 'CODESQUAD.md');
         try {
             if (existsSync(cliTemplate)) {
                 parts.push(resolveIncludes(readFileSync(cliTemplate, 'utf-8'), dirname(cliTemplate)));
@@ -202,7 +202,7 @@ function loadProjectGuidance(projectRoot, extraDirs, bare) {
         }
         catch { /* optional */ }
     }
-    // CODEBUDDY.md: resolve @AICore/... includes to inline content
+    // CODEBUDDY.md: resolve @.codesquad/... includes to inline content
     try {
         parts.push(resolveIncludes(readFileSync(codebuddyMd, 'utf-8'), projectRoot));
     }
@@ -370,7 +370,36 @@ export function getToolUseFormatSection() {
             '{"key": "value"}',
             '</tool-call>',
             '',
-            'Multiple tool calls can be made in one response. The results will be provided in the next message.',
+            '### Parallel Tool Calls — Batch Independent Operations',
+            '',
+            'You CAN and SHOULD make multiple tool calls in ONE response when they are independent.',
+            'This reduces the number of API round-trips and is faster for the user.',
+            '',
+            '**Always parallel (read-only, fully independent):**',
+            '- Read multiple files at once — all Read calls are safe to batch',
+            '- Grep multiple patterns — all Grep calls are safe to batch',
+            '- Glob multiple patterns — all Glob calls are safe to batch',
+            '- Read + Grep + Glob in any combination — all read-only tools are safe to batch together',
+            '',
+            '**Parallel when targeting DIFFERENT files:**',
+            '- Write to DIFFERENT files — only batch if each Write targets a different file',
+            '- Edit DIFFERENT files — only batch if each Edit targets a different file',
+            '- Write + Edit on DIFFERENT files — can batch together',
+            '',
+            '**Must be SEQUENTIAL (do NOT batch):**',
+            '- Read then Edit/Write on the SAME file — need to read content first',
+            '- Bash commands — shell state is shared, run one at a time',
+            '- Edit then Edit on the SAME file — later edits depend on earlier results',
+            '- Agent / TaskCreate — sub-agent tasks are stateful',
+            '',
+            '**Example — good (parallel):**',
+            'Read file A, Read file B, Grep for "TODO" → all in one response',
+            '',
+            '**Example — good (parallel):**',
+            'Write dest1.ts, Write dest2.ts → both in one response (different files)',
+            '',
+            '**Example — BAD (sequential on same file):**',
+            'Read config.ts, Edit config.ts → must be TWO separate turns',
             '',
             '**Available tools include TaskCreate/TaskGet/TaskList/TaskStop for task management,',
             'TeamCreate/TeamDelete/SendMessage for team collaboration,',
@@ -383,6 +412,17 @@ export function getToolUseFormatSection() {
             '- Use Bash for shell commands like git status, npm commands, or file listing.',
             '- Plan mode only allows Read, Grep, and Glob tools.',
             '- **When you need user input (clarification, choice, confirmation), you MUST call the AskUserQuestion tool. Do NOT output questions as plain text — the user will not see them as interactive dialogs.**',
+            '',
+            '### Task Decomposition — Use TodoWrite for Complex Work',
+            '',
+            'For any request requiring 3+ distinct steps, proactively use the TodoWrite tool:',
+            '1. **On receiving the request** — create a todo list breaking down the work',
+            '2. **Before starting each task** — mark it as in_progress (only ONE at a time)',
+            '3. **After completing each task** — mark it as completed IMMEDIATELY',
+            '4. **When discovering new subtasks** — add them to the list',
+            '',
+            'This helps you track progress, makes sure nothing is missed, and shows the user what you have accomplished.',
+            'When all tasks are marked completed, the work is done.',
         ].join('\n');
     });
 }
@@ -405,7 +445,7 @@ export function getAvailableAgentsSection() {
         // Custom agents (limit to 10)
         if (customs.length > 0) {
             lines.push('');
-            lines.push('**Custom agents** (from AICore/agents/):');
+            lines.push('**Custom agents** (from .codesquad/agents/):');
             for (const a of customs.slice(0, 10)) {
                 lines.push(`- **${a.agentType}**: ${a.whenToUse.slice(0, 100)}`);
             }
@@ -415,7 +455,7 @@ export function getAvailableAgentsSection() {
         }
         else {
             lines.push('');
-            lines.push('*No custom agents loaded. Run REPL to auto-load from AICore/agents/.*');
+            lines.push('*No custom agents loaded. Run REPL to auto-load from .codesquad/agents/.*');
         }
         return lines.join('\n');
     });
@@ -433,7 +473,7 @@ export function getConditionalRulesSection() {
         // (the tool-level injection in rules/loader.ts is the primary mechanism)
         // This section provides a fallback for session-level rule awareness.
         try {
-            const rulesDir = join(ctx.projectRoot, 'AICore', 'rules');
+            const rulesDir = join(ctx.projectRoot, '.codesquad', 'rules');
             const rulesContext = getRulesContext('*', rulesDir); // '*' = all rules overview
             if (!rulesContext || rulesContext.trim().length === 0)
                 return null;
@@ -441,7 +481,7 @@ export function getConditionalRulesSection() {
             const truncated = rulesContext.length > 3000
                 ? rulesContext.slice(0, 3000) + '\n\n... (truncated for context budget)'
                 : rulesContext;
-            return `## Project Rules (AICore Rules Overview)\n\n${truncated}`;
+            return `## Project Rules (.codesquad Rules Overview)\n\n${truncated}`;
         }
         catch {
             return null;

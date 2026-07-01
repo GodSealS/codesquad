@@ -5,19 +5,35 @@
  * historical sessions and formats it as an injected system message.
  * Mitigates the "new chat loses history" problem for LLM context windows.
  *
- * Phase 8.2-8.3.
+ * Phase 8.2-8.3. Step 7: semantic cross-session retrieval.
  */
 import { listSessions, load } from '../chat/session.js';
+import { getVectorStore } from '../embedding/store.js';
+import { getEmbeddingProvider, isSemanticEnabled } from '../embedding/provider.js';
 // ── Summarize ──
 /**
  * Extract summaries from the most recent N historical sessions.
- * Excludes the session identified by `excludeId` (the currently active session).
- * Each session contributes its last 3 assistant messages (first 200 chars each,
- * truncated at nearest word boundary).
  *
- * Returns null if there are no historical sessions to summarize.
+ * If `userInput` is provided and semantic context is enabled, uses
+ * embedding-based cross-session retrieval to find semantically relevant
+ * messages from past sessions. Otherwise falls back to time-based recency.
+ *
+ * Excludes the session identified by `excludeId` (the currently active session).
+ *
+ * @param limit Maximum number of sessions to include
+ * @param excludeId Current session ID to exclude
+ * @param userInput Optional user input for semantic matching
+ * @returns HistorySummary or null if no relevant sessions found
  */
-export async function summarizeHistory(limit, excludeId) {
+export async function summarizeHistory(limit, excludeId, userInput) {
+    // Step 7: semantic cross-session retrieval
+    if (userInput && isSemanticEnabled()) {
+        const provider = await getEmbeddingProvider();
+        if (provider) {
+            return semanticHistoryRetrieval(userInput, limit, excludeId);
+        }
+    }
+    // Fallback to time-based recency (original behavior)
     const allSessions = await listSessions();
     // Exclude the current session (by ID, not status — status may never change).
     // listSessions() already returns sessions sorted by updatedAt descending.
@@ -54,6 +70,73 @@ export async function summarizeHistory(limit, excludeId) {
         generatedAt: new Date().toISOString(),
         sessionCount: sessions.length,
         sessions,
+    };
+}
+// ── Semantic History Retrieval (Step 7) ──
+/**
+ * Use embedding similarity to find semantically relevant messages
+ * from historical sessions, across all stored embeddings.
+ *
+ * Algorithm:
+ * 1. Embed userInput
+ * 2. Search VectorStore across all sessions (excluding current)
+ * 3. Group results by session, score by best match
+ * 4. Return top-N sessions with their matching message summaries
+ */
+async function semanticHistoryRetrieval(userInput, limit, excludeId) {
+    const provider = await getEmbeddingProvider();
+    if (!provider)
+        return null;
+    const inputEmbedding = await provider.embed(userInput);
+    const store = getVectorStore();
+    // Get all known session IDs from VectorStore
+    const allSessionIds = store.listSessions();
+    // Exclude current session
+    const candidateIds = excludeId
+        ? allSessionIds.filter(id => id !== excludeId)
+        : allSessionIds;
+    if (candidateIds.length === 0)
+        return null;
+    // 🔧 Bug Fix: listSessions() 移到循环外部，避免重复 I/O
+    const allSessions = await listSessions();
+    // Search each session for relevant messages
+    const matches = [];
+    for (const sessionId of candidateIds.slice(0, 50)) {
+        // 🔧 Bug Fix: 排除 ephemeral session（fork-/agent- 前缀）
+        if (sessionId.startsWith('fork-') || sessionId.startsWith('agent-'))
+            continue;
+        const msgs = store.searchBySession(sessionId, inputEmbedding, 0.5);
+        if (msgs.length > 0) {
+            // Use best match score as session relevance
+            const bestMatch = msgs[0];
+            const content = msgs
+                .slice(0, 3)
+                .map(m => `[${m.role}] ${m.summary || m.content.slice(0, 100)}`)
+                .join(' | ');
+            const meta = allSessions.find(s => s.id === sessionId);
+            if (meta) {
+                matches.push({
+                    session: meta,
+                    score: bestMatch.similarity,
+                    content,
+                });
+            }
+        }
+    }
+    if (matches.length === 0)
+        return null;
+    // Sort by relevance score descending, take top-N
+    matches.sort((a, b) => b.score - a.score);
+    const topMatches = matches.slice(0, limit);
+    return {
+        generatedAt: new Date().toISOString(),
+        sessionCount: topMatches.length,
+        sessions: topMatches.map(m => ({
+            agent: m.session.agent,
+            name: m.session.name,
+            updatedAt: m.session.updatedAt,
+            summary: `[语义匹配度: ${(m.score * 100).toFixed(0)}%]\n${m.content}`,
+        })),
     };
 }
 /**

@@ -6,13 +6,14 @@
  *
  * Phase 1.3
  */
-import { readFileSync, statSync } from 'fs';
+import { readFileSync, statSync, realpathSync } from 'fs';
 import { extname, resolve, join } from 'path';
 import { z } from 'zod';
 import { buildTool } from './types.js';
 import { recordFileRead, getSessionCache } from './file-state.js';
 import { writeDiskCacheAsync } from '../cache/disk-cache.js';
 import { fileExists, fileRead } from '../embedded/virtual-fs.js';
+import { isProtectedAicorePath } from '../core/paths.js';
 // ── Schema ──
 export const FileReadInputSchema = z.object({
     file_path: z.string().min(1).describe('Path to the file to read (relative to project root)'),
@@ -31,10 +32,10 @@ const DEVICE_FILES = new Set([
 // ── Tool ──
 export const FileReadTool = buildTool({
     name: 'Read',
-    description: 'Read a file from the project, with optional line numbers and pagination.',
+    description: 'Read a file from the project, with optional line numbers and pagination. Can be batched with other Read/Grep/Glob calls in one response.',
     searchHint: 'read file open view',
     inputSchema: FileReadInputSchema,
-    maxResultSizeChars: 100_000,
+    maxResultSizeChars: 30_000, // ~7.5K tokens — prevents context explosion from large reads
     isReadOnly() {
         return true;
     },
@@ -69,11 +70,11 @@ export const FileReadTool = buildTool({
     },
     validateInput(input, context) {
         let filePath = resolve(context.projectRoot, input.file_path);
-        // If not found in project root and path starts with AICore/, try aicoreDir fallback
+        // If not found in project root and path starts with .codesquad/, try aicoreDir fallback
         // Use fileExists (virtual-fs aware) for both the initial check and fallback
         if (!fileExists(filePath) && context.aicoreDir && !input.file_path.startsWith('..')) {
-            // Strip leading AICore/ prefix since aicoreDir already points to the AICore directory
-            const relPath = input.file_path.replace(/^AICore[\\/]/, '');
+            // Strip leading .codesquad/ prefix since aicoreDir already points to the .codesquad directory
+            const relPath = input.file_path.replace(/^.codesquad[\\/]/, '');
             const aicorePath = join(context.aicoreDir, relPath);
             if (fileExists(aicorePath)) {
                 filePath = aicorePath;
@@ -89,17 +90,40 @@ export const FileReadTool = buildTool({
                 errorCode: 'PATH_OUTSIDE_PROJECT',
             };
         }
+        // Block reads from protected .codesquad subdirectories (agents/, skills/)
+        if (context.aicoreDir && isProtectedAicorePath(filePath, context.aicoreDir)) {
+            return {
+                valid: false,
+                message: 'Reading files from this directory is not permitted.',
+                errorCode: 'PROTECTED_PATH',
+            };
+        }
         // Check device files
         if (DEVICE_FILES.has(filePath)) {
             return { valid: false, message: 'Cannot read device files.', errorCode: 'DEVICE_FILE' };
         }
-        // Check existence (virtual-fs for AICore paths, disk for project files)
+        // Check existence (virtual-fs for .codesquad paths, disk for project files)
         if (!fileExists(filePath)) {
             return {
                 valid: false,
                 message: `File not found: ${input.file_path}`,
                 errorCode: 'ENOENT',
             };
+        }
+        // Resolve symlinks to prevent path traversal (symlink → /etc/passwd bypass)
+        try {
+            const realPath = realpathSync(filePath);
+            const safe = context.aicoreDir ? realPath.startsWith(context.projectRoot) || realPath.startsWith(context.aicoreDir) : realPath.startsWith(context.projectRoot);
+            if (!safe) {
+                return {
+                    valid: false,
+                    message: 'File path resolves outside the project directory (symlink traversal).',
+                    errorCode: 'PATH_OUTSIDE_PROJECT',
+                };
+            }
+        }
+        catch {
+            return { valid: false, message: 'Broken symlink.', errorCode: 'ENOENT' };
         }
         // Check is file
         const stat = statSync(filePath);
@@ -124,7 +148,7 @@ export const FileReadTool = buildTool({
         let filePath = resolve(context.projectRoot, input.file_path);
         // Fallback to aicoreDir if not found in project root (virtual-fs aware)
         if (!fileExists(filePath) && context.aicoreDir && !input.file_path.startsWith('..')) {
-            const relPath = input.file_path.replace(/^AICore[\\/]/, '');
+            const relPath = input.file_path.replace(/^.codesquad[\\/]/, '');
             const aicorePath = join(context.aicoreDir, relPath);
             if (fileExists(aicorePath))
                 filePath = aicorePath;
@@ -135,7 +159,7 @@ export const FileReadTool = buildTool({
             return readImageFile(filePath, input.file_path);
         }
         // ── Text files ──
-        // Use virtual-fs for reading (supports embedded AICore in published builds)
+        // Use virtual-fs for reading (supports embedded .codesquad in published builds)
         const content = fileRead(filePath);
         const allLines = content.split('\n');
         // Detect binary

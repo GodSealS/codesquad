@@ -1,7 +1,7 @@
 /**
  * Status Line — project stage detection + context usage display + config-based execution.
  *
- * Replicates AICore/statusline.sh logic in TypeScript for REPL integration.
+ * Replicates .codesquad/statusline.sh logic in TypeScript for REPL integration.
  * Shows: ctx% | model | stage [| Epic > Feature > Task]
  *
  * Feature 7 (P4): Supports external script execution with JSON input.
@@ -97,7 +97,7 @@ function detectBreadcrumb(projectRoot, stage) {
 }
 // ── Feature 7 (P4): Config-based script execution ──
 /**
- * Load status line configuration from AICore/settings.json.
+ * Load status line configuration from .codesquad/settings.json.
  * Supports external shell command execution with JSON input.
  */
 export function loadStatusLineConfig(aicoreDir) {

@@ -1,23 +1,14 @@
 /**
  * Agents & Skills API — list, detail, search.
- * Scans three layers: Project (.codesquad/) > User (~/.codesquad/) > AICore/
+ * Scans three layers: Project (.codesquad/) > User (~/.codesquad/) > .codesquad/
  *
- * AICore layer uses VirtualFS so it works both from embedded binary and disk.
+ * .codesquad layer uses VirtualFS so it works both from embedded binary and disk.
  */
 import { join } from 'path';
-import { fileURLToPath } from 'url';
 import { getCodeSquadUserCategory } from '../../core/paths.js';
-import { virtualExists, virtualReadFile, virtualReadDir } from '../../embedded/virtual-fs.js';
-const _getAicoreDir = () => {
-    try {
-        const __dirname = fileURLToPath(new URL('.', import.meta.url));
-        return join(__dirname, '..', '..', '..', 'AICore');
-    }
-    catch {
-        return join(process.cwd(), 'AICore');
-    }
-};
-const AICORE_DIR = _getAicoreDir();
+import { virtualExists, virtualReadFile, virtualReadDir, AICORE_ROOT } from '../../embedded/virtual-fs.js';
+// Use canonical path from virtual-fs.ts (handles Bun-compiled correctly)
+const AICORE_DIR = AICORE_ROOT;
 /** Get project-level .codesquad directory. */
 function getProjectCodeSquadDir() {
     return join(process.cwd(), '.codesquad');

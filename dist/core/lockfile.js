@@ -29,7 +29,8 @@ export function readLock(targetPath = '.') {
         const content = readFileSync(lockPath, 'utf-8');
         return parseYaml(content);
     }
-    catch {
+    catch (err) {
+        console.error(`[lockfile] Failed to read lock ${lockPath}: ${err.message}`);
         return null;
     }
 }

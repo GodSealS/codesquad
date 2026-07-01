@@ -1,12 +1,12 @@
 /**
  * virtual-fs — Unified file system for embedded + on-disk access.
  *
- * In Bun-compiled mode, AICore content and config files are baked into the
+ * In Bun-compiled mode, .codesquad content and config files are baked into the
  * binary.  In Node.js / npm-link mode they live on disk.  This module wraps
  * both sources behind a single API so callers don't care.
  *
  * Path mapping:
- *   PKG_ROOT/AICore/<agents|skills|...>  → embedded key "<subpath>"
+ *   PKG_ROOT/.codesquad/<agents|skills|...>  → embedded key "<subpath>"
  *   PKG_ROOT/models.config.yaml            → embedded key "models.config.yaml"
  *   PKG_ROOT/codesquad.config.yaml         → embedded key "codesquad.config.yaml"
  *   PKG_ROOT/AGENTS.md                     → embedded key "AGENTS.md"
@@ -20,8 +20,8 @@ import { readEmbeddedFile, readEmbeddedDir, existsEmbeddedPath, isBunCompiled, }
 // so fileURLToPath works and gives the virtual ~BUN root.
 // Bun v1.0 or tsx: fileURLToPath works normally.
 // Bun v1.0 compiled (no file://): fileURLToPath throws → try-catch fallback.
-let PKG_ROOT;
-let AICORE_ROOT;
+export let PKG_ROOT;
+export let AICORE_ROOT;
 try {
     const __dirname = fileURLToPath(new URL('.', import.meta.url));
     // Bun-compiled: __dirname IS the binary's virtual root (no ../.. needed).
@@ -31,14 +31,14 @@ catch {
     // Pre-Bun 1.1 compiled binary: import.meta.url lacks file:// prefix.
     PKG_ROOT = '/__codesquad_bundle__';
 }
-AICORE_ROOT = join(PKG_ROOT, 'AICore');
+AICORE_ROOT = join(PKG_ROOT, '.codesquad');
 /**
  * Try to map an absolute filesystem path to an embedded-relative key.
  * Returns null if the path doesn't fall under a known embedded root.
  */
 function toEmbeddedPath(absPath) {
     const normalized = absPath.replace(/\\/g, '/');
-    // AICore content → strip AICORE_ROOT
+    // .codesquad content → strip AICORE_ROOT
     const aicoreNorm = AICORE_ROOT.replace(/\\/g, '/');
     if (normalized.startsWith(aicoreNorm + '/') || normalized === aicoreNorm) {
         const rel = relative(AICORE_ROOT, absPath).replace(/\\/g, '/');
@@ -106,7 +106,7 @@ export function virtualExistsSub(baseAbs, ...segments) {
 /**
  * Resolve an absolute file path for reading, trying virtual-fs (embedded) first,
  * then falling back to disk. Use this as a drop-in replacement for `existsSync`
- * when the path might point to AICore embedded content.
+ * when the path might point to .codesquad embedded content.
  *
  * Returns true if the file exists in either the virtual filesystem or on disk.
  */
@@ -116,50 +116,47 @@ export function fileExists(absPath) {
 /**
  * Read file content as UTF-8 string, trying virtual-fs (embedded) first,
  * then falling back to disk. Use this as a drop-in replacement for
- * `readFileSync(path, 'utf-8')` when the path might point to AICore embedded content.
+ * `readFileSync(path, 'utf-8')` when the path might point to .codesquad embedded content.
  */
 export function fileRead(absPath) {
     return virtualReadFile(absPath, 'utf-8');
 }
 /**
- * Normalize AICore path references in text content that will be injected
- * into the LLM's context. In published builds, AICore content is embedded
+ * Normalize .codesquad path references in text content that will be injected
+ * into the LLM's context. In published builds, .codesquad content is embedded
  * in the binary and accessed via virtual-fs. This function ensures any
- * `AICore/` or `AICore\` path references remain consistent so the LLM
+ * `.codesquad/` or `.codesquad\` path references remain consistent so the LLM
  * passes correct paths to tools (which resolve through virtual-fs).
  *
  * Transformations:
- *   1. Normalize backslashes to forward slashes in AICore paths
- *   2. Strip redundant `AICore/` prefix when the path already starts with
- *      `AICore/` (prevents double-prefix like `AICore/AICore/...`)
+ *   1. Normalize backslashes to forward slashes in .codesquad paths
+ *   2. Strip redundant `.codesquad/` prefix when the path already starts with
+ *      `.codesquad/` (prevents double-prefix like `.codesquad/.codesquad/...`)
  */
 export function sanitizeAicorePaths(text) {
-    // Normalize Windows backslash in AICore paths: AICore\xxx → AICore/xxx
-    let result = text.replace(/\bAICore\\([^\s'"`)\]}>]*)/g, 'AICore/$1');
-    // Fix double-prefix: AICore/AICore/xxx → AICore/xxx
-    result = result.replace(/\bAICore\/AICore\//g, 'AICore/');
-    return result;
+    // Normalize Windows backslash in .codesquad paths: .codesquad\xxx → .codesquad/xxx
+    return text.replace(/\.codesquad\\([^\s'"`)\]}>]*)/g, '.codesquad/$1');
 }
 /**
- * Pre-expand AICore file references in text by inlining the file content.
- * Handles backtick-quoted paths like `AICore/docs/xxx.md` and bare paths
- * like "Read AICore/docs/xxx.md" by replacing them with the file contents
+ * Pre-expand .codesquad file references in text by inlining the file content.
+ * Handles backtick-quoted paths like `.codesquad/docs/xxx.md` and bare paths
+ * like "Read .codesquad/docs/xxx.md" by replacing them with the file contents
  * from the virtual filesystem.
  *
  * This is essential for Bun-compiled binaries where the LLM cannot read
- * AICore files from disk — the content must be pre-inlined in the prompt.
+ * .codesquad files from disk — the content must be pre-inlined in the prompt.
  */
 export function expandAicoreRefs(text) {
-    // Step 1: Expand backtick-quoted AICore paths: `AICore/xxx/yyy.md`
-    let result = text.replace(/`(AICore\/([^\s`]+\.md))`/gi, (_match, fullPath) => {
+    // Step 1: Expand backtick-quoted .codesquad paths: `.codesquad/xxx/yyy.md`
+    let result = text.replace(/`(.codesquad\/([^\s`]+\.md))`/gi, (_match, fullPath) => {
         const content = tryReadAicoreFile(fullPath);
         if (content !== null) {
             return `[Content of ${fullPath}]\n\n${content}`;
         }
         return _match; // keep original if not found
     });
-    // Step 2: Expand "Read AICore/xxx.md" or "读取 AICore/xxx.md" patterns
-    result = result.replace(/(?:Read|读取|查看|Check|检查)\s+`?(AICore\/([^\s`,.]+\.md))`?/gi, (_match, fullPath) => {
+    // Step 2: Expand "Read .codesquad/xxx.md" or "读取 .codesquad/xxx.md" patterns
+    result = result.replace(/(?:Read|读取|查看|Check|检查)\s+`?(.codesquad\/([^\s`,.]+\.md))`?/gi, (_match, fullPath) => {
         const content = tryReadAicoreFile(fullPath);
         if (content !== null) {
             return `[Content of ${fullPath} — pre-loaded below]\n\n${content}`;
@@ -168,10 +165,10 @@ export function expandAicoreRefs(text) {
     });
     return result;
 }
-/** Try to read an AICore file from the virtual filesystem. Returns null if not found. */
+/** Try to read an .codesquad file from the virtual filesystem. Returns null if not found. */
 function tryReadAicoreFile(relativePath) {
-    // Strip leading AICore/ prefix — AICORE_ROOT already points to the AICore directory
-    const cleanPath = relativePath.replace(/^AICore[\/\\]/i, '');
+    // Strip leading .codesquad/ prefix — AICORE_ROOT already points to the .codesquad directory
+    const cleanPath = relativePath.replace(/^.codesquad[\/\\]/i, '');
     const absPath = join(AICORE_ROOT, cleanPath);
     if (!virtualExists(absPath))
         return null;

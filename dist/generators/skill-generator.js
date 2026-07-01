@@ -3,10 +3,10 @@
 // Reads canonical skill definitions from skills/{name}/SKILL.md and generates
 // tool-specific files via adapters.
 // Also copies companion files (subdirectories, workflow docs, reference files)
-// from the canonical AICore source directory to the generated output directory.
+// from the canonical .codesquad source directory to the generated output directory.
 //
 // Supports two modes:
-//   Dev mode: reads .md files from AICore/skills/ on disk
+//   Dev mode: reads .md files from .codesquad/skills/ on disk
 //   Embedded mode (Bun compile): reads from in-memory string constants
 import { readdirSync, mkdirSync, writeFileSync, statSync, copyFileSync, existsSync } from 'fs';
 import { join, dirname, basename } from 'path';
@@ -60,10 +60,10 @@ export async function loadSkills(cliSkillsDir) {
  * Generate skill files for a single tool adapter.
  *
  * @param adapter       Tool adapter that formats skills and provides output paths
- * @param skills        Parsed SkillDef array from AICore
+ * @param skills        Parsed SkillDef array from .codesquad
  * @param outputDir     Target project root (e.g. /path/to/my-project)
  * @param modelsConfig  Optional model resolution config
- * @param sourceSkillsDir  Optional absolute path to AICore/skills/ — when provided,
+ * @param sourceSkillsDir  Optional absolute path to .codesquad/skills/ — when provided,
  *                         companion files (subdirectories, workflow docs, reference
  *                         files) are copied alongside each generated SKILL.md.
  */

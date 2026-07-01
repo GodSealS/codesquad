@@ -1,7 +1,7 @@
 /**
  * SkillTool — Allow agents to dynamically invoke skills during execution.
  *
- * Enabled for all agents. The tool loads a skill's SKILL.md from AICore/skills/
+ * Enabled for all agents. The tool loads a skill's SKILL.md from .codesquad/skills/
  * and injects its body (instructions) into the session context for subsequent turns.
  *
  * Phase 4 — Chat Feature Gap Fill
@@ -40,12 +40,12 @@ export const SkillTool = buildTool({
     },
     async call(input, context) {
         const { skill, args } = input;
-        // Determine AICore directory from context
-        const aicoreDir = context.aicoreDir || join(context.projectRoot, 'AICore');
+        // Determine .codesquad directory from context
+        const aicoreDir = context.aicoreDir || join(context.projectRoot, '.codesquad');
         // P2 fix: try SKILL.md first, fallback to skill.md (case-insensitive)
         let skillPath = join(aicoreDir, 'skills', skill, 'SKILL.md');
         const skillPathAlt = join(aicoreDir, 'skills', skill, 'skill.md');
-        // Use virtual-fs to check existence (supports embedded AICore in published builds)
+        // Use virtual-fs to check existence (supports embedded .codesquad in published builds)
         if (!fileExists(skillPath)) {
             if (fileExists(skillPathAlt)) {
                 skillPath = skillPathAlt;
@@ -63,10 +63,10 @@ export const SkillTool = buildTool({
             // Use assembleSkillContent to auto-match sub-files based on args context
             const { assembleSkillContent } = await import('../repl/skill-registry.js');
             const assembledBody = assembleSkillContent(skill, args || context.session.messages.slice(-3).map(m => m.content).join(' '));
-            // Use virtual-fs for reading (supports embedded AICore in published builds)
+            // Use virtual-fs for reading (supports embedded .codesquad in published builds)
             const rawContent = assembledBody || fileRead(skillPath);
             // Inject skill body (with matched sub-files) into session context for subsequent turns
-            // Pre-expand AICore file references so the LLM gets inlined content
+            // Pre-expand .codesquad file references so the LLM gets inlined content
             const sanitized = expandAicoreRefs(sanitizeAicorePaths(rawContent));
             // Check if this skill should run in fork (isolated) context
             const { parseSkillFrontmatter } = await import('../repl/skill-frontmatter.js');

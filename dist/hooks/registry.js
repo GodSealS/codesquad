@@ -16,10 +16,10 @@ let _preferredInterpreter = null;
 // Resolve HOOK_DIR relative to the CLI package root, NOT to the user's cwd.
 // This way `codesquad repl` works regardless of which directory the user is in.
 //
-// Layout: <pkg>/src/hooks/registry.ts  →  <pkg>/AICore/hooks/
+// Layout: <pkg>/src/hooks/registry.ts  →  <pkg>/.codesquad/hooks/
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = join(__dirname, '..', '..');
-const HOOK_DIR = join(PKG_ROOT, 'AICore', 'hooks');
+const HOOK_DIR = join(PKG_ROOT, '.codesquad', 'hooks');
 /**
  * Find the hook file matching the executor's extension.
  * Falls back to .sh if the executor supports it.

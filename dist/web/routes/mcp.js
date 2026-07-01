@@ -1,8 +1,8 @@
 /**
- * MCP Configuration API — GET/POST endpoints for Web UI ↔ AICore/settings.json sync.
+ * MCP Configuration API — GET/POST endpoints for Web UI ↔ .codesquad/settings.json sync.
  *
- * GET  /api/mcp/servers   → Return current mcpServers block from AICore/settings.json
- * POST /api/mcp/servers   → Write mcpServers config from UI to AICore/settings.json
+ * GET  /api/mcp/servers   → Return current mcpServers block from .codesquad/settings.json
+ * POST /api/mcp/servers   → Write mcpServers config from UI to .codesquad/settings.json
  */
 import { writeFileSync } from 'fs';
 import { join } from 'path';
@@ -24,7 +24,7 @@ function readBody(req) {
 }
 /**
  * GET /api/mcp/servers
- * Returns the current mcpServers configuration from AICore/settings.json.
+ * Returns the current mcpServers configuration from .codesquad/settings.json.
  */
 export async function handleMcpGet(_req, res, aicoreDir) {
     const settingsPath = join(aicoreDir, 'settings.json');
@@ -47,7 +47,7 @@ export async function handleMcpGet(_req, res, aicoreDir) {
 /**
  * POST /api/mcp/servers
  * Body: { mcpServers: Record<string, McpServerEntry> }
- * Writes the MCP servers configuration into AICore/settings.json.
+ * Writes the MCP servers configuration into .codesquad/settings.json.
  */
 export async function handleMcpPost(req, res, aicoreDir) {
     let body;
@@ -83,7 +83,7 @@ export async function handleMcpPost(req, res, aicoreDir) {
 }
 /**
  * POST /api/mcp/reload
- * Hot-reload MCP tools from AICore/settings.json without server restart.
+ * Hot-reload MCP tools from .codesquad/settings.json without server restart.
  */
 export async function handleMcpReload(_req, res, aicoreDir) {
     try {
@@ -257,7 +257,7 @@ export async function handleMcpStatus(_req, res, aicoreDir) {
 /**
  * GET /api/qmd/status
  * Checks whether the qmd CLI is installed on the system, and whether
- * it's already configured as an MCP server in AICore/settings.json.
+ * it's already configured as an MCP server in .codesquad/settings.json.
  */
 export async function handleQmdStatus(_req, res, aicoreDir) {
     const result = {

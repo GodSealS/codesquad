@@ -32,7 +32,8 @@ export async function readLock(cwd = process.cwd()) {
         const raw = await readFileAsync(path, 'utf-8');
         return parseYaml(raw);
     }
-    catch {
+    catch (err) {
+        console.error(`[lock] Failed to read lock ${path}: ${err.message}`);
         return null;
     }
 }

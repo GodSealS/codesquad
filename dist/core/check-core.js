@@ -255,8 +255,8 @@ export function runCheck(options) {
             }
         }
     }
-    catch {
-        allIssues.push({ type: 'warning', file: 'catalog.yaml', message: 'Could not check catalog consistency (file not found or invalid)' });
+    catch (err) {
+        allIssues.push({ type: 'warning', file: 'catalog.yaml', message: `Could not check catalog consistency: ${err.message}` });
     }
     const errors = allIssues.filter((i) => i.type === 'error');
     return {

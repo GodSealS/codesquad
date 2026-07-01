@@ -14,6 +14,7 @@ import { buildTool } from './types.js';
 import fastGlob from 'fast-glob';
 import { writeDiskCacheAsync } from '../cache/disk-cache.js';
 import { fileExists } from '../embedded/virtual-fs.js';
+import { isProtectedAicorePath } from '../core/paths.js';
 // ════════════════════════════════════════════════════════════════
 // GrepTool
 // ════════════════════════════════════════════════════════════════
@@ -37,7 +38,7 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 export const GrepTool = buildTool({
     name: 'Grep',
-    description: 'Search for text patterns in project files using regex.',
+    description: 'Search for text patterns in project files using regex. Can be batched with other Read/Grep/Glob calls in one response.',
     searchHint: 'search find text regex grep',
     inputSchema: GrepInputSchema,
     maxResultSizeChars: 20_000,
@@ -78,13 +79,17 @@ export const GrepTool = buildTool({
         if (input.path) {
             let searchPath = resolve(context.projectRoot, input.path);
             if (!fileExists(searchPath) && context.aicoreDir && !input.path.startsWith('..')) {
-                const relPath = input.path.replace(/^AICore[\\/]/, '');
+                const relPath = input.path.replace(/^.codesquad[\\/]/, '');
                 const aicorePath = resolve(context.aicoreDir, relPath);
                 if (fileExists(aicorePath))
                     searchPath = aicorePath;
             }
             if (!fileExists(searchPath)) {
                 return { valid: false, message: `Path not found: ${input.path}`, errorCode: 'ENOENT' };
+            }
+            // Block searches in protected .codesquad subdirectories
+            if (context.aicoreDir && isProtectedAicorePath(searchPath, context.aicoreDir)) {
+                return { valid: false, message: 'Searching in this directory is not permitted.', errorCode: 'PROTECTED_PATH' };
             }
         }
         return { valid: true };
@@ -95,7 +100,7 @@ export const GrepTool = buildTool({
     async call(input, context) {
         let searchRoot = input.path ? resolve(context.projectRoot, input.path) : context.projectRoot;
         if (!fileExists(searchRoot) && input.path && context.aicoreDir && !input.path.startsWith('..')) {
-            const relPath = input.path.replace(/^AICore[\\/]/, '');
+            const relPath = input.path.replace(/^.codesquad[\\/]/, '');
             searchRoot = resolve(context.aicoreDir, relPath);
         }
         // Collect files to search
@@ -239,7 +244,7 @@ export const GlobInputSchema = z.object({
 const MAX_GLOB_RESULTS = 100;
 export const GlobTool = buildTool({
     name: 'Glob',
-    description: 'Find files matching a glob pattern.',
+    description: 'Find files matching a glob pattern. Can be batched with other Read/Grep/Glob calls in one response.',
     searchHint: 'find files glob pattern search',
     inputSchema: GlobInputSchema,
     maxResultSizeChars: 10_000,
@@ -271,13 +276,17 @@ export const GlobTool = buildTool({
         if (input.path) {
             let base = resolve(context.projectRoot, input.path);
             if (!fileExists(base) && context.aicoreDir && !input.path.startsWith('..')) {
-                const relPath = input.path.replace(/^AICore[\\/]/, '');
+                const relPath = input.path.replace(/^.codesquad[\\/]/, '');
                 const aicorePath = resolve(context.aicoreDir, relPath);
                 if (fileExists(aicorePath))
                     base = aicorePath;
             }
             if (!fileExists(base)) {
                 return { valid: false, message: `Path not found: ${input.path}`, errorCode: 'ENOENT' };
+            }
+            // Block glob in protected .codesquad subdirectories
+            if (context.aicoreDir && isProtectedAicorePath(base, context.aicoreDir)) {
+                return { valid: false, message: 'Listing files in this directory is not permitted.', errorCode: 'PROTECTED_PATH' };
             }
         }
         return { valid: true };
@@ -288,7 +297,7 @@ export const GlobTool = buildTool({
     async call(input, context) {
         let cwd = input.path ? resolve(context.projectRoot, input.path) : context.projectRoot;
         if (!fileExists(cwd) && input.path && context.aicoreDir && !input.path.startsWith('..')) {
-            const relPath = input.path.replace(/^AICore[\\/]/, '');
+            const relPath = input.path.replace(/^.codesquad[\\/]/, '');
             cwd = resolve(context.aicoreDir, relPath);
         }
         const results = await fastGlob(input.pattern, {

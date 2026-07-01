@@ -12,13 +12,13 @@ project_file_install_config:
     from: Root/design/CODESQUAD.md
     dist: ${Project}/design/CODESQUAD.md
   codesquad_system_file: 
-    from: Root/AICore/CODESQUAD.md
+    from: Root/.codesquad/CODESQUAD.md
     dist: ${Project}/.codesquad/CODESQUAD.md
   codesquad_settings_file: 
-    from: Root/AICore/settings.json
+    from: Root/.codesquad/settings.json
     dist: ${Project}/.codesquad/settings.json
   codesquad_statusline_file: 
-    from: Root/AICore/statusline.sh
+    from: Root/.codesquad/statusline.sh
     dist: ${Project}/.codesquad/statusline.sh
   root_docs_dir:
     from: Root/docs

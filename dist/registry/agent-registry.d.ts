@@ -1,5 +1,5 @@
 /**
- * Agent registry — external registration into AICore/agents/ (user-level).
+ * Agent registry — external registration into .codesquad/agents/ (user-level).
  */
 import type { AgentDef } from '../adapters/types.js';
 import type { RegistryEntry, RegisterResult } from './types.js';
@@ -10,14 +10,14 @@ export declare function scanAgentDir(dir: string): Array<{
 }>;
 /** Parse an agent file. */
 export declare function loadAgentFile(filePath: string): AgentDef | null;
-/** Register an external agent file to AICore/agents/. */
+/** Register an external agent file to .codesquad/agents/. */
 export declare function registerAgentFile(aicoreRoot: string, sourcePath: string, sourceName: string): {
     name: string;
 } | string;
-/** Register an entire external agent directory to AICore/agents/. */
+/** Register an entire external agent directory to .codesquad/agents/. */
 export declare function registerAgentDir(aicoreRoot: string, sourceDir: string, sourceName: string): RegisterResult;
 /** List registered agents. */
 export declare function listRegisteredAgents(aicoreRoot: string): RegistryEntry[];
-/** Unregister an agent from AICore/agents/. */
+/** Unregister an agent from .codesquad/agents/. */
 export declare function unregisterAgent(aicoreRoot: string, name: string): boolean;
 //# sourceMappingURL=agent-registry.d.ts.map

@@ -1,8 +1,8 @@
 /**
  * Stub Generator
  *
- * Converts full AICore agent/skill definitions to MCP stub format (v2).
- * Reads from AICore/ and writes .aicore-mcp-stubs/ (or in-place).
+ * Converts full .codesquad agent/skill definitions to MCP stub format (v2).
+ * Reads from .codesquad/ and writes .aicore-mcp-stubs/ (or in-place).
  */
 import { readFileSync, existsSync, readdirSync, writeFileSync, mkdirSync, statSync, copyFileSync } from 'fs';
 import { join, dirname, resolve, extname } from 'path';
@@ -185,7 +185,7 @@ export function generateAgentStub(filePath, outputDir) {
     const stubBody = `# ${name} (MCP Stub)
 
 > **This is an MCP client stub.** It maps to \`agent.invoke("${name}", ...)\` on the \`codesquad\` MCP server.
-> The full agent definition lives in \`AICore/agents/${name}.md\`.
+> The full agent definition lives in \`.codesquad/agents/${name}.md\`.
 
 ## Usage
 
@@ -251,7 +251,7 @@ export function generateSkillStub(skillDirPath, outputDir) {
     const stubBody = `# ${name} (MCP Stub)
 
 > **This is an MCP client stub.** It maps to \`skill.invoke("${name}", ...)\` on the \`codesquad\` MCP server.
-> The full skill definition lives in \`AICore/skills/${name}/SKILL.md\`.
+> The full skill definition lives in \`.codesquad/skills/${name}/SKILL.md\`.
 
 ## Usage
 
@@ -281,7 +281,7 @@ export function generateSkillStub(skillDirPath, outputDir) {
 /** Batch convert all agents */
 export function convertAllAgents(outputDir) {
     if (!existsSync(AICORE_AGENTS_DIR)) {
-        return { total: 0, converted: 0, errors: ['AICore/agents/ directory not found'] };
+        return { total: 0, converted: 0, errors: ['.codesquad/agents/ directory not found'] };
     }
     const files = readdirSync(AICORE_AGENTS_DIR)
         .filter(f => extname(f) === '.md');
@@ -304,7 +304,7 @@ export function convertAllAgents(outputDir) {
     }
     return { total: files.length, converted, errors };
 }
-/** Back up AICore/agents/ and AICore/skills/ to a timestamped directory */
+/** Back up .codesquad/agents/ and .codesquad/skills/ to a timestamped directory */
 export function backupAicore(backupDir) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const dest = resolve(backupDir ?? join(CLI_PACKAGE_ROOT, `.aicore-backup-${timestamp}`));
@@ -338,7 +338,7 @@ export function backupAicore(backupDir) {
     return { path: dest, agents: agentCount, skills: skillCount };
 }
 /**
- * Convert AICore files in-place (DANGEROUS - use backupAicore() first).
+ * Convert .codesquad files in-place (DANGEROUS - use backupAicore() first).
  * Replaces .md files in agents/ dir and SKILL.md files in skills/ dir with MCP stubs.
  *
  * WARNING: Per D-02 decision (2026-06-14): only use after @codesquad/aicore-content is ready.
@@ -383,7 +383,7 @@ export function convertAicoreInPlace() {
                 const stubBody = `# ${name} (MCP Stub)
 
 > **MCP route**: \`agent.invoke("${name}", ...)\` on \`codesquad\` MCP server.
-> Full definition: \`AICore/agents/${name}.md\`
+> Full definition: \`.codesquad/agents/${name}.md\`
 
 ## Usage
 \`\`\`json
@@ -436,7 +436,7 @@ export function convertAicoreInPlace() {
                 const stubBody = `# ${name} (MCP Stub)
 
 > **MCP route**: \`skill.invoke("${name}", ...)\` on \`codesquad\` MCP server.
-> Full definition: \`AICore/skills/${name}/SKILL.md\`
+> Full definition: \`.codesquad/skills/${name}/SKILL.md\`
 
 ## Usage
 \`\`\`json
@@ -456,7 +456,7 @@ export function convertAicoreInPlace() {
 /** Batch convert all skills */
 export function convertAllSkills(outputDir) {
     if (!existsSync(AICORE_SKILLS_DIR)) {
-        return { total: 0, converted: 0, errors: ['AICore/skills/ directory not found'] };
+        return { total: 0, converted: 0, errors: ['.codesquad/skills/ directory not found'] };
     }
     const skillDirs = readdirSync(AICORE_SKILLS_DIR)
         .filter(d => statSync(join(AICORE_SKILLS_DIR, d)).isDirectory());

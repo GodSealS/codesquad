@@ -1,5 +1,5 @@
 /**
- * Rule registry — external registration into AICore/rules/ (user-level).
+ * Rule registry — external registration into .codesquad/rules/ (user-level).
  */
 import { existsSync, readdirSync, copyFileSync, mkdirSync, unlinkSync } from 'fs';
 import { join } from 'path';

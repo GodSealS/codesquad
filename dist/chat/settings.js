@@ -8,10 +8,26 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { codesquadHome } from './storage.js';
 // ── Defaults ──
+const DEFAULT_SEMANTIC_CONTEXT = {
+    enabled: false,
+    embeddingModel: { type: 'local-bge-m3' },
+    contextMessageLimit: 20,
+    similarityThreshold: 0.5,
+    routingThreshold: 0.65,
+    features: {
+        semanticFilter: false,
+        agentRouting: false,
+        codeRAG: false,
+        exampleInjection: false,
+        docAssociation: false,
+        toolDedup: false,
+    },
+};
 const DEFAULTS = {
     memoryLimitChats: 5,
     hasCraftConfirmed: false,
     streamingEnabled: false,
+    semanticContext: DEFAULT_SEMANTIC_CONTEXT,
 };
 const MIN_MEMORY_LIMIT = 2;
 const MAX_MEMORY_LIMIT = 15;
@@ -30,8 +46,19 @@ function configPath() {
 /** Load user settings, merging with defaults for missing fields. */
 export function loadSettings() {
     const path = configPath();
-    if (!existsSync(path))
-        return { ...DEFAULTS };
+    if (!existsSync(path)) {
+        // 🔧 Bug Fix: deep copy defaults to prevent shared reference mutation
+        return {
+            memoryLimitChats: DEFAULTS.memoryLimitChats,
+            hasCraftConfirmed: DEFAULTS.hasCraftConfirmed,
+            streamingEnabled: DEFAULTS.streamingEnabled,
+            semanticContext: {
+                ...DEFAULTS.semanticContext,
+                embeddingModel: { ...DEFAULTS.semanticContext.embeddingModel },
+                features: { ...DEFAULTS.semanticContext.features },
+            },
+        };
+    }
     try {
         const raw = readFileSync(path, 'utf-8');
         const parsed = JSON.parse(raw);
@@ -39,9 +66,11 @@ export function loadSettings() {
             memoryLimitChats: clampMemoryLimit(parsed.memoryLimitChats ?? DEFAULTS.memoryLimitChats),
             hasCraftConfirmed: parsed.hasCraftConfirmed ?? DEFAULTS.hasCraftConfirmed,
             streamingEnabled: parsed.streamingEnabled ?? DEFAULTS.streamingEnabled,
+            semanticContext: deepMergeSemanticConfig(parsed.semanticContext),
         };
     }
-    catch {
+    catch (err) {
+        console.error(`[settings] Failed to parse ~/.codesquad/config.json: ${err.message}, using defaults`);
         return { ...DEFAULTS };
     }
 }
@@ -73,5 +102,29 @@ function clampMemoryLimit(n) {
     if (num > MAX_MEMORY_LIMIT)
         return MAX_MEMORY_LIMIT;
     return num;
+}
+/** Deep-merge partial semantic config with defaults. */
+function deepMergeSemanticConfig(partial) {
+    const def = DEFAULT_SEMANTIC_CONTEXT;
+    if (!partial)
+        return { ...def, features: { ...def.features } };
+    return {
+        enabled: partial.enabled ?? def.enabled,
+        embeddingModel: {
+            type: partial.embeddingModel?.type ?? def.embeddingModel.type,
+            modelId: partial.embeddingModel?.modelId ?? def.embeddingModel.modelId,
+        },
+        contextMessageLimit: partial.contextMessageLimit ?? def.contextMessageLimit,
+        similarityThreshold: partial.similarityThreshold ?? def.similarityThreshold,
+        routingThreshold: partial.routingThreshold ?? def.routingThreshold,
+        features: {
+            semanticFilter: partial.features?.semanticFilter ?? def.features.semanticFilter,
+            agentRouting: partial.features?.agentRouting ?? def.features.agentRouting,
+            codeRAG: partial.features?.codeRAG ?? def.features.codeRAG,
+            exampleInjection: partial.features?.exampleInjection ?? def.features.exampleInjection,
+            docAssociation: partial.features?.docAssociation ?? def.features.docAssociation,
+            toolDedup: partial.features?.toolDedup ?? def.features.toolDedup,
+        },
+    };
 }
 //# sourceMappingURL=settings.js.map

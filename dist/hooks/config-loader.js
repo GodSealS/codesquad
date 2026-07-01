@@ -1,22 +1,22 @@
 /**
  * Hook configuration loader — reads hooks from two layers.
  *
- * Layers: Project (.codesquad/) > User (AICore/)
+ * Layers: Project (.codesquad/) > User (.codesquad/)
  *
  * Phase 2.4
  */
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { loadHooksConfig, registerHook } from './executor.js';
-import { getCodeSquadProjectCategory, getCodeSquadUserCategory, CODESQUAD_USER_SETTINGS } from '../core/paths.js';
-import { virtualExists, virtualReadFile } from '../embedded/virtual-fs.js';
-// ── Load from AICore/settings.json ──
+import { getCodeSquadProjectCategory, getCodeSquadUserCategory, CODESQUAD_USER_SETTINGS, AICORE_ROOT } from '../core/paths.js';
+import { virtualExists, virtualReadFile, virtualReadDir } from '../embedded/virtual-fs.js';
+// ── Load from .codesquad/settings.json ──
 /**
- * Load hooks configuration from AICore/settings.json.
+ * Load hooks configuration from .codesquad/settings.json.
  * Returns the parsed HooksSettings, or null if not found.
  */
-export function loadHooksFromAICore(aicoreDir) {
-    const settingsPath = join(aicoreDir, 'settings.json');
+export function loadHooksFromCodesquad(codesquadDir) {
+    const settingsPath = join(codesquadDir, 'settings.json');
     if (!virtualExists(settingsPath))
         return null;
     try {
@@ -56,19 +56,19 @@ export function loadHooksFromAICore(aicoreDir) {
 }
 /**
  * Load hooks configuration from layered settings.json files.
- * Merges: AICore/settings.json → .codesquad/settings.json
+ * Merges: .codesquad/settings.json → .codesquad/settings.json
  * Later layers override earlier ones for matching events.
  */
 export function loadHooksFromLayered(aicoreDir, cwd) {
     const merged = {};
     const sources = [
-        join(aicoreDir, 'settings.json'), // AICore (built-in)
+        join(aicoreDir, 'settings.json'), // .codesquad (built-in)
         CODESQUAD_USER_SETTINGS, // ~/.codesquad/ (user-home)
         join(getCodeSquadProjectCategory('hooks', cwd), '..', 'settings.json'), // .codesquad/ (project-level)
     ];
     for (let i = 0; i < sources.length; i++) {
         const settingsPath = sources[i];
-        // ── Layer 0 (AICore built-in): use VirtualFS for embedded support ──
+        // ── Layer 0 (.codesquad built-in): use VirtualFS for embedded support ──
         if (i === 0) {
             if (!virtualExists(settingsPath))
                 continue;
@@ -112,15 +112,24 @@ function parseHookMatchers(matchers) {
     const configs = [];
     for (const matcher of matchers) {
         const hookList = Array.isArray(matcher.hooks) ? matcher.hooks : [];
-        const validHooks = hookList.map((h) => ({
-            type: h.type || 'command',
-            command: h.command,
-            prompt: h.prompt,
-            timeout: typeof h.timeout === 'number' ? h.timeout : undefined,
-            if: h.if,
-            once: h.once,
-            async: h.async,
-        }));
+        const validHooks = hookList.map((h) => {
+            const command = h.command;
+            // Validate: reject hook commands containing shell metacharacters
+            // to prevent injection via user-controlled settings.json.
+            if (command && /[;&|`$(){}\[\]]/.test(command)) {
+                console.warn(`[hooks] Rejected unsafe command: ${command}`);
+                return null;
+            }
+            return {
+                type: h.type || 'command',
+                command: h.command,
+                prompt: h.prompt,
+                timeout: typeof h.timeout === 'number' ? h.timeout : undefined,
+                if: h.if,
+                once: h.once,
+                async: h.async,
+            };
+        }).filter(Boolean);
         configs.push({
             matcher: matcher.matcher || '',
             hooks: validHooks,
@@ -129,18 +138,18 @@ function parseHookMatchers(matchers) {
     return configs;
 }
 /**
- * Initialize hooks system from AICore configuration.
+ * Initialize hooks system from .codesquad configuration.
  * Call once at REPL startup.
- * Now supports layered loading (AICore + User + Project).
+ * Now supports layered loading (.codesquad + User + Project).
  */
-export function initHooksFromAICore(aicoreDir, cwd) {
-    const config = loadHooksFromLayered(aicoreDir, cwd);
+export function initHooksFromCodesquad(codesquadDir, cwd) {
+    const config = loadHooksFromLayered(codesquadDir, cwd);
     if (Object.keys(config).length > 0) {
         loadHooksConfig(config);
     }
     else {
-        // Fallback: just AICore
-        const aicoreConfig = loadHooksFromAICore(aicoreDir);
+        // Fallback: just .codesquad
+        const aicoreConfig = loadHooksFromCodesquad(codesquadDir);
         if (aicoreConfig) {
             loadHooksConfig(aicoreConfig);
         }
@@ -152,13 +161,42 @@ export function initHooksFromAICore(aicoreDir, cwd) {
  * Scan project-level hook directory for loose scripts and register as SessionStart hooks.
  */
 function scanAndRegisterLooseHooks() {
-    // Layer 1: ~/.codesquad/hooks/ (user-home)
-    if (existsSync(getCodeSquadUserCategory('hooks')))
-        registerLooseScripts(getCodeSquadUserCategory('hooks'));
-    // Layer 2: ${project}/.codesquad/hooks/ (project-level)
+    // Layer 1: ${project}/.codesquad/hooks/ (highest priority)
     const projectDir = getCodeSquadProjectCategory('hooks');
     if (existsSync(projectDir))
         registerLooseScripts(projectDir);
+    // Layer 2: ~/.codesquad/hooks/ (user-home)
+    if (existsSync(getCodeSquadUserCategory('hooks')))
+        registerLooseScripts(getCodeSquadUserCategory('hooks'));
+    // Layer 3: ${CLI}/.codesquad/hooks/ (built-in, VirtualFS)
+    const aicoreHooks = join(AICORE_ROOT, 'hooks');
+    if (virtualExists(aicoreHooks)) {
+        try {
+            const files = virtualReadDir(aicoreHooks).filter((f) => f.endsWith('.sh') || f.endsWith('.ps1') || f.endsWith('.bat'));
+            if (files.length > 0) {
+                const defaultShell = process.platform === 'win32' ? 'powershell' : 'bash';
+                for (const f of files) {
+                    const ext = f.match(/\.[^.]+$/)?.[0] ?? '';
+                    const fullPath = join(aicoreHooks, f);
+                    let command;
+                    if (ext === '.ps1') {
+                        command = `powershell -File "${fullPath}"`;
+                    }
+                    else if (ext === '.bat' || ext === '.cmd') {
+                        command = `"${fullPath}"`;
+                    }
+                    else {
+                        command = `${defaultShell} "${fullPath}"`;
+                    }
+                    registerHook('SessionStart', {
+                        matcher: '',
+                        hooks: [{ type: 'command', command, timeout: 30 }],
+                    });
+                }
+            }
+        }
+        catch { /* best effort */ }
+    }
 }
 function registerLooseScripts(dir) {
     try {

@@ -4,7 +4,7 @@
  * Provides /healthz and /readyz endpoints for HTTP transport mode.
  *
  *   - /healthz: Simple alive check (always returns 200 if process is up)
- *   - /readyz:  Readiness check (stub-loader, AICore/, config valid)
+ *   - /readyz:  Readiness check (stub-loader, .codesquad/, config valid)
  *
  * Used by load balancers, health probes, and CI monitors.
  */
@@ -29,24 +29,24 @@ export function healthCheck() {
  * Readiness check: is the server ready to accept requests?
  *
  * Checks:
- *   - AICore/ directory exists (prompt templates available)
+ *   - .codesquad/ directory exists (prompt templates available)
  *   - At least one agent.md exists
  *   - MCP config is loadable
  */
 export function readinessCheck(projectRoot, config) {
     const checks = {};
     let allPassed = true;
-    // Check AICore/ exists
-    const aiCoreDir = join(projectRoot, 'AICore');
+    // Check .codesquad/ exists
+    const aiCoreDir = join(projectRoot, '.codesquad');
     if (existsSync(aiCoreDir)) {
         checks['aicore_dir'] = { status: 'pass', detail: aiCoreDir };
     }
     else {
-        checks['aicore_dir'] = { status: 'fail', detail: 'AICore/ not found — run codesquad init' };
+        checks['aicore_dir'] = { status: 'fail', detail: '.codesquad/ not found — run codesquad init' };
         allPassed = false;
     }
     // Check agents directory
-    const agentsDir = join(projectRoot, 'AICore', 'agents');
+    const agentsDir = join(projectRoot, '.codesquad', 'agents');
     if (existsSync(agentsDir)) {
         try {
             const agentCount = readdirSync(agentsDir).filter(f => f.endsWith('.md')).length;
@@ -64,7 +64,7 @@ export function readinessCheck(projectRoot, config) {
         }
     }
     else {
-        checks['agents'] = { status: 'fail', detail: 'AICore/agents/ not found' };
+        checks['agents'] = { status: 'fail', detail: '.codesquad/agents/ not found' };
         allPassed = false;
     }
     // Check MCP config

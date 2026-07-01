@@ -5,7 +5,7 @@
  * GET  /api/workspace/sessions?ws= → load sessions from project .codesquad/sessions-{ws}.json
  * POST /api/workspace/sessions?ws= → save sessions to project .codesquad/sessions-{ws}.json
  */
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { initProject, installProjectFiles } from '../../core/init-core.js';
@@ -136,19 +136,37 @@ export async function handleWorkspaceFiles(req, res, services, reqPath, method) 
             return;
         }
         const sessionsFile = join(services.projectRoot, '.codesquad', `sessions-${wsId}.json`);
+        const lastActiveFile = join(services.projectRoot, '.codesquad', `last-session-${wsId}.txt`);
+        let lastActiveId = null;
         try {
+            if (existsSync(lastActiveFile))
+                lastActiveId = readFileSync(lastActiveFile, 'utf-8').trim();
+        }
+        catch { }
+        try {
+            // ── Load web sessions from aggregated file ──
+            let webSessions = [];
             if (existsSync(sessionsFile)) {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(readFileSync(sessionsFile, 'utf-8'));
+                const raw = JSON.parse(readFileSync(sessionsFile, 'utf-8'));
+                webSessions = Array.isArray(raw) ? raw : (raw.sessions ?? []);
             }
-            else {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end('[]');
+            // ── Scan backend REPL sessions (.codesquad/sessions/*.json) ──
+            const backendSessions = scanBackendSessions(services.projectRoot);
+            // ── Merge: web sessions take priority, backend sessions fill gaps ──
+            const webIds = new Set(webSessions.map((s) => s.id));
+            for (const bs of backendSessions) {
+                if (!webIds.has(bs.id)) {
+                    webSessions.push(bs);
+                }
             }
+            // Sort by createdTime descending (newest first)
+            webSessions.sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime());
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ sessions: webSessions, lastActiveId }));
         }
         catch {
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end('[]');
+            res.end(JSON.stringify({ sessions: [], lastActiveId }));
         }
         return;
     }
@@ -161,11 +179,47 @@ export async function handleWorkspaceFiles(req, res, services, reqPath, method) 
         }
         try {
             const body = await readBody(req);
-            JSON.parse(body); // validate
+            const parsed = JSON.parse(body);
             const csDir = join(services.projectRoot, '.codesquad');
             if (!existsSync(csDir))
                 mkdirSync(csDir, { recursive: true });
-            writeFileSync(join(csDir, `sessions-${wsId}.json`), body, 'utf-8');
+            // Extract sessions array (frontend sends { sessions: [...], lastActiveId } or bare array)
+            const sessionsArray = Array.isArray(parsed.sessions) ? parsed.sessions : (Array.isArray(parsed) ? parsed : []);
+            // ── Detect deleted sessions and remove their backend files ──
+            const sessionsFilePath = join(csDir, `sessions-${wsId}.json`);
+            const oldIds = new Set();
+            if (existsSync(sessionsFilePath)) {
+                try {
+                    const oldRaw = JSON.parse(readFileSync(sessionsFilePath, 'utf-8'));
+                    const oldSessions = Array.isArray(oldRaw) ? oldRaw : (oldRaw.sessions ?? []);
+                    for (const s of oldSessions) {
+                        if (s.id)
+                            oldIds.add(s.id);
+                    }
+                }
+                catch { /* best effort */ }
+            }
+            const newIds = new Set(sessionsArray.map((s) => s.id).filter(Boolean));
+            const sessionsBackendDir = join(csDir, 'sessions');
+            for (const oldId of oldIds) {
+                if (!newIds.has(oldId)) {
+                    // Session removed from UI → delete backend file
+                    const backendFile = join(sessionsBackendDir, `${oldId}.json`);
+                    try {
+                        if (existsSync(backendFile)) {
+                            unlinkSync(backendFile);
+                            console.log(`[workspace] Deleted backend session: ${oldId}`);
+                        }
+                    }
+                    catch { /* best effort */ }
+                }
+            }
+            writeFileSync(sessionsFilePath, JSON.stringify(sessionsArray), 'utf-8');
+            // Persist last active session ID
+            const lastActiveId = parsed.lastActiveId ?? null;
+            if (lastActiveId) {
+                writeFileSync(join(csDir, `last-session-${wsId}.txt`), String(lastActiveId), 'utf-8');
+            }
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: true }));
         }
@@ -177,5 +231,46 @@ export async function handleWorkspaceFiles(req, res, services, reqPath, method) 
     }
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
+}
+/** Scan .codesquad/sessions/ for backend REPL sessions and convert to ChatSession format. */
+function scanBackendSessions(projectRoot) {
+    const sessionsDir = join(projectRoot, '.codesquad', 'sessions');
+    if (!existsSync(sessionsDir))
+        return [];
+    const result = [];
+    try {
+        const files = readdirSync(sessionsDir).filter(f => f.endsWith('.json'));
+        for (const file of files) {
+            try {
+                const raw = readFileSync(join(sessionsDir, file), 'utf-8');
+                const sess = JSON.parse(raw);
+                if (!sess.id || !sess.messages)
+                    continue;
+                // Convert backend messages to frontend format
+                const messages = sess.messages.map((m, i) => ({
+                    id: `msg-${sess.id}-${i}`,
+                    sender: m.role === 'assistant' ? 'assistant'
+                        : m.role === 'user' ? 'user'
+                            : m.role === 'system' ? 'system'
+                                : 'info',
+                    content: m.content || '',
+                    timestamp: m.timestamp || sess.createdAt,
+                }));
+                result.push({
+                    id: sess.id,
+                    title: sess.name || `${sess.agent}: 会话`,
+                    agentId: sess.agent,
+                    workspaceDir: 'root',
+                    messages,
+                    createdTime: sess.createdAt,
+                    mode: (sess.mode === 'Craft' || sess.mode === 'Ask' || sess.mode === 'Plan')
+                        ? sess.mode : 'Ask',
+                });
+            }
+            catch { /* skip unreadable */ }
+        }
+    }
+    catch { /* dir read failed */ }
+    return result;
 }
 //# sourceMappingURL=workspace-files.js.map

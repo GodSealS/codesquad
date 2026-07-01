@@ -1,7 +1,7 @@
 /**
- * Agent routes — serves agent list/detail from AICore/agents/*.md.
+ * Agent routes — serves agent list/detail from .codesquad/agents/*.md.
  *
- * Replaces UI's static /docs/agents.json with live AICore data.
+ * Replaces UI's static /docs/agents.json with live .codesquad data.
  *
  * GET /api/agents        → list all agents
  * GET /api/agents/:name  → single agent prompt + frontmatter
@@ -25,7 +25,7 @@ function extractFrontmatter(content) {
 }
 function listAgents(aicoreDir) {
     const seen = new Map();
-    // Layer 1: AICore/agents/ (built-in, base)
+    // Layer 1: .codesquad/agents/ (built-in, base)
     scanAgentDirToList(join(aicoreDir, 'agents'), seen);
     // Layer 2: ~/.codesquad/agents/ (user-home, override)
     scanAgentDirToList(getCodeSquadUserCategory('agents'), seen);

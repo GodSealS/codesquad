@@ -12,8 +12,8 @@ export async function handleProject(req, res, services) {
         'models.config.yaml',
     ];
     const existing = configFiles.filter((f) => existsSync(join(root, f)));
-    const agentsDir = join(root, 'AICore', 'agents');
-    const skillsDir = join(root, 'AICore', 'skills');
+    const agentsDir = join(root, '.codesquad', 'agents');
+    const skillsDir = join(root, '.codesquad', 'skills');
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
         workspaceRoot: root,

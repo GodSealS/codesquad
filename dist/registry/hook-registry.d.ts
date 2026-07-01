@@ -1,9 +1,9 @@
 /**
- * Hook registry — external registration into AICore/hooks/ (user-level).
+ * Hook registry — external registration into .codesquad/hooks/ (user-level).
  *
  * Pattern: graphify hook install/uninstall
- * - Copies hook script to AICore/hooks/
- * - Updates AICore/settings.json → hooks.SessionStart to register the command
+ * - Copies hook script to .codesquad/hooks/
+ * - Updates .codesquad/settings.json → hooks.SessionStart to register the command
  * - Unregister reverses both operations
  */
 import type { RegistryEntry, RegisterResult } from './types.js';

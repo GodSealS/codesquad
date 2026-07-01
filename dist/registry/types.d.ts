@@ -2,10 +2,10 @@
  * Registry types — two-layer registration system.
  *
  * Layers (priority: project > user):
- *   1. User-level  — AICore/agents/ skills/ rules/ hooks/ (built-in + external registrations)
+ *   1. User-level  — .codesquad/agents/ skills/ rules/ hooks/ (built-in + external registrations)
  *   2. Project-level — <project>/.codesquad/agents/ skills/ rules/ hooks/ (project overrides)
  *
- * External CLIs register their agents/skills/rules/hooks into user-level (AICore/)
+ * External CLIs register their agents/skills/rules/hooks into user-level (.codesquad/)
  * via `codesquad register` commands.
  */
 /** Category of registered content. */
@@ -35,10 +35,10 @@ export interface ExternalSource {
     registeredAt: string;
     entryCount?: number;
 }
-/** Registry manifest (stored at AICore/.codesquad/manifest.yaml). */
+/** Registry manifest (stored at .codesquad/.codesquad/manifest.yaml). */
 export interface RegistryManifest {
     version: 1;
-    /** AICore built-in info. */
+    /** .codesquad built-in info. */
     aicore: {
         type: 'aicore';
         path: string;

@@ -22,19 +22,31 @@ import { createSession, addMessage, load as loadSession } from '../../chat/sessi
 import { setProjectRoot, saveSession as persistSession } from '../../chat/storage.js';
 import { resolveModel } from '../../generators/model-resolver.js';
 import { resolveEnvValue } from '../../utils/env-resolver.js';
-import { virtualExists, virtualReadFile, sanitizeAicorePaths, expandAicoreRefs } from '../../embedded/virtual-fs.js';
-import { readEmbeddedFile } from '../../embedded/runtime.js';
+import { virtualExists, virtualReadFile, sanitizeAicorePaths, expandAicoreRefs, AICORE_ROOT, PKG_ROOT as VFS_PKG_ROOT } from '../../embedded/virtual-fs.js';
+import { readEmbeddedFile, isBunCompiled } from '../../embedded/runtime.js';
 import { notifyError, logDiagnostic } from '../../utils/error-logger.js';
 let PKG_ROOT;
 let AICORE_DIR;
-try {
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    PKG_ROOT = join(__dirname, '..', '..', '..');
-    AICORE_DIR = join(PKG_ROOT, 'AICore');
+let DEFAULT_PROJECT_ROOT;
+// Use the canonical path resolution from virtual-fs.ts (handles Bun-compiled correctly).
+// In compiled mode the binary has a flat virtual root, so ../.. navigation is wrong.
+AICORE_DIR = AICORE_ROOT;
+if (isBunCompiled) {
+    // Bun-compiled: PKG_ROOT is the virtual binary root (used for embedded lookups).
+    // The actual user project directory is process.cwd().
+    PKG_ROOT = VFS_PKG_ROOT;
+    DEFAULT_PROJECT_ROOT = process.env.CODESQUAD_PROJECT_ROOT || process.cwd();
 }
-catch {
-    PKG_ROOT = process.cwd();
-    AICORE_DIR = join(process.cwd(), 'AICore');
+else {
+    // Dev/tsx: ../.. from src/web/routes/ reaches the project root.
+    try {
+        const __dirname = fileURLToPath(new URL('.', import.meta.url));
+        PKG_ROOT = join(__dirname, '..', '..', '..');
+    }
+    catch {
+        PKG_ROOT = process.cwd();
+    }
+    DEFAULT_PROJECT_ROOT = process.env.CODESQUAD_PROJECT_ROOT || PKG_ROOT;
 }
 /** Maps HTTP status codes to human-readable Chinese annotations. */
 const STATUS_NOTE = {
@@ -91,7 +103,8 @@ function loadApiSources() {
         const config = parseYaml(raw);
         return config?.api?.sources ?? {};
     }
-    catch {
+    catch (err) {
+        console.warn(`[chat-v2] Failed to parse models.config.yaml: ${err.message}`);
         return {};
     }
 }
@@ -111,7 +124,8 @@ function loadFullModelsConfig() {
             default: config.default,
         };
     }
-    catch {
+    catch (err) {
+        console.warn(`[chat-v2] Failed to parse full models config: ${err.message}`);
         return { version: 1, api: { sources: {} } };
     }
 }
@@ -120,7 +134,7 @@ function modelToSourceKey(modelName) {
     // Direct mapping: lowercase and replace spaces/underscores with hyphens
     return modelName.toLowerCase().replace(/[\s_]+/g, '-');
 }
-/** Load agent system prompt from AICore (virtual-fs for embedded support) */
+/** Load agent system prompt from .codesquad (virtual-fs for embedded support) */
 function loadAgentPrompt(name) {
     const p = join(AICORE_DIR, 'agents', `${name}.md`);
     try {
@@ -131,7 +145,7 @@ function loadAgentPrompt(name) {
         return null;
     }
 }
-/** Load skill prompt from AICore (virtual-fs for embedded support) */
+/** Load skill prompt from .codesquad (virtual-fs for embedded support) */
 function loadSkillPrompt(name) {
     const p = join(AICORE_DIR, 'skills', name, 'SKILL.md');
     try {
@@ -244,7 +258,19 @@ export async function handleChatV2(req, res) {
         res.end(JSON.stringify({ error: 'prompt is required' }));
         return;
     }
-    const effectiveAgentName = agentId || 'game-designer';
+    // 🔧 Step 9: 语义路由 — 无显式 agentId 时自动匹配最佳 agent
+    let effectiveAgentName = agentId || 'game-designer';
+    if (!agentId) {
+        try {
+            const { resolveAgent } = await import('../../embedding/router.js');
+            const route = await resolveAgent(prompt);
+            if (route) {
+                effectiveAgentName = route.target.name;
+                console.log(`[Router] ${route.method} → ${effectiveAgentName} (score: ${route.score?.toFixed(3) ?? 'N/A'})`);
+            }
+        }
+        catch { /* routing non-critical */ }
+    }
     const modelsConfig = loadFullModelsConfig();
     // Resolve target model: skill frontmatter model > request modelName > default
     let targetModel = modelName || 'Deepseek-V4-Pro';
@@ -459,7 +485,19 @@ export async function handleChatStream(req, res) {
         res.end(JSON.stringify({ error: 'prompt is required' }));
         return;
     }
-    const effectiveAgentName = agentId || 'game-designer';
+    // 🔧 Step 9: 语义路由 — 无显式 agentId 时自动匹配最佳 agent
+    let effectiveAgentName = agentId || 'game-designer';
+    if (!agentId) {
+        try {
+            const { resolveAgent } = await import('../../embedding/router.js');
+            const route = await resolveAgent(prompt);
+            if (route) {
+                effectiveAgentName = route.target.name;
+                console.log(`[Router] ${route.method} → ${effectiveAgentName} (score: ${route.score?.toFixed(3) ?? 'N/A'})`);
+            }
+        }
+        catch { /* routing non-critical */ }
+    }
     const modelsConfig = loadFullModelsConfig();
     // Resolve the target model: skill's frontmatter model > request modelName > default
     let targetModel = modelName || 'Deepseek-V4-Pro';
@@ -611,7 +649,7 @@ export async function handleChatStream(req, res) {
             session,
             providerId: apiConfig.sourceKey,
             modelId: resolvedModel,
-            projectRoot: process.cwd(),
+            projectRoot: DEFAULT_PROJECT_ROOT,
             aicoreDir: AICORE_DIR,
             mode: chatMode,
             maxTurns: 20,
@@ -640,6 +678,15 @@ export async function handleChatStream(req, res) {
                     isError: toolResult.isError,
                 });
             },
+            onToolProgress(progress) {
+                sendSSE({
+                    type: 'tool_progress',
+                    completed: progress.completed,
+                    total: progress.total,
+                    currentTool: progress.currentTool,
+                    phase: progress.phase,
+                });
+            },
             onError(message) {
                 sendSSE({ type: 'error', error: message });
             },
@@ -662,7 +709,7 @@ export async function handleChatStream(req, res) {
     }
     // ── Persist session for multi-turn (AskUserQuestion re-invoke) ──
     try {
-        setProjectRoot(process.cwd());
+        setProjectRoot(DEFAULT_PROJECT_ROOT);
         await persistSession(session);
     }
     catch (persistErr) {
@@ -733,6 +780,7 @@ export async function handleChatStream(req, res) {
             type: 'done',
             content: result.finalResponse,
             turns: result.turnsUsed,
+            durationMs: result.durationMs,
             sessionId: session.id,
             stats: contextStats ? {
                 percentUsed: contextStats.percentUsed,
@@ -772,7 +820,7 @@ export async function handlePermissionResponse(req, res) {
     // Phase 3: Inject approval/denial result into the session context,
     // so the next stream re-invoke continues from where it left off.
     try {
-        setProjectRoot(process.cwd());
+        setProjectRoot(DEFAULT_PROJECT_ROOT);
         let session = await loadSession(sessionId);
         if (session) {
             if (approved) {

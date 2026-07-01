@@ -23,7 +23,7 @@ Each agent owns a specific domain, enforcing separation of concerns and quality.
 
 ## Project Structure
 
-@AICore/docs/directory-structure.md
+@.codesquad/docs/directory-structure.md
 
 ## Engine Version Reference
 
@@ -39,11 +39,11 @@ Current project engine: @docs/engine-reference/unreal/VERSION.md
 
 ## Technical Preferences
 
-@AICore/docs/technical-preferences.md
+@.codesquad/docs/technical-preferences.md
 
 ## Coordination Rules
 
-@AICore/docs/coordination-rules.md
+@.codesquad/docs/coordination-rules.md
 
 ## Collaboration Protocol
 
@@ -62,9 +62,9 @@ See `docs/COLLABORATIVE-DESIGN-PRINCIPLE.md` for full protocol and examples.
 
 ## Coding Standards
 
-@AICore/docs/coding-standards.md
+@.codesquad/docs/coding-standards.md
 
 
 ## Context Management
 
-@AICore/docs/context-management.md
+@.codesquad/docs/context-management.md

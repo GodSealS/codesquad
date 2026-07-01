@@ -8,7 +8,7 @@
 version: 1
 
 # ── Per-Agent Overrides ──
-# Models extracted from AICore/agents/*.md frontmatter
+# Models extracted from .codesquad/agents/*.md frontmatter
 # Total: 39 agents, 7 unique models
 agents:
   # accessibility-specialist: GLM-5v-Turbo
@@ -52,7 +52,7 @@ agents:
   # writer: Deepseek-V4-Pro
 
 # ── Per-Skill Overrides ──
-# Models extracted from AICore/skills/SKILL.md frontmatter
+# Models extracted from .codesquad/skills/SKILL.md frontmatter
 # Total: 54 skills, 2 unique models
 skills:
   # architecture-decision: Deepseek-V4-Flash
@@ -231,6 +231,7 @@ api:
       apiKey: ${TOKENHUB_API_KEY}
       supportsVision: true
       isReasoning: true
+      SendCount: 60
 
     deepseek-v4-flash:
       provider: "deepseek"
@@ -238,11 +239,15 @@ api:
       apiKey: ${TOKENHUB_API_KEY}
       supportsVision: true
       isReasoning: true
+      SendCount: 60
 
     qwen3.5-plus:
       provider: "deepseek"
       baseUrl: https://tokenhub.tencentmaas.com/v1
       apiKey: ${TOKENHUB_API_KEY}
+      supportsVision: true
+      isReasoning: true
+      SendCount: 60
 
     minimax-m3:
       provider: "deepseek"
@@ -250,6 +255,7 @@ api:
       apiKey: ${TOKENHUB_API_KEY}
       supportsVision: true
       isReasoning: true
+      SendCount: 60
 
     deepseek-v3.2:
       provider: "deepseek"
@@ -257,6 +263,7 @@ api:
       apiKey: ${TOKENHUB_API_KEY}
       supportsVision: true
       isReasoning: true
+      SendCount: 60
 
     kimi-k2-7:
       provider: "deepseek"
@@ -264,6 +271,7 @@ api:
       apiKey: ${TOKENHUB_API_KEY}
       supportsVision: true
       isReasoning: true
+      SendCount: 60
 
     glm-5-1:
       provider: "deepseek"
@@ -271,6 +279,7 @@ api:
       apiKey: ${TOKENHUB_API_KEY}
       supportsVision: true
       isReasoning: false
+      SendCount: 60
 
     glm-5:
       provider: "deepseek"
@@ -278,6 +287,7 @@ api:
       apiKey: ${TOKENHUB_API_KEY}
       supportsVision: true
       isReasoning: false
+      SendCount: 60
 
     glm-5v-turbo:
       provider: "deepseek"
@@ -285,6 +295,7 @@ api:
       apiKey: ${TOKENHUB_API_KEY}
       supportsVision: true
       isReasoning: true
+      SendCount: 60
 
     # ── Example: Anthropic (Claude) —— 原生接入，无需中转 ──
     # CodeSquad 已内置 Anthropic Messages API 适配器，直接调用 api.anthropic.com。

@@ -15,6 +15,7 @@ import { handleRegister } from '../commands/register.js';
 import { handleMcpStdio } from '../commands/mcp.js';
 import { handleBuild, getBuildInfoJson } from '../commands/build.js';
 import { handleTest } from '../commands/test.js';
+import { enableDebugMode } from '../utils/debug.js';
 /** Read package.json version, with embedded mode fallback. */
 async function getPkgVersion() {
     // Bun compiled mode: read from embedded data
@@ -69,6 +70,9 @@ export async function run(argv = process.argv) {
         .name('codesquad')
         .description(chalk.bold('CodeSquad CLI — AI-native game development toolchain'))
         .version(pkg.version)
+        .option('-d, --debug', 'Enable debug mode (verbose logs + anomaly detection)', () => {
+        enableDebugMode();
+    })
         .addHelpText('beforeAll', chalk.cyan(`
  ╔══════════════════════════════════════╗
  ║     ${chalk.bold.yellow('CodeSquad CLI')}                     ║
@@ -111,7 +115,7 @@ ${chalk.dim('Examples:')}
   $ codesquad engine             # show detected engine info
 
 ${chalk.dim('Storage:')}
-  User-level registry: ${chalk.dim('AICore/ (built-in)')}
+  User-level registry: ${chalk.dim('.codesquad/ (built-in)')}
   External registration: ${chalk.dim('codesquad register agent <path>')}
   Project-level: ${chalk.dim('<project>/.codesquad/')} (project-specific overrides)
   Data stored under ${chalk.dim('<project>/.codesquad/')} (project-scoped)
@@ -204,7 +208,7 @@ ${chalk.dim('Storage:')}
         .description('Validate local agent/skill definition integrity')
         .option('--agents', 'Check only agent definitions')
         .option('--skills', 'Check only skill definitions')
-        .option('--stubs', 'Check AICore stub vs .codebuddy consistency (Phase 9.3)')
+        .option('--stubs', 'Check .codesquad stub vs .codebuddy consistency (Phase 9.3)')
         .option('--verbose', 'Show detailed output for each file')
         .action(async (options) => {
         await handleCheck(options ?? {});
@@ -243,7 +247,7 @@ ${chalk.dim('Storage:')}
     // ── register ───────────────────────────────────────
     program
         .command('register <action> [args...]')
-        .description('Register external agents, skills, rules, or hooks into AICore/ (user-level)')
+        .description('Register external agents, skills, rules, or hooks into .codesquad/ (user-level)')
         .option('--source <name>', 'External source identifier')
         .action(async (action, args, options) => {
         await handleRegister(action, args, options);
@@ -409,13 +413,13 @@ ${chalk.dim('Storage:')}
         const bind = options?.bind ?? '127.0.0.1';
         const __dir = dirname(fileURLToPath(import.meta.url));
         const PROJECT_ROOT = join(__dir, '..', '..');
-        const AICORE_DIR = join(PROJECT_ROOT, 'AICore');
+        const AICORE_DIR = join(PROJECT_ROOT, '.codesquad');
         // Bootstrap (same as REPL init)
         const { startApiServer, setApiState } = await import('../api/server.js');
         const { setAicodeRoot } = await import('../repl/skill-registry.js');
         const { registerTools } = await import('../tools/registry.js');
-        const { initHooksFromAICore } = await import('../hooks/config-loader.js');
-        const { loadAICoreConfig } = await import('../config/aicore-config.js');
+        const { initHooksFromCodesquad } = await import('../hooks/config-loader.js');
+        const { loadCodesquadConfig } = await import('../config/aicore-config.js');
         const { loadAllAgents, loadAllAgentsLayered } = await import('../agents/definition.js');
         const { setProjectRoot } = await import('../chat/storage.js');
         const { setUsageProjectRoot } = await import('../llm/usage-tracker.js');
@@ -427,8 +431,8 @@ ${chalk.dim('Storage:')}
         initAgentInstanceManager();
         setUsageProjectRoot(PROJECT_ROOT);
         registerTools([]);
-        initHooksFromAICore(AICORE_DIR);
-        loadAICoreConfig(AICORE_DIR);
+        initHooksFromCodesquad(AICORE_DIR);
+        loadCodesquadConfig(AICORE_DIR);
         loadAllAgentsLayered(AICORE_DIR);
         // Resolve provider from env
         const providerId = process.env.CODESQUAD_DEFAULT_MODEL?.split('/')[0] || 'anthropic';

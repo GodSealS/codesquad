@@ -1,7 +1,7 @@
 /**
  * runtime — Embedded mode detection and data access API
  *
- * When the CLI is compiled via `bun build --compile`, all AICore content
+ * When the CLI is compiled via `bun build --compile`, all .codesquad content
  * is embedded in the binary as Base64-encoded string constants.
  * This module decodes on read so callers always get plaintext.
  */

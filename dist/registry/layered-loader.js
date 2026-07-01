@@ -1,8 +1,8 @@
 /**
  * Layered loader — loads agents/skills/rules/hooks from two layers
- * (AICore → Project), with project-level taking highest priority.
+ * (.codesquad → Project), with project-level taking highest priority.
  *
- * Layer priority: Project (.codesquad/) > User (AICore/)
+ * Layer priority: Project (.codesquad/) > User (.codesquad/)
  */
 import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';

@@ -14,8 +14,8 @@
 import { createServer } from 'http';
 import { join, extname } from 'path';
 import { fileURLToPath } from 'url';
-import { virtualExists, virtualReadFile } from '../embedded/virtual-fs.js';
-import { readEmbeddedFile } from '../embedded/runtime.js';
+import { virtualExists, virtualReadFile, AICORE_ROOT, PKG_ROOT as VFS_PKG_ROOT } from '../embedded/virtual-fs.js';
+import { readEmbeddedFile, isBunCompiled } from '../embedded/runtime.js';
 import { generateToken, checkAuth, handleLogin, setAuthEnabled } from './middleware/auth.js';
 import { handleSessions } from './routes/sessions.js';
 import { handleChatV2, handleChatStream, handlePermissionResponse } from './routes/chat-v2.js';
@@ -31,8 +31,11 @@ import { handleFileList } from './routes/file-list.js';
 import { handleMcpGet, handleMcpPost, handleMcpReload, handleMcpVerify, handleMcpStatus, handleQmdStatus } from './routes/mcp.js';
 import { handleModels, handleModelsVerify } from './routes/models.js';
 import { handleCacheCleanup } from './routes/cache-cleanup.js';
+import { handleDownloadEmbedding, handleDownloadQwen, handleEmbeddingStatus, handleEmbeddingCapable } from './routes/embedding-models.js';
+import { handleSemanticSettings } from './routes/semantic-settings.js';
+import { initRouter } from '../embedding/router.js';
 // ── Tool initialization (shared with agent-runner) ──
-import { registerTools } from '../tools/registry.js';
+import { initDynamicRegistry } from '../tools/dynamic-registry.js';
 import { BashTool } from '../tools/BashTool.js';
 import { FileReadTool } from '../tools/FileReadTool.js';
 import { FileWriteTool } from '../tools/FileWriteTool.js';
@@ -55,31 +58,36 @@ import { ExitPlanModeTool } from '../tools/ExitPlanModeTool.js';
 import { LSPTool } from '../tools/LSPTool.js';
 import { SkillTool } from '../tools/SkillTool.js';
 import { ToolSearchTool } from '../tools/ToolSearchTool.js';
-import { loadAICoreConfig } from '../config/aicore-config.js';
-import { initHooksFromAICore } from '../hooks/config-loader.js';
+import { loadCodesquadConfig } from '../config/aicore-config.js';
+import { initHooksFromCodesquad } from '../hooks/config-loader.js';
 import { initErrorLogger } from '../utils/error-logger.js';
+import { loadGatewayConfigsFromYaml } from '../llm/tokenhub-gateway.js';
 let __dirname;
 let PKG_ROOT;
 let WEB_CONSOLE_DIR;
 let AICORE_DIR;
-try {
-    __dirname = fileURLToPath(new URL('.', import.meta.url));
-    PKG_ROOT = join(__dirname, '..', '..');
+// Canonical path resolution (matches virtual-fs.ts logic for Bun-compiled support)
+AICORE_DIR = AICORE_ROOT;
+if (isBunCompiled) {
+    PKG_ROOT = VFS_PKG_ROOT;
     WEB_CONSOLE_DIR = join(PKG_ROOT, 'UI', 'web-console');
-    AICORE_DIR = join(PKG_ROOT, 'AICore');
 }
-catch {
-    // Bun-compiled binary: fileURLToPath may fail.
-    // Static files served via readEmbeddedFile (serveStatic),
-    // AICore content via virtual-fs with fallback PKG_ROOT.
-    PKG_ROOT = process.cwd();
+else {
+    try {
+        __dirname = fileURLToPath(new URL('.', import.meta.url));
+        PKG_ROOT = join(__dirname, '..', '..');
+    }
+    catch {
+        PKG_ROOT = process.cwd();
+    }
     WEB_CONSOLE_DIR = join(PKG_ROOT, 'UI', 'web-console');
-    AICORE_DIR = join(PKG_ROOT, 'AICore');
 }
-/** Initialize builtin tools and permissions (does NOT depend on project root). */
+/** Initialize builtin tools via dynamic LRU registry (max 12 active). */
 function initBuiltinToolsAndPermissions() {
-    // Register all 19 builtin tools (mirrors REPL tool pool)
-    registerTools([
+    // Dynamic registry: always-hot tools are always active, cold tools are
+    // auto-evicted and re-registered on demand. Reduces API payload from
+    // 24 tools to ≤12, preventing 502 from oversized tool schemas.
+    initDynamicRegistry([
         BashTool, FileReadTool, FileWriteTool, FileEditTool, GrepTool, GlobTool,
         AgentTool, TodoWriteTool,
         TaskCreateTool, TaskGetTool, TaskListTool, TaskStopTool,
@@ -89,18 +97,18 @@ function initBuiltinToolsAndPermissions() {
         EnterPlanModeTool, ExitPlanModeTool,
         LSPTool, SkillTool, ToolSearchTool,
     ]);
-    // Init permissions from AICore/settings.json
-    loadAICoreConfig(AICORE_DIR);
+    // Init permissions from .codesquad/settings.json
+    loadCodesquadConfig(AICORE_DIR);
 }
 /** Init hooks + MCP from project-specific .codesquad/settings.json */
 async function initProjectSettings(codesquadDir) {
-    initHooksFromAICore(codesquadDir);
+    initHooksFromCodesquad(codesquadDir);
     try {
         const { loadAndRegisterMCPTools } = await import('../repl/index.js');
         await loadAndRegisterMCPTools(codesquadDir);
     }
-    catch {
-        console.log('[web] MCP tools not loaded (non-critical)');
+    catch (err) {
+        console.warn(`[web] MCP tools not loaded (non-critical): ${err.message}`);
     }
 }
 // ═══════════════════════════════════════════════
@@ -147,12 +155,16 @@ function serveStatic(req, res) {
     }
     if (embeddedContent !== null) {
         const contentType = MIME_TYPES[resolvedExt] ?? 'application/octet-stream';
-        const headers = { 'Content-Type': contentType };
+        const headers = {
+            'Content-Type': contentType,
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+        };
         if (resolvedExt === '.html') {
             headers['Content-Security-Policy'] =
                 "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
                     "connect-src 'self'; img-src 'self' data:; font-src 'self'; " +
-                    "frame-src 'none'; object-src 'none';";
+                    "frame-ancestors 'none'; object-src 'none';";
         }
         res.writeHead(200, headers);
         res.end(embeddedContent);
@@ -166,9 +178,9 @@ function serveStatic(req, res) {
     else {
         filePath = join(WEB_CONSOLE_DIR, urlPath);
     }
-    // Prevent directory traversal
-    const normalized = filePath.replace(/\\/g, '/');
-    const base = WEB_CONSOLE_DIR.replace(/\\/g, '/');
+    // Prevent directory traversal (case-insensitive on Windows)
+    const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+    const base = WEB_CONSOLE_DIR.replace(/\\/g, '/').toLowerCase();
     if (!normalized.startsWith(base)) {
         return false;
     }
@@ -184,18 +196,23 @@ function serveStatic(req, res) {
     const contentType = MIME_TYPES[ext] ?? 'application/octet-stream';
     try {
         const content = virtualReadFile(filePath);
-        const headers = { 'Content-Type': contentType };
+        const headers = {
+            'Content-Type': contentType,
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+        };
         if (ext === '.html') {
             headers['Content-Security-Policy'] =
                 "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
                     "connect-src 'self'; img-src 'self' data:; font-src 'self'; " +
-                    "frame-src 'none'; object-src 'none';";
+                    "frame-ancestors 'none'; object-src 'none';";
         }
         res.writeHead(200, headers);
         res.end(content);
         return true;
     }
-    catch {
+    catch (err) {
+        console.error(`[web] Failed to serve static file ${filePath}: ${err.message}`);
         res.writeHead(500);
         res.end('Internal Server Error');
         return true;
@@ -223,8 +240,12 @@ export async function startWebServer(options) {
     const codesquadDir = join(projectRoot, '.codesquad');
     // ── Initialize error logger (local file + optional email) ──
     initErrorLogger(projectRoot);
+    // ── Initialize TokenHub gateway (cross-session throttling via shared send queue) ──
+    loadGatewayConfigsFromYaml(projectRoot);
     // ── Initialize tools, permissions, hooks, and MCP BEFORE accepting requests ──
     initBuiltinToolsAndPermissions();
+    // 🔧 Step 9: 初始化语义路由（异步，不阻塞服务器启动）
+    initRouter(AICORE_DIR).catch(err => console.warn(`[web] Semantic router init failed (non-critical): ${err.message}`));
     await initProjectSettings(codesquadDir);
     const server = createServer(async (req, res) => {
         setCorsHeaders(req, res);
@@ -234,7 +255,7 @@ export async function startWebServer(options) {
             res.end();
             return;
         }
-        const reqPath = req.url?.split('?')[0] ?? '/';
+        const reqPath = decodeURIComponent(req.url?.split('?')[0] ?? '/');
         // ── Login endpoint (no auth required) ──
         if (reqPath === '/login') {
             if (handleLogin(req, res))
@@ -301,6 +322,26 @@ export async function startWebServer(options) {
                 }
                 if (reqPath === '/api/models/verify' && method === 'POST') {
                     await handleModelsVerify(req, res);
+                    return;
+                }
+                if (reqPath === '/api/models/download-embedding' && method === 'POST') {
+                    await handleDownloadEmbedding(req, res);
+                    return;
+                }
+                if (reqPath === '/api/models/download-qwen' && method === 'POST') {
+                    await handleDownloadQwen(req, res);
+                    return;
+                }
+                if (reqPath === '/api/models/embedding-status') {
+                    await handleEmbeddingStatus(req, res);
+                    return;
+                }
+                if (reqPath === '/api/models/embedding-capable') {
+                    await handleEmbeddingCapable(req, res);
+                    return;
+                }
+                if (reqPath === '/api/settings/semantic-context') {
+                    await handleSemanticSettings(req, res, method ?? 'GET');
                     return;
                 }
                 if (reqPath === '/api/usage') {

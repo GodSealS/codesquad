@@ -1,9 +1,9 @@
 /**
  * Agent definition system — loads and manages agent configs.
  *
- * Supports three-layer loading: Project > User > AICore.
+ * Supports three-layer loading: Project > User > .codesquad.
  *
- * Embedded mode (Bun compile): Layer 1 (AICore built-in) reads from
+ * Embedded mode (Bun compile): Layer 1 (.codesquad built-in) reads from
  * in-memory string constants instead of disk.
  *
  * References:
@@ -52,7 +52,7 @@ export function loadAllAgents(agentsDir) {
     return agents;
 }
 /**
- * Load agents from two layers (Project .codesquad/ > User AICore/).
+ * Load agents from two layers (Project .codesquad/ > User .codesquad/).
  * Override semantics: same-named agent from project wins.
  *
  * In embedded mode, Layer 1 reads from in-memory constants.
@@ -63,7 +63,7 @@ export function loadAllAgentsLayered(aicoreRoot, cwd) {
     if (cached)
         return cached;
     const seen = new Map();
-    // Layer 1: AICore/agents/ (built-in, base)
+    // Layer 1: .codesquad/agents/ (built-in, base)
     // Embedded mode: read from in-memory constants
     // Dev mode: read from disk
     if (isEmbeddedMode()) {

@@ -49,6 +49,10 @@ export function matchesRule(rule, toolName, toolInput) {
         return false;
     if (!rule.contentPattern)
         return true;
+    // Reject empty contentPattern to prevent bypass
+    // (value.startsWith("") is always true, which would match everything)
+    if (rule.contentPattern.length === 0)
+        return false;
     // Content-specific matching — check first string field
     const value = findPrimaryStringValue(toolInput);
     if (!value)

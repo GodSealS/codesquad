@@ -8,7 +8,7 @@
 >
 > The pipeline has 7 phases. Each phase has a formal gate (`/gate-check`)
 > that must pass before you advance. The authoritative phase sequence is
-> defined in `AICore/docs/workflow-catalog.yaml` and read by `/help`.
+> defined in `.codesquad/docs/workflow-catalog.yaml` and read by `/help`.
 
 ---
 
@@ -225,7 +225,7 @@ Or with a specific engine:
 
 **What /setup-engine does:**
 
-- Populates `AICore/docs/technical-preferences.md` with naming conventions,
+- Populates `.codesquad/docs/technical-preferences.md` with naming conventions,
   performance budgets, and engine-specific defaults
 - Detects knowledge gaps (engine version newer than LLM training data) and
   advises cross-referencing `docs/engine-reference/`
@@ -1133,7 +1133,7 @@ Bypasses normal sprint processes with a full audit trail:
 
 ```
 Ask Claude to create a post-mortem using the template at
-AICore/docs/templates/post-mortem.md
+.codesquad/docs/templates/post-mortem.md
 ```
 
 ---
@@ -1165,7 +1165,7 @@ By default they run at every checkpoint. You can control how much review you get
 The `--review` flag works on all gate-using skills. Change the global mode at any
 time by editing `production/review-mode.txt` directly or re-running `/start`.
 
-Full gate definitions and check pattern: `AICore/docs/director-gates.md`
+Full gate definitions and check pattern: `.codesquad/docs/director-gates.md`
 
 ---
 
@@ -1241,7 +1241,7 @@ The system has 12 hooks that run automatically:
 | `validate-commit.sh` | Before commit | Checks for design doc references, valid JSON, no hardcoded values |
 | `validate-push.sh` | Before push | Warns on pushes to main/develop |
 | `validate-assets.sh` | Before commit | Checks asset naming and size |
-| `validate-skill-change.sh` | Skill file written | Advises running `/skill-test` after `AICore/skills/` changes |
+| `validate-skill-change.sh` | Skill file written | Advises running `/skill-test` after `.codesquad/skills/` changes |
 | `log-agent.sh` | Agent start | Logs agent invocations for audit trail |
 | `log-agent-stop.sh` | Agent stop | Completes agent audit trail (start + stop) |
 | `session-stop.sh` | Session end | Final session logging |

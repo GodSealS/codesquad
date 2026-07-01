@@ -91,20 +91,49 @@ export async function ensureSessionDirWithResult() {
 }
 // ── Atomic write ──
 /**
- * Save a session JSON atomically:
- * 1. Backup existing file to .bak (P1 fix: prevent data loss)
- * 2. Write to a temp file with PID suffix
- * 3. Rename over the target (atomic on most filesystems)
+ * Per-session write queue: serializes concurrent saveSession() calls
+ * targeting the same session ID, preventing data loss from interleaved writes.
  *
- * For cross-process safety, callers should use saveSessionLocked().
+ * Pattern: each call chains onto the previous Promise for its session ID,
+ * so writes execute sequentially within a session while different sessions
+ * can write in parallel.
+ */
+const writeQueues = new Map();
+/**
+ * Save a session JSON atomically:
+ * 1. Serialize via per-session write queue (prevents concurrent overwrites)
+ * 2. Backup existing file to .bak (prevents data loss on crash)
+ * 3. Write to a temp file with PID + unique suffix
+ * 4. Rename over the target (atomic on most filesystems)
  */
 export async function saveSession(data) {
+    const record = data;
+    const id = record.id;
+    // Serialize writes per session: chain onto the previous write's Promise.
+    // This ensures two concurrent saveSession() calls for the same session
+    // don't interleave their tmpPath writes and silently overwrite each other.
+    const prev = writeQueues.get(id) ?? Promise.resolve();
+    const next = prev
+        .then(() => doSaveSession(data))
+        .finally(() => {
+        // Clean up queue entry only if it's still our chain (no newer write queued)
+        if (writeQueues.get(id) === next) {
+            writeQueues.delete(id);
+        }
+    });
+    writeQueues.set(id, next);
+    return next;
+}
+/** Internal: perform the actual atomic write (called from serialized queue). */
+async function doSaveSession(data) {
     await ensureSessionDir();
     const record = data;
     const id = record.id;
     const targetPath = join(sessionDir(), `${id}.json`);
     const bakPath = `${targetPath}.bak`;
-    const tmpPath = `${targetPath}.tmp.${process.pid}`;
+    // PID + random suffix prevents same-process tmpPath collisions
+    // (belt-and-suspenders: queue serializes writes, unique suffix is extra safety)
+    const tmpPath = `${targetPath}.tmp.${process.pid}.${Date.now().toString(36)}`;
     const json = JSON.stringify(data, null, 2);
     // P1 fix: Backup existing file before overwriting
     try {
@@ -131,7 +160,17 @@ export async function saveSession(data) {
         }
     }
     // Atomic rename
-    await renameAsync(tmpPath, targetPath);
+    try {
+        await renameAsync(tmpPath, targetPath);
+    }
+    catch (renameErr) {
+        console.error(`[storage] Atomic rename failed for ${id}: ${renameErr.message}`);
+        try {
+            await unlinkAsync(tmpPath);
+        }
+        catch { /* best-effort cleanup */ }
+        throw renameErr;
+    }
 }
 /**
  * Load a session from disk. Handles partial writes by attempting
@@ -223,5 +262,36 @@ export async function deleteSession(id) {
     catch {
         // File already gone — that's fine
     }
+}
+// ── Session ID Counter ──
+import { readFileSync, writeFileSync } from 'fs';
+const COUNTER_FILE = 'session-counter.txt';
+function counterPath() {
+    return join(codesquadHome(), COUNTER_FILE);
+}
+/** Read and increment the session counter. Returns the NEXT session ID. */
+export function getNextSessionId() {
+    const p = counterPath();
+    let current = 0;
+    try {
+        const raw = readFileSync(p, 'utf-8');
+        current = parseInt(raw.trim(), 10) || 0;
+    }
+    catch {
+        // File doesn't exist yet — starts from 0
+    }
+    const next = current + 1;
+    try {
+        writeFileSync(p, String(next), 'utf-8');
+    }
+    catch { /* best effort */ }
+    return next;
+}
+/** Reset the session counter to 0 (project init). */
+export function resetSessionCounter() {
+    try {
+        writeFileSync(counterPath(), '0', 'utf-8');
+    }
+    catch { /* best effort */ }
 }
 //# sourceMappingURL=storage.js.map

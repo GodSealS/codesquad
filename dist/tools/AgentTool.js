@@ -23,7 +23,7 @@ import { testAgent } from '../agents/builtin/test.js';
 import { createCoordinatorContext, decomposeTask, writeScratchpadArtifact, readScratchpadArtifacts, } from '../chat/coordinator.js';
 // ── Schema ──
 export const AgentInputSchema = z.object({
-    subagent_type: z.string().min(1).describe('Type of subagent to spawn: explore, sanity-check, fix, refactor, test, general-purpose, or any AICore agent name'),
+    subagent_type: z.string().min(1).describe('Type of subagent to spawn: explore, sanity-check, fix, refactor, test, general-purpose, or any .codesquad agent name'),
     description: z.string().max(500).describe('Brief description of the task'),
     prompt: z.string().min(1).max(50000).describe('Task instructions for the subagent'),
     run_in_background: z.boolean().optional().default(false).describe('Run asynchronously (fire-and-forget)'),
@@ -69,11 +69,11 @@ export const AgentTool = buildTool({
         const agentList = Object.entries(BUILTIN_SUBAGENTS)
             .map(([type, info]) => `  - "${type}": ${info.whenToUse}`)
             .join('\n');
-        // Include AICore agents marked as subagents
+        // Include .codesquad agents marked as subagents
         const aicoreSubagents = listAgents().filter((a) => a.subagent);
         let aicoreSection = '';
         if (aicoreSubagents.length > 0) {
-            aicoreSection = '\n### AICore specialist subagents (domain-specific)\n' +
+            aicoreSection = '\n### .codesquad specialist subagents (domain-specific)\n' +
                 aicoreSubagents.map((a) => `  - "${a.agentType}": ${a.whenToUse}`).join('\n');
         }
         return [
@@ -105,7 +105,7 @@ export const AgentTool = buildTool({
             '- "refactor" for small-scope restructuring',
             '- "test" for generating/fixing unit tests (not /tdd)',
             '- "general-purpose" when you need full read/write/execute capability',
-            '- AICore agents (lead-programmer, gameplay-programmer, etc.) for domain-specific tasks',
+            '- .codesquad agents (lead-programmer, gameplay-programmer, etc.) for domain-specific tasks',
         ].join('\n');
     },
     descriptionFor(input) {
@@ -117,7 +117,7 @@ export const AgentTool = buildTool({
         if (Object.keys(BUILTIN_SUBAGENTS).includes(input.subagent_type)) {
             return { valid: true };
         }
-        // Try AICore agent lookup — must be loaded AND marked as subagent
+        // Try .codesquad agent lookup — must be loaded AND marked as subagent
         const aicoreAgent = findAgent(input.subagent_type);
         if (aicoreAgent) {
             return aicoreAgent.subagent
@@ -162,7 +162,7 @@ export const AgentTool = buildTool({
                 instanceName: input.instance_name,
             });
         }
-        // Find agent definition (check built-ins first, then AICore)
+        // Find agent definition (check built-ins first, then .codesquad)
         let agent = resolveToAgent(subagent_type);
         if (!agent) {
             if (instance && mgr)
@@ -342,11 +342,11 @@ export const AgentTool = buildTool({
     },
 });
 // ── Agent Resolution ──
-/** Check if AICore agents have been loaded into cache. */
+/** Check if .codesquad agents have been loaded into cache. */
 function _agentsLoaded() {
     return listAgents().length > 0;
 }
-/** Look up agent by type — checks built-ins first, then AICore. */
+/** Look up agent by type — checks built-ins first, then .codesquad. */
 function resolveToAgent(subagentType) {
     switch (subagentType) {
         case 'explore': return exploreAgent;

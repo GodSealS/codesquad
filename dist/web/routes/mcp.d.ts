@@ -1,24 +1,24 @@
 /**
- * MCP Configuration API — GET/POST endpoints for Web UI ↔ AICore/settings.json sync.
+ * MCP Configuration API — GET/POST endpoints for Web UI ↔ .codesquad/settings.json sync.
  *
- * GET  /api/mcp/servers   → Return current mcpServers block from AICore/settings.json
- * POST /api/mcp/servers   → Write mcpServers config from UI to AICore/settings.json
+ * GET  /api/mcp/servers   → Return current mcpServers block from .codesquad/settings.json
+ * POST /api/mcp/servers   → Write mcpServers config from UI to .codesquad/settings.json
  */
 import type http from 'http';
 /**
  * GET /api/mcp/servers
- * Returns the current mcpServers configuration from AICore/settings.json.
+ * Returns the current mcpServers configuration from .codesquad/settings.json.
  */
 export declare function handleMcpGet(_req: http.IncomingMessage, res: http.ServerResponse, aicoreDir: string): Promise<void>;
 /**
  * POST /api/mcp/servers
  * Body: { mcpServers: Record<string, McpServerEntry> }
- * Writes the MCP servers configuration into AICore/settings.json.
+ * Writes the MCP servers configuration into .codesquad/settings.json.
  */
 export declare function handleMcpPost(req: http.IncomingMessage, res: http.ServerResponse, aicoreDir: string): Promise<void>;
 /**
  * POST /api/mcp/reload
- * Hot-reload MCP tools from AICore/settings.json without server restart.
+ * Hot-reload MCP tools from .codesquad/settings.json without server restart.
  */
 export declare function handleMcpReload(_req: http.IncomingMessage, res: http.ServerResponse, aicoreDir: string): Promise<void>;
 /**
@@ -55,7 +55,7 @@ export interface QmdStatus {
 /**
  * GET /api/qmd/status
  * Checks whether the qmd CLI is installed on the system, and whether
- * it's already configured as an MCP server in AICore/settings.json.
+ * it's already configured as an MCP server in .codesquad/settings.json.
  */
 export declare function handleQmdStatus(_req: http.IncomingMessage, res: http.ServerResponse, aicoreDir: string): Promise<void>;
 //# sourceMappingURL=mcp.d.ts.map

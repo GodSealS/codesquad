@@ -1,7 +1,7 @@
 /**
- * Agent routes — serves agent list/detail from AICore/agents/*.md.
+ * Agent routes — serves agent list/detail from .codesquad/agents/*.md.
  *
- * Replaces UI's static /docs/agents.json with live AICore data.
+ * Replaces UI's static /docs/agents.json with live .codesquad data.
  *
  * GET /api/agents        → list all agents
  * GET /api/agents/:name  → single agent prompt + frontmatter

@@ -1,5 +1,5 @@
 /**
- * AICore config loader — loads AICore/settings.json into the permission pipeline.
+ * .codesquad config loader — loads .codesquad/settings.json into the permission pipeline.
  *
  * References:
  *   Claude Code src/Config/ (config loading)
@@ -12,17 +12,17 @@ import { loadSandboxConfig } from '../permissions/sandbox.js';
 import { virtualExists, virtualReadFile } from '../embedded/virtual-fs.js';
 // ── Loader ──
 /**
- * Load and apply all AICore settings from settings.json.
+ * Load and apply all .codesquad settings from settings.json.
  *
  * Handles:
  *   - permissions.allow[] / deny[] / ask[] → registered as permission rules
  *   - sandbox.* → applied to sandbox config
  *
- * @param aicoreDir - Path to the AICore directory
+ * @param codesquadDir - Path to the .codesquad directory
  * @returns true if settings.json was loaded, false if not found
  */
-export function loadAICoreConfig(aicoreDir) {
-    const settingsPath = join(aicoreDir, 'settings.json');
+export function loadCodesquadConfig(codesquadDir) {
+    const settingsPath = join(codesquadDir, 'settings.json');
     if (!virtualExists(settingsPath)) {
         return false;
     }
@@ -31,7 +31,8 @@ export function loadAICoreConfig(aicoreDir) {
         const raw = virtualReadFile(settingsPath, 'utf-8');
         settings = JSON.parse(raw);
     }
-    catch {
+    catch (err) {
+        console.error(`[codesquad-config] Failed to parse ${settingsPath}: ${err.message}`);
         return false;
     }
     // ── 1. Load built-in defaults first ──

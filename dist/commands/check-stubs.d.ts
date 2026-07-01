@@ -3,8 +3,8 @@
  *
  * codesquad check --stubs
  *
- * Validates consistency between AICore MCP stubs (.aicore-mcp-stubs/)
- * and AICore/ implementations. Ensures every stub has a matching
+ * Validates consistency between .codesquad MCP stubs (.aicore-mcp-stubs/)
+ * and .codesquad/ implementations. Ensures every stub has a matching
  * implementation and vice versa.
  */
 interface StubCheckResult {

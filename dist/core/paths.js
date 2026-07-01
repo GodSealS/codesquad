@@ -4,7 +4,7 @@
  * The CLI ships with two companion asset directories that live next to the
  * package itself, not the target project:
  *
- *   AICore/                            canonical agent & skill definitions
+ *   .codesquad/                            canonical agent & skill definitions
  *   CCGS Skill Testing Framework/      catalog, rubric, spec files
  *
  * Both should be resolved relative to the CLI package root (`__dirname/../..`)
@@ -13,12 +13,13 @@
  * installed globally and invoked from a different project directory.
  *
  * ── Embedded Mode (Bun compile) ──
- * When the CLI is compiled via `bun build --compile`, the AICore content
+ * When the CLI is compiled via `bun build --compile`, the .codesquad content
  * is embedded in the binary. This module detects the runtime mode and
  * provides unified file I/O that works in both dev and compiled modes.
  */
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { virtualExists, virtualReadFile, virtualReadDir, } from '../embedded/virtual-fs.js';
 import { isBunCompiled } from '../embedded/runtime.js';
 let __filename;
@@ -39,11 +40,11 @@ catch {
 export const CLI_PACKAGE_ROOT = isBunCompiled
     ? __dirname
     : resolve(__dirname, '..', '..');
-/** Absolute path to the AICore asset directory (canonical agent & skill defs). */
-export const AICORE_ROOT = join(CLI_PACKAGE_ROOT, 'AICore');
-/** Absolute path to the AICore/agents subdirectory. */
+/** Absolute path to the .codesquad asset directory (canonical agent & skill defs). */
+export const AICORE_ROOT = join(CLI_PACKAGE_ROOT, '.codesquad');
+/** Absolute path to the .codesquad/agents subdirectory. */
 export const AICORE_AGENTS_DIR = join(AICORE_ROOT, 'agents');
-/** Absolute path to the AICore/skills subdirectory. */
+/** Absolute path to the .codesquad/skills subdirectory. */
 export const AICORE_SKILLS_DIR = join(AICORE_ROOT, 'skills');
 /** Absolute path to the CCGS Skill Testing Framework directory. */
 export const CCGS_ROOT = join(CLI_PACKAGE_ROOT, 'CCGS Skill Testing Framework');
@@ -79,12 +80,12 @@ export function getAicoreContentRoot() {
         return _aicoreContentRoot;
     }
     catch {
-        // Fallback to bundled AICore
+        // Fallback to bundled .codesquad
         _aicoreContentRoot = AICORE_ROOT;
         return _aicoreContentRoot;
     }
 }
-/** The content source path (private package if available, else bundled AICore) */
+/** The content source path (private package if available, else bundled .codesquad) */
 export const AICORE_CONTENT_ROOT = getAicoreContentRoot();
 /** Absolute path to the project file install config. */
 export const PROJECT_INSTALL_CONFIG_PATH = join(CLI_PACKAGE_ROOT, 'Config', 'project_file_install_config.yaml');
@@ -121,7 +122,7 @@ export function getCodeSquadProjectCategory(category, cwd) {
 let _isEmbeddedMode = null;
 /**
  * Whether the CLI is running as a Bun-compiled binary.
- * In embedded mode, AICore content is read from in-memory string constants
+ * In embedded mode, .codesquad content is read from in-memory string constants
  * rather than disk files.
  */
 export function isEmbeddedMode() {
@@ -136,10 +137,10 @@ export function isEmbeddedMode() {
     return _isEmbeddedMode;
 }
 /**
- * Unified AICore file read interface.
+ * Unified .codesquad file read interface.
  * Uses VirtualFS which transparently reads from embedded data or disk.
  *
- * @param relativePath Path relative to AICore root (e.g. "agents/game-designer.md")
+ * @param relativePath Path relative to .codesquad root (e.g. "agents/game-designer.md")
  * @returns File content as string, or null if not found
  */
 export function readAicoreFile(relativePath) {
@@ -154,10 +155,10 @@ export function readAicoreFile(relativePath) {
     }
 }
 /**
- * Unified AICore directory listing (readdir semantics).
+ * Unified .codesquad directory listing (readdir semantics).
  * Uses VirtualFS which transparently reads from embedded data or disk.
  *
- * @param relativeDir Path relative to AICore root (e.g. "agents", "skills/adopt")
+ * @param relativeDir Path relative to .codesquad root (e.g. "agents", "skills/adopt")
  * @returns Array of entry names, or empty array if dir not found
  */
 export function readAicoreDir(relativeDir) {
@@ -169,11 +170,110 @@ export function readAicoreDir(relativeDir) {
         return [];
     }
 }
+// ── Fallback Chain Resolution ───────────────────────────────
 /**
- * Check if a path exists under AICore root.
+ * Resolve a file with 3-tier fallback:
+ *   1. <project>/.codesquad/<relativePath>
+ *   2.  ~/.codesquad/<relativePath>
+ *   3.  <CLI>/.codesquad/<relativePath> (via VirtualFS)
+ *
+ * Returns { path, content } of the first found file, or null.
+ */
+export function resolveFileWithFallback(relativePath, projectRoot) {
+    // Tier 1: Project
+    const projectDir = getCodeSquadProjectRoot(projectRoot);
+    const projectPath = join(projectDir, relativePath);
+    if (existsSync(projectPath)) {
+        try {
+            return { path: projectPath, content: readFileSync(projectPath, 'utf-8') };
+        }
+        catch { }
+    }
+    // Tier 2: User
+    const userPath = join(CODESQUAD_USER_ROOT, relativePath);
+    if (existsSync(userPath)) {
+        try {
+            return { path: userPath, content: readFileSync(userPath, 'utf-8') };
+        }
+        catch { }
+    }
+    // Tier 3: CLI/.codesquad (VirtualFS: embedded + disk)
+    const aicorePath = join(AICORE_ROOT, relativePath);
+    if (virtualExists(aicorePath)) {
+        try {
+            return { path: aicorePath, content: virtualReadFile(aicorePath, 'utf-8') };
+        }
+        catch { }
+    }
+    return null;
+}
+/**
+ * List directory entries with 3-tier merged view:
+ *   1. <project>/.codesquad/<relativeDir>  — highest priority
+ *   2.  ~/.codesquad/<relativeDir>
+ *   3.  <CLI>/.codesquad/<relativeDir>         — lowest priority (VirtualFS)
+ *
+ * Entries in higher tiers override same-named entries in lower tiers.
+ * Returns deduplicated merged array.
+ */
+export function resolveDirWithFallback(relativeDir, projectRoot) {
+    const seen = new Set();
+    const result = [];
+    const addLayer = (entries) => {
+        for (const e of entries) {
+            if (!seen.has(e)) {
+                seen.add(e);
+                result.push(e);
+            }
+        }
+    };
+    // Tier 1: Project (highest priority)
+    const projectDir = getCodeSquadProjectRoot(projectRoot);
+    const projectFull = join(projectDir, relativeDir);
+    if (existsSync(projectFull)) {
+        try {
+            addLayer(readdirSync(projectFull));
+        }
+        catch { }
+    }
+    // Tier 2: User
+    const userFull = join(CODESQUAD_USER_ROOT, relativeDir);
+    if (existsSync(userFull)) {
+        try {
+            addLayer(readdirSync(userFull));
+        }
+        catch { }
+    }
+    // Tier 3: CLI/.codesquad (VirtualFS)
+    const aicoreFull = join(AICORE_ROOT, relativeDir);
+    if (virtualExists(aicoreFull)) {
+        try {
+            addLayer(virtualReadDir(aicoreFull));
+        }
+        catch { }
+    }
+    return result;
+}
+/**
+ * Check if a path exists under .codesquad root.
  * Uses VirtualFS which transparently checks embedded data or disk.
  */
 export function existsAicorePath(relativePath) {
     return virtualExists(join(AICORE_ROOT, relativePath));
+}
+/** Directories under .codesquad/ that must never be readable via Read/Grep/Glob tools. */
+const PROTECTED_AICORE_SUBDIRS = ['agents', 'skills'];
+/**
+ * Check whether an absolute file path falls under a protected .codesquad subdirectory
+ * (agents/ or skills/).  These contain proprietary agent/skill definitions that
+ * must never be exposed to the user via tool output.
+ *
+ * @param absPath  Resolved absolute file path
+ * @param aicoreDir  Absolute path to the .codesquad directory (e.g. context.aicoreDir)
+ */
+export function isProtectedAicorePath(absPath, aicoreDir) {
+    const normalized = absPath.replace(/\\/g, '/');
+    const base = aicoreDir.replace(/\\/g, '/');
+    return PROTECTED_AICORE_SUBDIRS.some(sub => normalized.startsWith(base + '/' + sub + '/') || normalized === base + '/' + sub);
 }
 //# sourceMappingURL=paths.js.map

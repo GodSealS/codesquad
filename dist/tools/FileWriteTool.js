@@ -6,7 +6,7 @@
  *
  * Phase 1.4
  */
-import { writeFile, mkdir, rename, existsSync } from 'fs';
+import { writeFile, mkdir, rename, existsSync, realpathSync } from 'fs';
 import { promisify } from 'util';
 import { dirname, resolve, join } from 'path';
 import { z } from 'zod';
@@ -27,7 +27,7 @@ const DENIED_PREFIXES = ['.env', '.git/', 'node_modules/'];
 // ── Tool ──
 export const FileWriteTool = buildTool({
     name: 'Write',
-    description: 'Write content to a file (create or overwrite). Requires file to be read first unless new.',
+    description: 'Write content to a file (create or overwrite). Requires file to be read first unless new. Can be batched with writes/edits to DIFFERENT files in one response.',
     searchHint: 'write file create save',
     inputSchema: FileWriteInputSchema,
     maxResultSizeChars: 5_000,
@@ -86,6 +86,22 @@ export const FileWriteTool = buildTool({
                 errorCode: 'PATH_OUTSIDE_PROJECT',
             };
         }
+        // Resolve symlinks for existing files to prevent path traversal
+        if (existsSync(filePath)) {
+            try {
+                const realPath = realpathSync(filePath);
+                if (!realPath.startsWith(context.projectRoot)) {
+                    return {
+                        valid: false,
+                        message: 'File path resolves outside the project directory (symlink traversal).',
+                        errorCode: 'PATH_OUTSIDE_PROJECT',
+                    };
+                }
+            }
+            catch {
+                return { valid: false, message: 'Broken symlink.', errorCode: 'ENOENT' };
+            }
+        }
         return { valid: true };
     },
     checkPermissions(input, context) {
@@ -136,7 +152,7 @@ export const FileWriteTool = buildTool({
         // Inject path-matched rules into context
         const aicoreRulesDir = context.aicoreDir
             ? join(context.aicoreDir, 'rules')
-            : join(context.projectRoot, 'AICore', 'rules');
+            : join(context.projectRoot, '.codesquad', 'rules');
         const rulesCtx = getRulesForFileOperation(input.file_path, aicoreRulesDir);
         if (rulesCtx) {
             context.session.context.injectedContent =

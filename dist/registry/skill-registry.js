@@ -1,5 +1,5 @@
 /**
- * Skill registry — external registration into AICore/skills/ (user-level).
+ * Skill registry — external registration into .codesquad/skills/ (user-level).
  */
 import { existsSync, readdirSync, mkdirSync, rmdirSync } from 'fs';
 import { join, basename } from 'path';
@@ -22,7 +22,7 @@ export function scanSkillDir(dir) {
 export function isValidSkill(skillDirPath) {
     return existsSync(join(skillDirPath, 'SKILL.md'));
 }
-/** Register a single skill directory to AICore/skills/. */
+/** Register a single skill directory to .codesquad/skills/. */
 export function registerSkillDir(aicoreRoot, sourceDir, sourceName) {
     const result = { count: 0, updated: 0, skipped: 0, errors: [] };
     const skillName = basename(sourceDir);
@@ -49,7 +49,7 @@ export function registerSkillDir(aicoreRoot, sourceDir, sourceName) {
     }
     return result;
 }
-/** Register an entire external skills directory to AICore/skills/. */
+/** Register an entire external skills directory to .codesquad/skills/. */
 export function registerSkillsDir(aicoreRoot, sourceDir, sourceName) {
     const result = { count: 0, updated: 0, skipped: 0, errors: [] };
     const destDir = getUserCategoryDir(aicoreRoot, 'skill');

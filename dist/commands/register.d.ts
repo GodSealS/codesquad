@@ -1,5 +1,5 @@
 /**
- * register command — External CLI registration into AICore/ (user-level).
+ * register command — External CLI registration into .codesquad/ (user-level).
  *
  * Commands:
  *   codesquad register agent|skill|rule|hook <path> [--source <name>]

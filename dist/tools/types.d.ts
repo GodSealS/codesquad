@@ -48,7 +48,7 @@ export interface ToolUseContext {
     cwd: string;
     /** Project root directory. */
     projectRoot: string;
-    /** AICore installation directory (CLI package root). Fallback for file reads. */
+    /** .codesquad installation directory (CLI package root). Fallback for file reads. */
     aicoreDir?: string;
     /** Abort signal for cancellation. */
     abortSignal: AbortSignal;

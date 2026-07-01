@@ -1,26 +1,26 @@
 /**
  * Hook configuration loader — reads hooks from two layers.
  *
- * Layers: Project (.codesquad/) > User (AICore/)
+ * Layers: Project (.codesquad/) > User (.codesquad/)
  *
  * Phase 2.4
  */
 import type { HooksSettings } from './types.js';
 /**
- * Load hooks configuration from AICore/settings.json.
+ * Load hooks configuration from .codesquad/settings.json.
  * Returns the parsed HooksSettings, or null if not found.
  */
-export declare function loadHooksFromAICore(aicoreDir: string): HooksSettings | null;
+export declare function loadHooksFromCodesquad(codesquadDir: string): HooksSettings | null;
 /**
  * Load hooks configuration from layered settings.json files.
- * Merges: AICore/settings.json → .codesquad/settings.json
+ * Merges: .codesquad/settings.json → .codesquad/settings.json
  * Later layers override earlier ones for matching events.
  */
 export declare function loadHooksFromLayered(aicoreDir: string, cwd?: string): HooksSettings;
 /**
- * Initialize hooks system from AICore configuration.
+ * Initialize hooks system from .codesquad configuration.
  * Call once at REPL startup.
- * Now supports layered loading (AICore + User + Project).
+ * Now supports layered loading (.codesquad + User + Project).
  */
-export declare function initHooksFromAICore(aicoreDir: string, cwd?: string): void;
+export declare function initHooksFromCodesquad(codesquadDir: string, cwd?: string): void;
 //# sourceMappingURL=config-loader.d.ts.map

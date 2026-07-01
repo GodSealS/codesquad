@@ -1,7 +1,7 @@
 /**
- * AICore rules loader — path-matched rule injection.
+ * .codesquad rules loader — path-matched rule injection.
  *
- * Scans AICore/rules/*.md, extracts path patterns from frontmatter,
+ * Scans .codesquad/rules/*.md, extracts path patterns from frontmatter,
  * and injects matching rules when tools interact with files.
  *
  * References:
@@ -20,7 +20,7 @@ export interface LoadedRule {
  */
 export declare function loadAllRules(rulesDir: string): LoadedRule[];
 /**
- * Load rules from two layers (Project .codesquad/ > User AICore/).
+ * Load rules from two layers (Project .codesquad/ > User .codesquad/).
  * Override semantics: same-named rule from project wins.
  */
 export declare function loadAllRulesLayered(aicoreRoot: string, cwd?: string): LoadedRule[];
@@ -53,7 +53,7 @@ export declare function invalidateRulesCache(): void;
  *   - Files starting with ALWAYS_ prefix → session-level
  *   - Files NOT starting with PATH_ and containing no path separators in name → session-level
  *
- * Loads from all three layers (Project > User > AICore), with later layers overriding.
+ * Loads from all three layers (Project > User > .codesquad), with later layers overriding.
  */
 export declare function loadSessionRules(aicoreDir: string): string[];
 //# sourceMappingURL=loader.d.ts.map

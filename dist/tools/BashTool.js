@@ -104,10 +104,22 @@ function translateForWindows(command) {
     if (process.platform !== 'win32')
         return command;
     let cmd = command.trim();
-    // Step 1: stderr redirect
+    // Step 1: normalize redirects to PowerShell syntax.
+    // The AI often mixes CMD (2>nul) and Unix (2>/dev/null) in one
+    // "cross-platform" command, which causes "StreamAlreadyRedirected"
+    // when both land in PowerShell.  Normalize everything to 2>$null
+    // and deduplicate so only one redirect survives.
     cmd = cmd.replace(/2>\/dev\/null/g, '2>$null');
-    // Step 2: handle shell-OR (||) BEFORE cat/ls/mkdir so cat doesn't capture it
-    if (cmd.includes('||')) {
+    cmd = cmd.replace(/2>nul\b/gi, '2>$null');
+    // deduplicate consecutive 2>$null runs (e.g. 2>$null 2>$null → 2>$null)
+    cmd = cmd.replace(/(2>\$null\s*)+/g, '2>$null ');
+    // Step 2: handle shell-OR (||) and shell-AND (&&) —
+    // PowerShell 5.x doesn't support && / ||, translate both before
+    // any command translations.
+    if (cmd.includes('||') || cmd.includes('&&')) {
+        // Translate && first (→ ; if ($LASTEXITCODE -eq 0) { ... }),
+        // then || (→ ; if ($LASTEXITCODE -ne 0) { ... }).
+        cmd = cmd.replace(/&&\s*/g, '; if ($LASTEXITCODE -eq 0) { ');
         cmd = cmd.replace(/\|\|\s*/g, '; if ($LASTEXITCODE -ne 0) { ');
         const openBraces = (cmd.match(/\{/g) || []).length;
         const closeBraces = (cmd.match(/\}/g) || []).length;
@@ -120,11 +132,11 @@ function translateForWindows(command) {
     const mkdirMatch = cmd.match(/^mkdir\s+(?:-p\s+)?(.+)$/i);
     if (mkdirMatch) {
         const target = mkdirMatch[1].trim();
-        return `New-Item -ItemType Directory -Force -Path "${target}" | Out-Null`;
+        return `New-Item -ItemType Directory -Force -Path '${psEscape(target)}' | Out-Null`;
     }
     const lsMatch = cmd.match(/^ls\s+(?:-la\s+)?(.+)$/i);
     if (lsMatch) {
-        return `Get-ChildItem "${lsMatch[1].trim()}"`;
+        return `Get-ChildItem '${psEscape(lsMatch[1].trim())}'`;
     }
     if (/^ls$/i.test(cmd))
         return 'Get-ChildItem';
@@ -133,7 +145,7 @@ function translateForWindows(command) {
     if (catMatch) {
         const filename = catMatch[1].trim();
         const rest = catMatch[2] ?? '';
-        return `Get-Content "${filename}"${rest}`;
+        return `Get-Content '${psEscape(filename)}'${rest}`;
     }
     return cmd;
 }
@@ -248,37 +260,46 @@ export const BashTool = buildTool({
     },
     checkPermissions(input, context) {
         const cmd = input.command.trim();
-        // 1. Check always-denied
-        for (const pattern of ALWAYS_DENIED_PATTERNS) {
-            if (pattern.test(cmd)) {
+        // 0. Split into sub-commands and check each one against deny-lists
+        //    This prevents "git status; curl http://evil" from bypassing via
+        //    the git prefix whitelist.
+        const subCommands = splitCommands(cmd);
+        for (const subCmd of subCommands) {
+            // 1. Check always-denied (per sub-command)
+            for (const pattern of ALWAYS_DENIED_PATTERNS) {
+                if (pattern.test(subCmd)) {
+                    return {
+                        behavior: 'deny',
+                        message: `Command "${truncateCommand(subCmd)}" is blocked by safety rules.`,
+                    };
+                }
+            }
+            // 4b. Command classifier — auto-deny dangerous (per sub-command)
+            const classification = classifyCommand(subCmd);
+            if (classification.safety === 'dangerous') {
                 return {
                     behavior: 'deny',
-                    message: `Command "${truncateCommand(cmd)}" is blocked by safety rules.`,
+                    message: `[${safetyHint(classification)}] "${truncateCommand(subCmd)}" rated dangerous.`,
                 };
             }
         }
-        // 2. Check always-allowed
+        // 2. Check always-allowed (on full command — maintain backward compat
+        //    for simple single-command cases)
         for (const prefix of ALWAYS_ALLOWED_PREFIXES) {
             if (cmd.toLowerCase().startsWith(prefix.toLowerCase())) {
                 return { behavior: 'allow' };
             }
         }
-        // 3. Check engine build commands (— added in v2 for game engine support)
+        // 3. Check engine build commands
         for (const prefix of ENGINE_BUILD_COMMANDS) {
             if (cmd.toLowerCase().startsWith(prefix.toLowerCase())) {
                 return { behavior: 'allow' };
             }
         }
-        // 4. Command classifier — auto-allow safe categories (v2 enhancement)
+        // 4a. Command classifier — auto-allow safe (on full command)
         const classification = classifyCommand(cmd);
         if (classification.safety === 'safe') {
             return { behavior: 'allow' };
-        }
-        if (classification.safety === 'dangerous') {
-            return {
-                behavior: 'deny',
-                message: `[${safetyHint(classification)}] "${truncateCommand(cmd)}" rated dangerous.`,
-            };
         }
         // 5. Check custom permission rules from settings
         const rules = getPermissionRules(context);
@@ -506,5 +527,61 @@ function getPermissionRules(_context) {
 }
 export function invalidatePermissionRules() {
     // No-op: rules are managed by the permissions/pipeline.ts module.
+}
+// ── Command splitting (for multi-command injection prevention) ──
+/**
+ * Split a shell command string into individual sub-commands,
+ * respecting quoted strings (single and double quotes).
+ * Used to check each sub-command against whitelist/blacklist.
+ */
+function splitCommands(cmd) {
+    const parts = [];
+    let current = '';
+    let quote = null;
+    for (let i = 0; i < cmd.length; i++) {
+        const ch = cmd[i];
+        if (quote) {
+            current += ch;
+            if (ch === quote)
+                quote = null;
+        }
+        else if (ch === '"' || ch === "'") {
+            quote = ch;
+            current += ch;
+        }
+        else if (ch === ';') {
+            const trimmed = current.trim();
+            if (trimmed)
+                parts.push(trimmed);
+            current = '';
+        }
+        else if (ch === '&' && cmd[i + 1] === '&') {
+            const trimmed = current.trim();
+            if (trimmed)
+                parts.push(trimmed);
+            current = '';
+            i++; // skip second &
+        }
+        else if (ch === '|' && cmd[i + 1] !== '|') {
+            const trimmed = current.trim();
+            if (trimmed)
+                parts.push(trimmed);
+            current = '';
+        }
+        else {
+            current += ch;
+        }
+    }
+    const trimmed = current.trim();
+    if (trimmed)
+        parts.push(trimmed);
+    return parts;
+}
+// ── PowerShell string escaping ──
+/** Escape a value for use inside a PowerShell single-quoted string. */
+function psEscape(value) {
+    // PowerShell single-quoted strings don't expand variables;
+    // the only character that needs escaping is the single quote itself.
+    return value.replace(/'/g, "''");
 }
 //# sourceMappingURL=BashTool.js.map

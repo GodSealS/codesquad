@@ -60,7 +60,7 @@ async function main() {
         ].join('\n'));
         process.exit(0);
     }
-    const AICORE_DIR = join(__dirname, '..', 'AICore');
+    const AICORE_DIR = join(__dirname, '..', '.codesquad');
     const PROJECT_ROOT = join(__dirname, '..');
     // ── Mode: API Server ──
     if (flags.serve) {
@@ -68,9 +68,9 @@ async function main() {
         const { loadAllAgentsLayered } = await import('./agents/definition.js');
         const { setAicodeRoot } = await import('./repl/skill-registry.js');
         const { registerTools, registerTool } = await import('./tools/registry.js');
-        const { initHooksFromAICore } = await import('./hooks/config-loader.js');
+        const { initHooksFromCodesquad } = await import('./hooks/config-loader.js');
         const { loadBuiltinPermissionRules } = await import('./permissions/pipeline.js');
-        const { loadAICoreConfig } = await import('./config/aicore-config.js');
+        const { loadCodesquadConfig } = await import('./config/aicore-config.js');
         // Minimal bootstrap (same as REPL init)
         const { setProjectRoot } = await import('./chat/storage.js');
         const { setUsageProjectRoot } = await import('./llm/usage-tracker.js');
@@ -82,8 +82,8 @@ async function main() {
         initAgentInstanceManager();
         setUsageProjectRoot(PROJECT_ROOT);
         registerTools([]);
-        initHooksFromAICore(AICORE_DIR);
-        loadAICoreConfig(AICORE_DIR);
+        initHooksFromCodesquad(AICORE_DIR);
+        loadCodesquadConfig(AICORE_DIR);
         loadBuiltinPermissionRules();
         loadAllAgentsLayered(AICORE_DIR);
         setApiState({ providerId: 'anthropic', modelId: 'claude-sonnet-4-20250514' });

@@ -5,6 +5,7 @@
  * Supports log levels: trace | debug | info | warn | error.
  * Outputs to stderr (never stdout — stdout is the MCP protocol channel).
  */
+import { isDebugMode } from '../../utils/debug.js';
 const LEVEL_ORDER = {
     trace: 0,
     debug: 1,
@@ -17,8 +18,11 @@ let _config = null;
 export function initLogger(config) {
     _config = config;
 }
-/** Get current log level threshold */
+/** Get current log level threshold — debug mode forces 'debug' level. */
 function getThreshold() {
+    // Debug mode overrides log_level to capture all trace/debug messages
+    if (isDebugMode())
+        return 'debug';
     return _config?.observability?.log_level ?? 'info';
 }
 /** Get log format */

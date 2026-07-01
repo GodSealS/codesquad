@@ -13,7 +13,7 @@ export declare function handleMcpServe(projectRoot?: string, options?: {
     authToken?: string;
     bind?: string;
 }): Promise<void>;
-/** Convert AICore files to MCP stubs */
+/** Convert .codesquad files to MCP stubs */
 export declare function handleConvertStubs(outputDir?: string): void;
 /** Show MCP server status with trace/log info */
 export declare function handleMcpStatus(projectRoot?: string): void;
@@ -22,6 +22,6 @@ export declare function handleMcpLogs(): void;
 /** Export metrics (simple summary from in-process counters) */
 export declare function handleMcpMetrics(): void;
 /** Bridge subcommand has been removed — REPL and Web Console are the primary interfaces. */
-/** Inject MCP server configuration into AICore/settings.json */
+/** Inject MCP server configuration into .codesquad/settings.json */
 export declare function injectMcpServerConfig(root: string): void;
 //# sourceMappingURL=mcp.d.ts.map

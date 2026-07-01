@@ -1,7 +1,7 @@
 /**
  * Settings Generator
  *
- * Generates tool-specific settings files (e.g., AICore/settings.json for CodeBuddy)
+ * Generates tool-specific settings files (e.g., .codesquad/settings.json for CodeBuddy)
  * from the canonical Agent and Skill definitions.
  */
 import { join } from 'path';
@@ -37,8 +37,8 @@ export async function generateSettings(options) {
             return { count: 0, errors: [] };
         }
     }
-    // Load canonical definitions from AICore/
-    const aicoreRoot = join(CLI_PACKAGE_ROOT, 'AICore');
+    // Load canonical definitions from .codesquad/
+    const aicoreRoot = join(CLI_PACKAGE_ROOT, '.codesquad');
     const agents = await loadAgents(aicoreRoot);
     const skills = await loadSkills(join(aicoreRoot, 'skills'));
     let count = 0;

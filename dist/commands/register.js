@@ -1,5 +1,5 @@
 /**
- * register command — External CLI registration into AICore/ (user-level).
+ * register command — External CLI registration into .codesquad/ (user-level).
  *
  * Commands:
  *   codesquad register agent|skill|rule|hook <path> [--source <name>]
@@ -31,7 +31,7 @@ function printResult(result, label) {
     for (const err of result.errors)
         console.log(chalk.red(`  ✗ ${err}`));
 }
-/** Register external content into AICore/ */
+/** Register external content into .codesquad/ */
 function handleRegisterAdd(category, path, source) {
     const absPath = resolve(path);
     if (!existsSync(absPath)) {
@@ -80,7 +80,7 @@ function handleRegisterAdd(category, path, source) {
     }
     printResult(result, `${category}s`);
     if (result.errors.length === 0 && result.count > 0) {
-        console.log(chalk.green(`\n  ✔ Registered ${result.count} ${category}(s) to AICore/\n`));
+        console.log(chalk.green(`\n  ✔ Registered ${result.count} ${category}(s) to .codesquad/\n`));
     }
 }
 function handleRegisterList(category) {
@@ -97,7 +97,7 @@ function handleRegisterList(category) {
             continue;
         console.log(chalk.cyan(`\n  ${cat}s (${entries.length}):`));
         for (const e of entries) {
-            const src = e.source === 'aicore' ? chalk.blue('[AICore]')
+            const src = e.source === 'aicore' ? chalk.blue('[.codesquad]')
                 : e.source === 'project' ? chalk.magenta('[project]')
                     : chalk.yellow(`[${e.externalSource ?? 'external'}]`);
             console.log(`    ${chalk.white(e.name)}  ${src}`);

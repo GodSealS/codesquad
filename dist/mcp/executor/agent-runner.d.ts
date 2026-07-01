@@ -2,7 +2,7 @@
  * Agent Runner — Tool-Call Loop Execution Engine
  *
  * Implements the full agentic execution cycle:
- * 1. Load agent prompt template from AICore/
+ * 1. Load agent prompt template from .codesquad/
  * 2. Inject context + input → build system prompt
  * 3. Enter tool-call loop (up to maxTurns)
  * 4. Call LLM API, execute tool calls, feed results back

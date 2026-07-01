@@ -2,9 +2,9 @@
  * error-logger — Local trace logging + optional email notification on errors.
  *
  * Logs are written to .codesquad/logs/error-<date>.log in the project directory.
- * Email notification is configurable via AICore/settings.json.
+ * Email notification is configurable via .codesquad/settings.json.
  *
- * Settings (in AICore/settings.json → errorReporting):
+ * Settings (in .codesquad/settings.json → errorReporting):
  *   {
  *     "enabled": true,
  *     "email": {
@@ -16,6 +16,7 @@
 import { appendFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { virtualExists, virtualReadFile } from '../embedded/virtual-fs.js';
+import { isDebugMode } from './debug.js';
 // ── State ──
 let _config = null;
 let _logDir = null;
@@ -23,9 +24,9 @@ let _logDir = null;
 export function initErrorLogger(projectRoot) {
     _logDir = join(projectRoot, '.codesquad', 'logs');
     mkdirSync(_logDir, { recursive: true });
-    // Load config from AICore/settings.json (VirtualFS: embedded + disk)
+    // Load config from .codesquad/settings.json (VirtualFS: embedded + disk)
     try {
-        const settingsPath = join(projectRoot, 'AICore', 'settings.json');
+        const settingsPath = join(projectRoot, '.codesquad', 'settings.json');
         if (virtualExists(settingsPath)) {
             const raw = virtualReadFile(settingsPath, 'utf-8');
             const settings = JSON.parse(raw);
@@ -52,6 +53,9 @@ function getLogPath() {
  * so traces persist in .codesquad/logs/error-<date>.log even after terminal exits.
  */
 export function logDiagnostic(level, source, message, context) {
+    // DEBUG level only written when CODESQUAD_DEBUG=1
+    if (level === 'DEBUG' && !isDebugMode())
+        return;
     const logPath = getLogPath();
     const timestamp = new Date().toISOString();
     const ctx = context ? `\n  Context: ${JSON.stringify(context)}` : '';

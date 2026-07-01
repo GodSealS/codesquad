@@ -66,7 +66,7 @@ observability:
   metrics_enabled: true
   trace_enabled: true
   otel_endpoint: ""
-  audit_log_path: "AICore/agent-memory/audit.log"
+  audit_log_path: ".codesquad/agent-memory/audit.log"
 
 context:
   soft_limit_tokens: 100000

@@ -1,7 +1,7 @@
 /**
  * MCP Server Configuration
  *
- * Loads and validates mcp.config.yaml from the project's AICore/ directory.
+ * Loads and validates mcp.config.yaml from the project's .codesquad/ directory.
  * Provides sensible defaults for all fields.
  */
 import { existsSync, readFileSync } from 'fs';

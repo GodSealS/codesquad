@@ -6,8 +6,7 @@
  *
  * Phase 2.0
  */
-import { execSync } from 'child_process';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 const FRAMEWORK_PROBES = [
     {
@@ -47,13 +46,12 @@ const FRAMEWORK_PROBES = [
         language: 'C#',
         detect: (root) => {
             try {
-                // Run a non-destructive command to check for .csproj files
-                const result = process.platform === 'win32'
-                    ? execSync('dir /b *.csproj', { cwd: root, encoding: 'utf-8', timeout: 3000 })
-                    : execSync('ls *.csproj 2>/dev/null', { cwd: root, encoding: 'utf-8', timeout: 3000 });
-                return result.trim().length > 0;
+                // Use Node fs API instead of shell commands to avoid injection
+                const files = readdirSync(root);
+                return files.some(f => f.endsWith('.csproj'));
             }
-            catch {
+            catch (err) {
+                console.warn(`[test] Dotnet detection failed: ${err.message}`);
                 return false;
             }
         },
@@ -162,7 +160,8 @@ export function buildTestCommand(framework, options) {
     if (options.filter) {
         const probe = FRAMEWORK_PROBES.find(p => p.framework === framework.framework);
         if (probe?.filterFlag) {
-            cmd += ` ${probe.filterFlag} "${options.filter}"`;
+            const escaped = options.filter.replace(/"/g, '\\"');
+            cmd += ` ${probe.filterFlag} "${escaped}"`;
         }
     }
     return cmd;

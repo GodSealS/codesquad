@@ -1,7 +1,7 @@
 /**
- * AICore rules loader — path-matched rule injection.
+ * .codesquad rules loader — path-matched rule injection.
  *
- * Scans AICore/rules/*.md, extracts path patterns from frontmatter,
+ * Scans .codesquad/rules/*.md, extracts path patterns from frontmatter,
  * and injects matching rules when tools interact with files.
  *
  * References:
@@ -46,7 +46,7 @@ export function loadAllRules(rulesDir) {
     return rules;
 }
 /**
- * Load rules from two layers (Project .codesquad/ > User AICore/).
+ * Load rules from two layers (Project .codesquad/ > User .codesquad/).
  * Override semantics: same-named rule from project wins.
  */
 export function loadAllRulesLayered(aicoreRoot, cwd) {
@@ -60,7 +60,7 @@ export function loadAllRulesLayered(aicoreRoot, cwd) {
     ];
     for (let i = 0; i < layerDirs.length; i++) {
         const { dir, layer } = layerDirs[i];
-        // ── Layer 0 (AICore built-in): use readAicoreDir/readAicoreFile (VirtualFS) ──
+        // ── Layer 0 (.codesquad built-in): use readAicoreDir/readAicoreFile (VirtualFS) ──
         if (i === 0) {
             const entries = readAicoreDir('rules').filter((e) => e.endsWith('.md'));
             for (const file of entries) {
@@ -187,7 +187,7 @@ function matchPath(filePath, pattern) {
 export function formatRulesForContext(rules) {
     if (rules.length === 0)
         return '';
-    const lines = ['## 适用规则 (AICore Rules)'];
+    const lines = ['## 适用规则 (.codesquad Rules)'];
     for (const rule of rules) {
         lines.push('');
         lines.push(`### Rule: ${rule.name}`);
@@ -232,18 +232,18 @@ export function invalidateRulesCache() {
  *   - Files starting with ALWAYS_ prefix → session-level
  *   - Files NOT starting with PATH_ and containing no path separators in name → session-level
  *
- * Loads from all three layers (Project > User > AICore), with later layers overriding.
+ * Loads from all three layers (Project > User > .codesquad), with later layers overriding.
  */
 export function loadSessionRules(aicoreDir) {
     const seen = new Map();
     const layerDirs = [
-        join(aicoreDir, 'rules'), // AICore (built-in)
+        join(aicoreDir, 'rules'), // .codesquad (built-in)
         getCodeSquadUserCategory('rules'), // ~/.codesquad/ (user-home)
         getCodeSquadProjectCategory('rules'), // Project-level
     ];
     for (let idx = 0; idx < layerDirs.length; idx++) {
         const dir = layerDirs[idx];
-        // Layer 0 (AICore): use VirtualFS. Layers 1-2: use real filesystem.
+        // Layer 0 (.codesquad): use VirtualFS. Layers 1-2: use real filesystem.
         const useVirtual = idx === 0;
         const dirExists = useVirtual ? virtualExists(dir) : existsSync(dir);
         if (!dirExists)

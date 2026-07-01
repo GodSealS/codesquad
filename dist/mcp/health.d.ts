@@ -4,7 +4,7 @@
  * Provides /healthz and /readyz endpoints for HTTP transport mode.
  *
  *   - /healthz: Simple alive check (always returns 200 if process is up)
- *   - /readyz:  Readiness check (stub-loader, AICore/, config valid)
+ *   - /readyz:  Readiness check (stub-loader, .codesquad/, config valid)
  *
  * Used by load balancers, health probes, and CI monitors.
  */
@@ -35,7 +35,7 @@ export declare function healthCheck(): HealthStatus;
  * Readiness check: is the server ready to accept requests?
  *
  * Checks:
- *   - AICore/ directory exists (prompt templates available)
+ *   - .codesquad/ directory exists (prompt templates available)
  *   - At least one agent.md exists
  *   - MCP config is loadable
  */

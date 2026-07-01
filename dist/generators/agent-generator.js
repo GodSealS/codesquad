@@ -4,7 +4,7 @@
 // tool-specific files via adapters.
 //
 // Supports two modes:
-//   Dev mode: reads .md files from AICore/agents/ on disk
+//   Dev mode: reads .md files from .codesquad/agents/ on disk
 //   Embedded mode (Bun compile): reads from in-memory string constants
 import { readdirSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';

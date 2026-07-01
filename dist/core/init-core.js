@@ -35,8 +35,8 @@ export async function initProject(options) {
     logger.info(`Tools:  ${toolIds.join(', ')}`);
     // Ensure target directory exists
     mkdirSync(targetPath, { recursive: true });
-    // Load canonical agents and skills from AICore content source
-    // Uses @codesquad/aicore-content private package if installed, else bundled AICore/
+    // Load canonical agents and skills from .codesquad content source
+    // Uses @codesquad/aicore-content private package if installed, else bundled .codesquad/
     const aicoreRoot = AICORE_CONTENT_ROOT;
     logger.info(`Content source: ${aicoreRoot}`);
     const agents = await loadAgents(aicoreRoot);
@@ -122,7 +122,7 @@ export async function initProject(options) {
     catch {
         logger.warn('Could not write .codesquad.lock');
     }
-    // Auto-inject MCP server config into AICore/settings.json
+    // Auto-inject MCP server config into .codesquad/settings.json
     if (toolIds.includes('codebuddy')) {
         injectMcpServerConfig(targetPath);
     }
@@ -163,9 +163,9 @@ export function installProjectFiles(targetPath, force) {
         const relPath = entry.from.replace(/^Root\//, '');
         const srcPath = join(rootDir, relPath);
         const destPath = entry.dist.replace(/\$\{Project\}/g, targetPath);
-        // ── Embedded mode: read AICore files from memory ──
-        if (isEmbeddedMode() && relPath.startsWith('AICore/')) {
-            const aicoreRel = relPath.replace(/^AICore\//, '');
+        // ── Embedded mode: read .codesquad files from memory ──
+        if (isEmbeddedMode() && relPath.startsWith('.codesquad/')) {
+            const aicoreRel = relPath.replace(/^.codesquad\//, '');
             // Check if it's a directory
             const dirEntries = readAicoreDir(aicoreRel);
             if (dirEntries.length > 0) {
@@ -196,7 +196,7 @@ export function installProjectFiles(targetPath, force) {
             }
             continue;
         }
-        // ── Dev mode / non-AICore files: read from disk ──
+        // ── Dev mode / non-.codesquad files: read from disk ──
         if (!existsSync(srcPath)) {
             logger.warn(`Source not found for "${name}": ${srcPath}`);
             continue;
@@ -228,9 +228,9 @@ export function installProjectFiles(targetPath, force) {
     return count;
 }
 /**
- * Copy AICore auxiliary directories and files from CLI package to each tool's target directory.
- * @param auxDirs  Subdirectories under AICore/ to copy (e.g. ['hooks', 'rules']). Defaults to ['docs', 'hooks', 'rules'].
- * @param auxFiles Root-level files under AICore/ to copy (e.g. ['settings.json']). Defaults to ['statusline.sh', 'settings.json'].
+ * Copy .codesquad auxiliary directories and files from CLI package to each tool's target directory.
+ * @param auxDirs  Subdirectories under .codesquad/ to copy (e.g. ['hooks', 'rules']). Defaults to ['docs', 'hooks', 'rules'].
+ * @param auxFiles Root-level files under .codesquad/ to copy (e.g. ['settings.json']). Defaults to ['statusline.sh', 'settings.json'].
  */
 function copyAicoreAux(aicoreRoot, targetPath, toolIds, force, auxDirs, auxFiles) {
     // ── Embedded mode: read from in-memory constants, write to disk ──
@@ -296,9 +296,9 @@ function copyAicoreAux(aicoreRoot, targetPath, toolIds, force, auxDirs, auxFiles
         const adapter = getAdapter(toolId);
         if (!adapter)
             continue;
-        // Extract tool directory from adapter's settings path (e.g., "AICore/settings.json" → "AICore")
+        // Extract tool directory from adapter's settings path (e.g., ".codesquad/settings.json" → ".codesquad")
         const settingsRel = adapter.getSettingsPath();
-        const toolDir = dirname(settingsRel); // e.g., "AICore", ".claude"
+        const toolDir = dirname(settingsRel); // e.g., ".codesquad", ".claude"
         const targetToolDir = join(targetPath, toolDir);
         for (const dir of dirs) {
             const srcDir = join(aicoreRoot, dir);
@@ -313,7 +313,7 @@ function copyAicoreAux(aicoreRoot, targetPath, toolIds, force, auxDirs, auxFiles
             const destFile = join(targetToolDir, file);
             if (file === 'settings.json') {
                 // settings.json: deep-merge tool-appropriate template into user file.
-                // - CodeBuddy: use AICore/settings.json template (hooks, permissions, sandbox)
+                // - CodeBuddy: use .codesquad/settings.json template (hooks, permissions, sandbox)
                 // - Other tools: use adapter.formatSettings() output (tool-specific format)
                 // User customizations always win; template only fills gaps.
                 // {{TOOL_DIR}} and {{TOOL_SCHEMA}} are replaced per-tool.
@@ -345,7 +345,7 @@ function copyAicoreAux(aicoreRoot, targetPath, toolIds, force, auxDirs, auxFiles
     return count;
 }
 /**
- * Deep-merge AICore settings template into the user's existing settings file.
+ * Deep-merge .codesquad settings template into the user's existing settings file.
  *
  * Strategy:
  * - Top-level keys missing in user → added from template
@@ -353,7 +353,7 @@ function copyAicoreAux(aicoreRoot, targetPath, toolIds, force, auxDirs, auxFiles
  * - Nested objects → recursively merged (user keys win)
  * - Arrays (permissions.allow/deny) → additive: template entries not in user are appended
  * - Hook arrays → additive: template hooks not matching existing command+type are appended
- * - {{TOOL_DIR}} → replaced with tool directory (e.g., "AICore")
+ * - {{TOOL_DIR}} → replaced with tool directory (e.g., ".codesquad")
  * - {{TOOL_SCHEMA}} → replaced with tool-specific schema URL (or empty string)
  *
  * @returns true if the file was written (created or modified)
@@ -449,7 +449,7 @@ function deepMerge(template, user) {
  * Recursively copy a directory from embedded data to disk.
  * Used only in embedded (Bun compile) mode.
  *
- * @param relativeDir  Path relative to AICore root (e.g. "docs/templates")
+ * @param relativeDir  Path relative to .codesquad root (e.g. "docs/templates")
  * @param destDir      Absolute disk path to write to
  * @param force        Overwrite existing files
  */

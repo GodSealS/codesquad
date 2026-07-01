@@ -17,7 +17,7 @@ import type { Tool } from '../tools/types.js';
 import type { AgentDefinition } from './definition.js';
 import type { PermissionMode } from '../permissions/mode.js';
 export interface AgentRunOptions {
-    /** Agent definition from AICore/agents/ or built-in. */
+    /** Agent definition from .codesquad/agents/ or built-in. */
     definition: AgentDefinition;
     /** The task/prompt to give the agent. */
     task: string;

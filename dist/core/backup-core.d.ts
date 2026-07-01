@@ -25,7 +25,7 @@ export declare function listBackups(): BackupListResult;
 /**
  * Restore a backup by ID.
  * Restores to ~/.codesquad/backups/restore-target/ instead of directly
- * overwriting AICore content.
+ * overwriting .codesquad content.
  */
 export declare function restoreBackup(backupId: string): BackupEntry | null;
 //# sourceMappingURL=backup-core.d.ts.map

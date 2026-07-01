@@ -2,9 +2,9 @@
  * error-logger — Local trace logging + optional email notification on errors.
  *
  * Logs are written to .codesquad/logs/error-<date>.log in the project directory.
- * Email notification is configurable via AICore/settings.json.
+ * Email notification is configurable via .codesquad/settings.json.
  *
- * Settings (in AICore/settings.json → errorReporting):
+ * Settings (in .codesquad/settings.json → errorReporting):
  *   {
  *     "enabled": true,
  *     "email": {

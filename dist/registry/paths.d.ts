@@ -1,14 +1,14 @@
 /**
  * Registry path resolution — two-layer .codesquad directories.
  *
- * User-level:  AICore/agents/ skills/ rules/ hooks/  (built-in, external CLIs register here)
+ * User-level:  .codesquad/agents/ skills/ rules/ hooks/  (built-in, external CLIs register here)
  * Project-level: <cwd>/.codesquad/agents/ skills/ rules/ hooks/  (project-specific overrides)
  *
  * Priority: Project > User
  */
 import type { RegistryCategory } from './types.js';
 /**
- * Get the user-level category directory (inside AICore).
+ * Get the user-level category directory (inside .codesquad).
  * This is where built-in and externally-registered content lives.
  */
 export declare function getUserCategoryDir(aicoreRoot: string, category: RegistryCategory): string;
@@ -22,7 +22,7 @@ export declare function getProjectRoot(cwd?: string): string;
 export declare function getProjectCategory(category: RegistryCategory, cwd?: string): string;
 /**
  * Get the manifest path for tracking external registrations.
- * Stored at AICore/.codesquad/manifest.yaml.
+ * Stored at .codesquad/.codesquad/manifest.yaml.
  */
 export declare function getManifestPath(aicoreRoot: string): string;
 /**

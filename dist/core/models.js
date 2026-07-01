@@ -73,7 +73,8 @@ export function loadModelsConfig(projectPath) {
             api: parsed.api ?? { sources: {} },
         };
     }
-    catch {
+    catch (err) {
+        console.error(`[models] Failed to parse models.config.yaml: ${err.message}`);
         return deepCloneConfig(DEFAULT_MODELS_CONFIG);
     }
 }

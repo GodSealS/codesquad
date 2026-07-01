@@ -1,10 +1,10 @@
 /**
  * Session data model and CRUD operations.
  *
- * Each REPL conversation is stored as a Session object identified by ULID.
+ * Each REPL conversation is stored as a Session object identified by numeric ID.
  * Phase 1.2 — Steps 1.2.1, 1.2.3.
  */
-import { ulid } from 'ulid';
+import { getNextSessionId } from './storage.js';
 import { join } from 'path';
 import { readdirSync } from 'fs';
 import { successResult, errorResult } from '../core/task-result.js';
@@ -12,8 +12,9 @@ import { saveSession, loadSession, deleteSession, sessionDir, ensureSessionDir, 
 // ── Factory ──
 export function createSession(agent, modelConfig, name) {
     const now = new Date().toISOString();
+    const id = String(getNextSessionId());
     return {
-        id: ulid(),
+        id,
         name: name ?? `${agent}: 新会话`,
         createdAt: now,
         updatedAt: now,

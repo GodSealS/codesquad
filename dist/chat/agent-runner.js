@@ -18,6 +18,8 @@ import { getModeSystemPrompt } from '../repl/mode-prompts.js';
 import { buildSkillGuidance, buildCapabilitySkillGuidance } from '../repl/skill-registry.js';
 import { loadSessionRules } from '../rules/loader.js';
 import { findTool, runToolUse, assembleToolPool } from '../tools/registry.js';
+import { executeToolBatch, resetToolQueue, onToolProgress as subscribeToolProgress } from '../tools/execution-queue.js';
+import { touchTool } from '../tools/dynamic-registry.js';
 import { getSessionCache } from '../tools/file-state.js';
 import { microCompactWithSession } from '../context/micro-compact.js';
 import { incrementTurn, shouldAutoCompact, autoCompact } from '../context/auto-compact.js';
@@ -36,6 +38,11 @@ import { saveCheckpoint, emergencySave } from './checkpoint.js';
 import { save } from './session.js';
 // Defensive execution (S07): tool pairing guard before API calls
 import { ensureToolResultPairing } from '../tools/pairing-guard.js';
+// Semantic context retrieval (Step 5)
+import { loadSettings } from './settings.js';
+import { getEmbeddingProvider } from '../embedding/provider.js';
+import { assembleSemanticContext } from '../context/semantic-context.js';
+import { summarizeMessageAsync } from '../embedding/summarizer.js';
 // ── Fork Skill Execution ──
 /**
  * Execute a fork skill in an isolated ephemeral session.
@@ -224,7 +231,8 @@ function isForkErrorRetryable(err) {
 }
 // ── Core Runner ──
 export async function runAgent(config) {
-    const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, stream = false, onToken, onTurn, onToolUse, onError, } = config;
+    const startTime = Date.now();
+    const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, stream = false, onToken, onTurn, onToolUse, onToolProgress, onError, } = config;
     // Load agent prompt (VirtualFS: embedded-first, disk-fallback)
     const agentPath = join(aicoreDir, 'agents', `${agentName}.md`);
     let agentPrompt;
@@ -250,6 +258,8 @@ export async function runAgent(config) {
     const effectiveThinkingMode = agentThinkingLevel || config.thinkingMode;
     // Add user message
     addMessage(session, 'user', userInput);
+    // 🔧 Bug Fix #2: fire-and-forget 摘要生成 → 写入 VectorStore
+    summarizeMessageAsync({ role: 'user', content: userInput }, session.id, session.messages.length - 1);
     // Resolve runtime config: prefer explicit override (web path), fallback to registry (REPL path)
     const rc = configRuntimeConfig ?? await (async () => {
         const built = await buildRuntimeConfig(providerId);
@@ -285,6 +295,7 @@ export async function runAgent(config) {
     let consecutiveTruncations = 0;
     let lastCompletionTokens = 0;
     let finalResponse = '';
+    let accumulatedResponseText = ''; // accumulates text across all turns for progressive frontend display
     let _emptyToolCallCount = 0; // B6 fix: local var instead of mutating config
     // S06: dynamic maxTokens that can be escalated on truncation
     const MAX_OUTPUT_ESCALATED = 16_384;
@@ -292,33 +303,193 @@ export async function runAgent(config) {
     // P1 fix: Reset pending user question flag at session start
     setPendingUserQuestion(false, session.id);
     // S01: 429 rate-limit retry constants
-    const MAX_429_RETRIES = 3;
+    const MAX_RETRIES_REGULAR = 3; // 429/503/non-upstream 502
+    const MAX_RETRIES_UPSTREAM = 5; // upstream 502 — wait longer for backend recovery
     const BASE_RETRY_DELAY_MS = 1000;
     // Helper: route through appropriate LLM path (REPL fallback chain or Web direct call)
     async function fallbackLLMCall(req) {
         // S01: 429 rate-limit retry with exponential backoff
         let lastError = null;
         const isWebPath = !!configRuntimeConfig;
-        for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
+        let payload = req; // mutable for 502 context trimming
+        let consecutive502 = 0;
+        let isUpstream502 = false; // set on first upstream_error detection
+        // Inter-call spacing: enforce minimum 250ms between API calls to avoid proxy rate limits
+        let _lastCallTime = 0;
+        const MIN_CALL_INTERVAL_MS = 250;
+        // ── Rate-limit tracking: sliding 60-second window ──
+        const callTimestamps = [];
+        const RATE_WINDOW_MS = 60_000;
+        const RATE_WARN_THRESHOLD = 15; // warn when >15 calls in 60s
+        const RATE_CRITICAL_THRESHOLD = 25; // critical when >25 calls in 60s
+        function trackCallRate() {
+            const now = Date.now();
+            callTimestamps.push(now);
+            // Trim expired entries
+            while (callTimestamps.length > 0 && callTimestamps[0] < now - RATE_WINDOW_MS) {
+                callTimestamps.shift();
+            }
+            const count = callTimestamps.length;
+            const rate = count / (RATE_WINDOW_MS / 60_000); // calls per minute
+            return { count, rate };
+        }
+        // P0 guard: warn if context is suspiciously large before first API call
+        const msgCount = req.messages?.length ?? 0;
+        const sysBlocksTotalChars = req.systemContentBlocks
+            ?.reduce((sum, b) => sum + (b.text?.length ?? 0), 0) ?? 0;
+        const toolsCount = req.tools?.length ?? 0;
+        // Estimate total request body size (chars ≈ bytes for UTF-8 text)
+        const estBodySize = sysBlocksTotalChars + msgCount * 2000; // ~500 tokens/msg avg
+        if (estBodySize > 200_000 || msgCount > 50) {
+            logDiagnostic('WARN', 'agent-runner', `Large request (est ${(estBodySize / 1024).toFixed(0)}KB, ${msgCount} msgs, ${toolsCount} tools) — risk of 502`, {
+                sessionId: session.id, turn, msgCount, sysBlocksTotalChars, toolsCount,
+            });
+        }
+        // Determine max retries based on error type (updated per-attempt below)
+        let maxRetries = MAX_RETRIES_REGULAR;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            // Enforce minimum inter-call spacing to prevent proxy rate limiting
+            const now = Date.now();
+            const sinceLast = now - _lastCallTime;
+            if (sinceLast < MIN_CALL_INTERVAL_MS && _lastCallTime > 0) {
+                await new Promise(r => setTimeout(r, MIN_CALL_INTERVAL_MS - sinceLast));
+            }
+            _lastCallTime = Date.now();
+            // ── Pre-call rate-limit check ──
+            const rateInfo = trackCallRate();
+            if (rateInfo.count >= RATE_CRITICAL_THRESHOLD) {
+                logDiagnostic('WARN', 'agent-runner', `Rate-limit critical: ${rateInfo.count} calls in ${RATE_WINDOW_MS / 1000}s (${rateInfo.rate.toFixed(1)} RPM) — adding extra delay`, {
+                    sessionId: session.id, turn, attempt, count: rateInfo.count, rpm: rateInfo.rate.toFixed(1),
+                });
+                // Add extra delay proportional to rate
+                const extraDelay = Math.min(rateInfo.count * 200, 5000);
+                await new Promise(r => setTimeout(r, extraDelay));
+            }
+            else if (rateInfo.count >= RATE_WARN_THRESHOLD) {
+                logDiagnostic('WARN', 'agent-runner', `Rate-limit approaching: ${rateInfo.count} calls in ${RATE_WINDOW_MS / 1000}s (${rateInfo.rate.toFixed(1)} RPM)`, {
+                    sessionId: session.id, turn, attempt, count: rateInfo.count, rpm: rateInfo.rate.toFixed(1),
+                });
+            }
             try {
                 if (isWebPath) {
-                    // Web path: use pre-built runtime config directly
-                    return await callLLM(rc, req);
+                    return await callLLM(rc, payload);
                 }
                 else {
-                    // REPL path: primary → fallback_chain → Ollama (last resort)
-                    const routed = await callWithFallback(req, providerId, modelId, projectRoot);
+                    const routed = await callWithFallback(payload, providerId, modelId, projectRoot);
                     return { content: routed.content, model: routed.model, usage: routed.usage, toolCalls: routed.toolCalls };
                 }
             }
             catch (err) {
                 lastError = err;
-                // Only retry on rate-limit (429) or temporary server errors (502/503)
                 const isRetryable = err instanceof LlmError && (err.status === 429 || err.status === 503 || err.status === 502);
                 if (isRetryable) {
-                    if (attempt < MAX_429_RETRIES) {
+                    // ── 502: proxy unreachable / upstream error ──
+                    if (err instanceof LlmError && err.status === 502) {
+                        consecutive502++;
+                        // Detect upstream (backend model provider) vs proxy error
+                        if (!isUpstream502 && err.isUpstreamError()) {
+                            isUpstream502 = true;
+                            maxRetries = MAX_RETRIES_UPSTREAM;
+                            logDiagnostic('WARN', 'agent-runner', `502 detected as upstream_error (source: DeepSeek backend) — extending retries to ${MAX_RETRIES_UPSTREAM} with exponential backoff`, {
+                                sessionId: session.id, turn, consecutive502,
+                            });
+                        }
+                        // Log detailed diagnostics for 502 troubleshooting
+                        const diagCtx = {
+                            sessionId: session.id, turn, attempt, consecutive502,
+                            model: modelId, provider: rc.name, providerId: rc.id,
+                            baseUrl: rc.baseUrl || 'unknown',
+                            msgCount: payload.messages?.length ?? 0,
+                            sysBlocks: payload.systemContentBlocks?.length ?? 0,
+                            toolsCount: payload.tools?.length ?? 0,
+                            thinkingMode: payload.thinkingMode || 'default',
+                            isUpstream: isUpstream502,
+                            rateWindow: `${trackCallRate().count} calls/${RATE_WINDOW_MS / 1000}s`,
+                        };
+                        logDiagnostic('WARN', 'agent-runner', `502 #${consecutive502} — ${rc.name} @ ${diagCtx.baseUrl}${isUpstream502 ? ' [UPSTREAM]' : ''}`, diagCtx);
+                        // ── Decide retry strategy ──
+                        if (isUpstream502) {
+                            // Upstream (DeepSeek API) error: trim won't help, just wait and retry
+                            if (consecutive502 <= MAX_RETRIES_UPSTREAM) {
+                                // Exponential backoff with jitter: 1s, 2s, 4s, 8s, 16s (capped at 30s)
+                                const baseDelay = Math.min(BASE_RETRY_DELAY_MS * Math.pow(2, consecutive502 - 1), 30_000);
+                                const jitter = Math.random() * 1000; // ±0-1s random jitter
+                                const delayMs = baseDelay + jitter;
+                                logDiagnostic('INFO', 'agent-runner', `Upstream 502 retry ${consecutive502}/${MAX_RETRIES_UPSTREAM} — waiting ${(delayMs / 1000).toFixed(1)}s (exponential backoff)`, {
+                                    sessionId: session.id, turn, delayMs: Math.round(delayMs),
+                                });
+                                await new Promise(r => setTimeout(r, delayMs));
+                                continue;
+                            }
+                            // Exhausted all upstream retries
+                            logDiagnostic('ERROR', 'agent-runner', `Upstream 502 persists after ${consecutive502} retries (${MAX_RETRIES_UPSTREAM} max) — DeepSeek backend unreachable`, {
+                                sessionId: session.id, turn, consecutive502, totalWaitEstimate: '~30s',
+                            });
+                            throw new LlmError(`TokenHub 代理不可达 (${consecutive502} 次尝试均 502，上游 DeepSeek 服务异常)。请稍后重试。`, 502, rc.name);
+                        }
+                        // Non-upstream 502: could be transient proxy issue — try trim + retry
+                        if (consecutive502 === 1) {
+                            await new Promise(r => setTimeout(r, 1000));
+                            continue;
+                        }
+                        if (consecutive502 === 2) {
+                            // Second 502: trim request aggressively — truncate both count AND size
+                            const rawMsgs = req.messages ?? [];
+                            const rawTools = req.tools ?? [];
+                            const rawSys = req.systemContentBlocks ?? [];
+                            const ogMsgs = rawMsgs.length;
+                            const ogTools = rawTools.length;
+                            const ogSys = rawSys.length;
+                            // Truncate each message to max 4KB, keep last 20
+                            const trimmedMsgs = rawMsgs.slice(-20).map((m) => {
+                                const content = typeof m.content === 'string' ? m.content : '';
+                                if (content.length > 4096) {
+                                    return { ...m, content: content.slice(0, 4096) + `\n[... ${content.length - 4096} chars truncated]` };
+                                }
+                                return m;
+                            });
+                            // Truncate each sysBlock to max 2KB
+                            const trimmedSys = rawSys.slice(-2).map((b) => {
+                                const text = typeof b.text === 'string' ? b.text : '';
+                                if (text.length > 2048) {
+                                    return { type: 'text', text: text.slice(-2048) }; // keep tail (usually has context-specific rules)
+                                }
+                                return b;
+                            });
+                            // Estimate trimmed body size for diagnostics
+                            const trimmedMsgsChars = trimmedMsgs.reduce((s, m) => s + (typeof m.content === 'string' ? m.content.length : 0), 0);
+                            const trimmedSysChars = trimmedSys.reduce((s, b) => s + (typeof b.text === 'string' ? b.text.length : 0), 0);
+                            const trimmedToolsChars = JSON.stringify(rawTools.slice(0, 10)).length;
+                            const trimmedEstKB = ((trimmedMsgsChars + trimmedSysChars + trimmedToolsChars) / 1024).toFixed(0);
+                            logDiagnostic('WARN', 'agent-runner', `502 persists — aggressive trim: msgs ${ogMsgs}→${trimmedMsgs.length}(max 4KB/msg), tools ${ogTools}→10, sysBlocks ${ogSys}→${trimmedSys.length}(max 2KB/block), thinking→fast, est ${trimmedEstKB}KB`, {
+                                sessionId: session.id, turn,
+                            });
+                            payload = {
+                                ...req,
+                                messages: trimmedMsgs,
+                                tools: rawTools.slice(0, 10),
+                                systemContentBlocks: trimmedSys,
+                                thinkingMode: 'fast',
+                            };
+                            await new Promise(r => setTimeout(r, 2000));
+                            continue;
+                        }
+                        // Third+ 502: proxy is definitively unreachable — stop wasting time
+                        const finalRate = trackCallRate();
+                        logDiagnostic('ERROR', 'agent-runner', `502 persists after ${consecutive502} attempts + trimming — TokenHub proxy unreachable`, {
+                            sessionId: session.id, turn, consecutive502,
+                            model: modelId, baseUrl: rc.baseUrl || 'unknown',
+                            finalMsgCount: payload.messages?.length ?? 0,
+                            finalToolsCount: payload.tools?.length ?? 0,
+                            finalThinkingMode: payload.thinkingMode || 'default',
+                            rateWindow: `${finalRate.count} calls/${RATE_WINDOW_MS / 1000}s (${finalRate.rate.toFixed(1)} RPM)`,
+                        });
+                        throw new LlmError(`TokenHub 代理不可达 (${consecutive502} 次尝试均 502)。请检查网络或稍后重试。`, 502, rc.name);
+                    }
+                    // ── 429 / 503: standard exponential backoff ──
+                    if (attempt < maxRetries) {
                         const delayMs = Math.min(BASE_RETRY_DELAY_MS * Math.pow(2, attempt), 30_000);
-                        logDiagnostic('WARN', 'agent-runner', `LLM retry ${attempt + 1}/${MAX_429_RETRIES} after ${delayMs}ms (status ${err.status})`, {
+                        logDiagnostic('WARN', 'agent-runner', `LLM retry ${attempt + 1}/${maxRetries} after ${delayMs}ms (status ${err.status})`, {
                             sessionId: session.id, turn,
                         });
                         await new Promise(r => setTimeout(r, delayMs));
@@ -354,7 +525,10 @@ export async function runAgent(config) {
                 // callWithFallback tries the full chain: primary → fallback_chain → Ollama.
                 // The primary lookup may skip (web path uses model keys not in the registry),
                 // but fallback_chain entries and Ollama will still be attempted.
-                const routed = await callWithFallback(req, rc.id, modelId, projectRoot);
+                // Use trimmed payload if 502 context trimming already applied.
+                // Note: cross-session throttling is handled by ApiKeyGateway in client.ts
+                const fbPayload = consecutive502 >= 2 ? payload : req;
+                const routed = await callWithFallback(fbPayload, rc.id, modelId, projectRoot);
                 logDiagnostic('INFO', 'agent-runner', 'Fallback chain succeeded', {
                     sessionId: session.id, routedVia: routed.routedVia,
                 });
@@ -370,7 +544,14 @@ export async function runAgent(config) {
     }
     try {
         let compactFailed = false;
+        // 🔧 Bug Fix: loadSettings() 移到循环外，避免每轮重复磁盘 I/O
+        const settings = loadSettings();
+        const sc = settings.semanticContext;
+        const contextLimit = sc.contextMessageLimit;
+        let shutdownRequested = false;
         while (turn < maxTurns) {
+            if (shutdownRequested)
+                break;
             turn++;
             incrementTurn(session);
             // Phase 6.1: Auto-compact check at the start of each turn
@@ -437,6 +618,26 @@ export async function runAgent(config) {
                     continue;
                 systemContentBlocks.push({ type: 'text', text: dp });
             }
+            // Cap systemContentBlocks: merge excessive blocks into a single block
+            // to avoid bloating the request body with 20+ independent cache_control blocks.
+            // TokenHub proxy struggles with large system arrays.
+            const MAX_SYS_BLOCKS = 8;
+            if (systemContentBlocks.length > MAX_SYS_BLOCKS) {
+                // Keep first 4 (lang instruction + agent core) and last 4 (dynamic/context rules)
+                const head = systemContentBlocks.slice(0, 4);
+                const tail = systemContentBlocks.slice(-4);
+                const middleText = systemContentBlocks
+                    .slice(4, -4)
+                    .map(b => b.text)
+                    .filter(Boolean)
+                    .join('\n\n---\n\n');
+                if (middleText) {
+                    systemContentBlocks.length = 0;
+                    systemContentBlocks.push(...head);
+                    systemContentBlocks.push({ type: 'text', text: middleText });
+                    systemContentBlocks.push(...tail);
+                }
+            }
             // Assemble messages (without system — system goes via systemContentBlocks)
             const messages = [];
             // ── Fork Skill Execution ──
@@ -460,19 +661,68 @@ export async function runAgent(config) {
                     timestamp: new Date().toISOString(),
                 });
             }
-            // History (last 40, skip system) — Feature 5 (P4): apply micro-compact
-            // Fix: increased from 20 to 40 to prevent pairing-guard orphan tool_results
-            // (assistant tool_use messages need to be in the same window as their tool_results)
+            // History — semantic context filtering (Step 5) or time window fallback
             const historyMsgs = [];
-            for (const msg of session.messages.slice(-40)) {
-                if (msg.role === 'system')
-                    continue;
-                const hm = {
-                    role: msg.role, content: msg.content, timestamp: msg.timestamp,
-                };
-                if (msg.tool_calls)
-                    hm.tool_calls = msg.tool_calls;
-                historyMsgs.push(hm);
+            // 🔧 Fix E + CHAT-3: 一次 embed，多路分发。try/catch 包裹防止 embedding 失败导致整个对话崩溃
+            let semanticFiltered = false;
+            if (sc.enabled && sc.features.semanticFilter && session.messages.length > 30) {
+                try {
+                    const provider = await getEmbeddingProvider(sc.embeddingModel);
+                    if (provider) {
+                        // 构建语义消息列表（带 index）
+                        // 🔧 Bug Fix: 先 map 保留原始索引，再 filter，确保 index 对应 session.messages[i]
+                        const semanticMsgs = session.messages
+                            .map((m, i) => ({
+                            role: m.role,
+                            content: m.content,
+                            index: i,
+                        }))
+                            .filter(m => m.role !== 'system');
+                        const userEmbedding = await provider.embed(userInput);
+                        // 并行：语义过滤 + 预留路由/示例/文档接口
+                        const [filtered] = await Promise.all([
+                            assembleSemanticContext(userInput, semanticMsgs, {
+                                targetCount: contextLimit,
+                                similarityThreshold: sc.similarityThreshold,
+                                provider,
+                                userEmbedding,
+                            }),
+                            // 后续 Step 9/11/12 在此并行注入路由/示例/文档结果
+                        ]);
+                        // 将语义结果转回历史消息格式
+                        for (const sm of filtered) {
+                            const orig = session.messages[sm.index];
+                            if (orig) {
+                                const hm = {
+                                    role: orig.role,
+                                    content: orig.content,
+                                    timestamp: orig.timestamp,
+                                };
+                                if (orig.tool_calls)
+                                    hm.tool_calls = orig.tool_calls;
+                                historyMsgs.push(hm);
+                            }
+                        }
+                        semanticFiltered = true;
+                    }
+                }
+                catch (embedErr) {
+                    console.warn(`[AgentRunner] Semantic filtering failed: ${embedErr.message}, falling back to time window`);
+                    // Fall through to time window below
+                }
+            }
+            // 纯时间窗口（默认行为 / embedding 失败回退）
+            if (!semanticFiltered) {
+                for (const msg of session.messages.slice(-contextLimit)) {
+                    if (msg.role === 'system')
+                        continue;
+                    const hm = {
+                        role: msg.role, content: msg.content, timestamp: msg.timestamp,
+                    };
+                    if (msg.tool_calls)
+                        hm.tool_calls = msg.tool_calls;
+                    historyMsgs.push(hm);
+                }
             }
             // Compact old tool results to save tokens (S09: tool-type filtering + time trigger)
             microCompactWithSession(historyMsgs, session);
@@ -487,14 +737,18 @@ export async function runAgent(config) {
                 if (unread.length > 0) {
                     for (const msg of unread) {
                         if (msg.type === 'shutdown_request') {
-                            // Respond with approval and abort
+                            // Respond with approval and set shutdown flag
+                            // CHAT-2: use flag instead of early return so the outer loop
+                            // finishes normally through its main exit path (finally cleanup, etc.)
                             const { sendMessage } = await import('../teams/mailbox.js');
                             sendMessage(teamName, msg.from, agentName, 'approved', 'shutdown_response', 'Shutdown approved');
                             if (!abortController.signal.aborted) {
                                 abortController.abort();
                             }
                             clearAgentLLMBridge();
-                            return { finalResponse, turnsUsed: turn, toolCallsMade, error: 'Shutdown requested by teammate' };
+                            shutdownRequested = true;
+                            finalResponse = 'Shutdown requested by teammate';
+                            break; // exit the mailbox polling loop, not the main loop
                         }
                         // Inject as user context
                         messages.push({
@@ -540,29 +794,40 @@ export async function runAgent(config) {
                 try {
                     const streamGen = callLLMStream(rc, llmRequest);
                     let streamed = null;
+                    let accumulatedText = '';
                     for await (const event of streamGen) {
                         if (event.type === 'thinking') {
                             if (config.onThinking)
                                 config.onThinking(event.thinking || '');
                         }
                         else if (event.type === 'token') {
-                            onToken(event.text || '');
+                            // event.text from callLLMStream is the FULL accumulated text so far
+                            // (not a delta) — assign, not accumulate, to avoid double-joining.
+                            accumulatedText = event.text || '';
+                            onToken(accumulatedText);
                         }
                         else if (event.type === 'done') {
                             streamed = event.response;
                         }
                         else if (event.type === 'error') {
-                            // S03: Preserve HTTP status from error message (e.g. "API 错误 502（上游服务异常）from ...")
+                            // S03: Preserve HTTP status from error message
                             const errMsg = event.error || 'Stream error';
                             const statusMatch = errMsg.match(/API 错误 (\d+)/);
                             const streamStatus = statusMatch ? parseInt(statusMatch[1], 10) : 0;
                             throw new LlmError(errMsg, streamStatus, providerId);
                         }
                     }
-                    if (!streamed)
+                    if (!streamed) {
+                        // CHAT-1: stream ended without done event — clear partial tokens
+                        // from frontend before falling back to non-streaming to avoid
+                        // UX glitch where old partial text overlaps with the new response.
+                        if (accumulatedText && onToken)
+                            onToken('');
                         throw new LlmError('Stream ended without done event', 0, providerId);
+                    }
                     response = streamed;
                     streamedResponse = streamed;
+                    accumulatedResponseText = accumulatedText; // capture turn 1 streaming text
                 }
                 catch (streamErr) {
                     // Stream failed → fallback to non-streaming
@@ -576,11 +841,11 @@ export async function runAgent(config) {
                 response = await fallbackLLMCall(llmRequest);
             }
             // P2 fix: Push non-streaming (or stream-fallback) turn content to frontend via onToken.
-            // Without this, the frontend shows only Turn 1's streaming tokens (e.g. 47 chars)
-            // while Turns 2+ execute tools in silence. With 4 turns and 10 tool calls,
-            // the user sees stale text for minutes → UI looks frozen → text "disappears".
+            // Accumulate text across ALL turns (not replace) so Turn 1's long streaming text
+            // isn't overwritten by Turn 2+'s shorter tool-loop responses.
             if (!streamedResponse && onToken && response.content) {
-                onToken(response.content);
+                accumulatedResponseText += (accumulatedResponseText ? '\n\n' : '') + response.content;
+                onToken(accumulatedResponseText);
             }
             // Feature 1 (P4): Prefer native tool_use blocks, fallback to XML parsing
             const toolCalls = response.toolCalls && response.toolCalls.length > 0
@@ -595,6 +860,7 @@ export async function runAgent(config) {
                         finalResponse: '连续 3 轮返回空工具调用，已终止。请重新描述你的需求。',
                         turnsUsed: turn,
                         toolCallsMade,
+                        durationMs: Date.now() - startTime,
                     };
                 }
                 // Inject hint to LLM on first empty call
@@ -607,9 +873,9 @@ export async function runAgent(config) {
                 // Reset counter when valid tool calls are made
                 _emptyToolCallCount = 0;
             }
-            // Track last non-empty response for finalResult (fix: empty final turn loses streaming text)
+            // Track accumulated response for finalResult (includes text from all turns)
             if (response.content && response.content.trim()) {
-                finalResponse = response.content;
+                finalResponse = accumulatedResponseText || response.content;
             }
             if (toolCalls.length > 0) {
                 // Feature 1 (P4): Record assistant message with tool_calls metadata
@@ -620,45 +886,65 @@ export async function runAgent(config) {
                 }
                 session.messages.push(assistantMsg);
                 session.updatedAt = assistantMsg.timestamp;
+                // 🔧 Bug Fix #2: 摘要 tool_call 助理消息
+                summarizeMessageAsync({ role: 'assistant', content: response.content }, session.id, session.messages.length - 1);
                 onTurn?.(turn, response.content, toolCalls);
                 let firstApproval = null;
-                for (const tc of toolCalls) {
-                    const result = await runToolUse({ toolName: tc.name, rawInput: tc.input, context: toolContext });
-                    onToolUse?.(tc.name, tc.input, { content: result.content, isError: !!result.isError });
-                    // Feature 1 (P4): Record tool result as user message (Anthropic requirement)
-                    addMessage(session, 'user', `[Tool Result: ${tc.name}]\n${result.content}`);
-                    toolCallsMade++;
-                    // Feature 1 (P5): AskUserQuestion — always checked first, takes priority over permission gates.
-                    // If both AskUserQuestion and a permission-requiring tool appear in the same turn,
-                    // the user question is surfaced first; permission is re-requested next turn.
-                    if (tc.name === 'AskUserQuestion' && toolContext.__needsUserInput) {
-                        console.warn('[AgentRunner] AskUserQuestion triggered — pausing for user input. This will clear frontend streaming display.');
-                        logDiagnostic('WARN', 'agent-runner', 'AskUserQuestion triggered', {
-                            sessionId: session.id,
-                            questions: toolContext.__needsUserInput?.questions?.length,
-                        });
-                        const pending = toolContext.__needsUserInput;
-                        delete toolContext.__needsUserInput;
-                        // P1 fix: Signal to Stop hooks that user interaction is pending
-                        setPendingUserQuestion(true, session.id);
-                        clearAgentLLMBridge();
-                        return {
-                            finalResponse: response.content,
-                            turnsUsed: turn,
-                            toolCallsMade,
-                            needsUserInput: pending,
-                        };
+                // ── Tool Execution Queue ──
+                // Phase 1: all read-only tools execute in parallel (Read/Grep/Glob/LSP/etc.)
+                // Phase 2: write tools execute sequentially with tick yields between each
+                // Results maintain LLM-intended ordering for correct tool_result sequencing.
+                resetToolQueue();
+                // Wire queue progress → agent config callback (Web UI SSE)
+                const unsubProgress = onToolProgress
+                    ? subscribeToolProgress(onToolProgress)
+                    : null;
+                try {
+                    const enqueuedTools = toolCalls.map(tc => ({
+                        name: tc.name,
+                        input: tc.input,
+                    }));
+                    const execResults = await executeToolBatch(enqueuedTools, toolContext);
+                    for (const exec of execResults) {
+                        const tc = exec;
+                        const result = exec.result;
+                        onToolUse?.(tc.name, tc.input, { content: result.content, isError: !!result.isError });
+                        addMessage(session, 'user', `[Tool Result: ${tc.name}]\n${result.content}`);
+                        touchTool(tc.name); // update LRU timestamp — keep frequently-used tools active
+                        toolCallsMade++;
+                        // Feature 1 (P5): AskUserQuestion
+                        if (tc.name === 'AskUserQuestion' && toolContext.__needsUserInput) {
+                            console.warn('[AgentRunner] AskUserQuestion triggered — pausing for user input.');
+                            logDiagnostic('WARN', 'agent-runner', 'AskUserQuestion triggered', {
+                                sessionId: session.id,
+                                questions: toolContext.__needsUserInput?.questions?.length,
+                            });
+                            const pending = toolContext.__needsUserInput;
+                            delete toolContext.__needsUserInput;
+                            setPendingUserQuestion(true, session.id);
+                            clearAgentLLMBridge();
+                            return {
+                                finalResponse: response.content,
+                                turnsUsed: turn,
+                                toolCallsMade,
+                                durationMs: Date.now() - startTime,
+                                needsUserInput: pending,
+                            };
+                        }
+                        // Permission gate — collect but defer
+                        if (result.needsApproval && !firstApproval) {
+                            firstApproval = {
+                                toolName: tc.name,
+                                toolCallId: result.toolCallId || '',
+                                input: tc.input,
+                                message: result.content,
+                            };
+                        }
                     }
-                    // Phase 3: Permission pipeline — collect but defer return so AskUserQuestion
-                    // (if present later in the same turn) is not shadowed.
-                    if (result.needsApproval && !firstApproval) {
-                        firstApproval = {
-                            toolName: tc.name,
-                            toolCallId: tc.id,
-                            input: tc.input,
-                            message: result.content,
-                        };
-                    }
+                }
+                finally {
+                    if (typeof unsubProgress === 'function')
+                        unsubProgress();
                 }
                 // After processing all tools: if we found a permission gate (and no AskUserQuestion
                 // caused an early return), pause for user approval now.
@@ -668,6 +954,7 @@ export async function runAgent(config) {
                         finalResponse: `Awaiting permission approval for ${firstApproval.toolName}`,
                         turnsUsed: turn,
                         toolCallsMade,
+                        durationMs: Date.now() - startTime,
                         needsApproval: firstApproval,
                     };
                 }
@@ -689,19 +976,24 @@ export async function runAgent(config) {
             const pct = Math.round((completionTokens / outputMaxTokens) * 100);
             const truncatedByTokenLimit = completionTokens >= outputMaxTokens * 0.9;
             const endsAbruptly = content && !/[。！？.!?)\]」』"\n]+$/.test(content.trim());
+            // Also catch short responses that end mid-sentence (model stopped without token limit hit)
+            const shortAndAbrupt = endsAbruptly && content.length < 500;
             // Diminishing returns: after 3+ continues, if delta < 500 tokens → stop
             const deltaSinceLast = completionTokens - lastCompletionTokens;
             const isDiminishing = consecutiveTruncations >= 3 &&
                 deltaSinceLast < 500 &&
                 lastCompletionTokens > 0;
-            if (truncatedByTokenLimit &&
+            // Cap short-abrupt continues at 3 (not 5) — if model keeps giving tiny answers, stop
+            const shortAbruptExhausted = shortAndAbrupt && !truncatedByTokenLimit && consecutiveTruncations >= 3;
+            if ((truncatedByTokenLimit || shortAndAbrupt) &&
                 endsAbruptly &&
                 !isDiminishing &&
+                !shortAbruptExhausted &&
                 consecutiveTruncations < 5) {
                 consecutiveTruncations++;
                 lastCompletionTokens = completionTokens;
                 // S06: escalate maxTokens on first truncation (mirrors Claude Code max_output_tokens_escalate)
-                if (consecutiveTruncations === 1 && currentMaxTokens < MAX_OUTPUT_ESCALATED) {
+                if (truncatedByTokenLimit && consecutiveTruncations === 1 && currentMaxTokens < MAX_OUTPUT_ESCALATED) {
                     const prevMax = currentMaxTokens;
                     currentMaxTokens = MAX_OUTPUT_ESCALATED;
                     const escalateMsg = `Output capped at ${prevMax} tokens. Escalated maxTokens to ${MAX_OUTPUT_ESCALATED}. Continue.`;
@@ -712,13 +1004,15 @@ export async function runAgent(config) {
                     onError?.(`Output truncated at ${completionTokens} tokens, escalating maxTokens (${prevMax} → ${MAX_OUTPUT_ESCALATED})...`);
                     continue;
                 }
-                // S06: subsequent truncations → nudge to continue (mirrors Claude Code token_budget_continuation)
-                const nudge = `Stopped at ${pct}% of token limit (${completionTokens.toLocaleString()} / ${outputMaxTokens.toLocaleString()}). Keep working — do not summarize.`;
+                // S06: subsequent truncations or short-abrupt → nudge to continue
+                const nudge = truncatedByTokenLimit
+                    ? `Stopped at ${pct}% of token limit (${completionTokens.toLocaleString()} / ${outputMaxTokens.toLocaleString()}). Keep working — do not summarize.`
+                    : `Your response appears truncated. Continue from where you left off.`;
                 addMessage(session, 'assistant', content);
                 addMessage(session, 'user', nudge);
                 session.lastAssistantTimestamp = new Date().toISOString();
                 onTurn?.(turn, content, undefined);
-                onError?.(`Output truncated at ${completionTokens} tokens, auto-continuing (${consecutiveTruncations}/5)...`);
+                onError?.(`Output truncated${shortAndAbrupt ? ' (short, no token limit hit)' : ` at ${completionTokens} tokens`}, auto-continuing (${consecutiveTruncations}/5)...`);
                 // S02: checkpoint on truncation continue
                 if (consecutiveTruncations % 2 === 0) {
                     saveCheckpoint(session, turn);
@@ -728,6 +1022,8 @@ export async function runAgent(config) {
             // Natural end — final response
             addMessage(session, 'assistant', content);
             session.lastAssistantTimestamp = new Date().toISOString();
+            // 🔧 Bug Fix #2: 摘要最终助理回复
+            summarizeMessageAsync({ role: 'assistant', content }, session.id, session.messages.length - 1);
             // P3.4: Record per-message usage
             if (response.usage) {
                 const msg = session.messages[session.messages.length - 1];
@@ -761,7 +1057,7 @@ export async function runAgent(config) {
         });
         // S02: emergency save on abnormal exit — don't lose conversation progress
         emergencySave(session);
-        return { finalResponse, turnsUsed: turn, toolCallsMade, error: msg };
+        return { finalResponse, turnsUsed: turn, toolCallsMade, durationMs: Date.now() - startTime, error: msg };
     }
     finally {
         clearAgentLLMBridge();
@@ -770,13 +1066,15 @@ export async function runAgent(config) {
     try {
         await save(session);
     }
-    catch { /* best-effort */ }
+    catch (err) {
+        console.warn(`[AgentRunner] Session save failed: ${err.message}`);
+    }
     logDiagnostic('INFO', 'agent-runner', 'runAgent returning finalResponse', {
         finalResponseLen: finalResponse?.length ?? 0,
         finalResponseStart: finalResponse.slice(0, 200),
         turnsUsed: turn,
         toolCallsMade,
     });
-    return { finalResponse, turnsUsed: turn, toolCallsMade };
+    return { finalResponse, turnsUsed: turn, toolCallsMade, durationMs: Date.now() - startTime };
 }
 //# sourceMappingURL=agent-runner.js.map

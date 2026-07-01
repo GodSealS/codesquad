@@ -15,8 +15,8 @@ export declare const GrepInputSchema: z.ZodObject<{
     glob: z.ZodOptional<z.ZodString>;
     output_mode: z.ZodDefault<z.ZodOptional<z.ZodEnum<{
         content: "content";
-        files_with_matches: "files_with_matches";
         count: "count";
+        files_with_matches: "files_with_matches";
     }>>>;
     head_limit: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
     multiline: z.ZodDefault<z.ZodOptional<z.ZodBoolean>>;

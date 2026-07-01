@@ -12,19 +12,24 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as parseYaml } from 'yaml';
 import { resolveEnvValue } from '../../utils/env-resolver.js';
-import { virtualExists, virtualReadFile } from '../../embedded/virtual-fs.js';
+import { virtualExists, virtualReadFile, AICORE_ROOT } from '../../embedded/virtual-fs.js';
 import { readEmbeddedFile } from '../../embedded/runtime.js';
 import { load as loadSession } from '../../chat/session.js';
 let PKG_ROOT;
 let AICORE_DIR;
-try {
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    PKG_ROOT = join(__dirname, '..', '..', '..');
-    AICORE_DIR = join(PKG_ROOT, 'AICore');
+// Canonical .codesquad path from virtual-fs (handles Bun-compiled correctly)
+AICORE_DIR = AICORE_ROOT;
+if (process.env.CODESQUAD_PROJECT_ROOT) {
+    PKG_ROOT = process.env.CODESQUAD_PROJECT_ROOT;
 }
-catch {
-    PKG_ROOT = process.cwd();
-    AICORE_DIR = join(process.cwd(), 'AICore');
+else {
+    try {
+        const __dirname = fileURLToPath(new URL('.', import.meta.url));
+        PKG_ROOT = join(__dirname, '..', '..', '..');
+    }
+    catch {
+        PKG_ROOT = process.cwd();
+    }
 }
 function readBody(req) {
     return new Promise((resolve, reject) => {

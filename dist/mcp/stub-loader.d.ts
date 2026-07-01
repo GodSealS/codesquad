@@ -1,11 +1,11 @@
 /**
- * AICore Stub Loader
+ * .codesquad Stub Loader
  *
- * Parses AICore agent/skill stub files (schema: aicore-mcp-stub/v2).
+ * Parses .codesquad agent/skill stub files (schema: aicore-mcp-stub/v2).
  * Provides discovery, filtering, and schema retrieval for MCP tools.
  *
  * Stubs are lightweight interface declarations that map to MCP tool calls.
- * They do NOT contain full agent/skill prompts (those are in AICore/).
+ * They do NOT contain full agent/skill prompts (those are in .codesquad/).
  */
 /** Raw frontmatter and body from a markdown file */
 interface ParsedMarkdown {
@@ -52,7 +52,7 @@ export interface StubOutput {
 }
 /** A loaded MCP stub (agent or skill) */
 export interface StubEntry {
-    /** File path (relative to AICore root) */
+    /** File path (relative to .codesquad root) */
     path: string;
     /** stub schema version */
     schema: string;
@@ -83,18 +83,18 @@ export interface StubEntry {
 export declare function parseMarkdownFrontmatter(content: string): ParsedMarkdown | null;
 /** Read and parse a single stub file */
 export declare function parseStubFile(filePath: string): StubEntry | null;
-/** Find all agent stub files in AICore/agents/ (with fallback to .aicore-mcp-stubs/) */
+/** Find all agent stub files in .codesquad/agents/ (with fallback to .aicore-mcp-stubs/) */
 export declare function loadAgentStubs(): StubEntry[];
-/** Find all skill stub files in AICore/skills/ (with fallback to .aicore-mcp-stubs/) */
+/** Find all skill stub files in .codesquad/skills/ (with fallback to .aicore-mcp-stubs/) */
 export declare function loadSkillStubs(): StubEntry[];
 /** Load all stubs (agents + skills) */
 export declare function loadAllStubs(): {
     agents: StubEntry[];
     skills: StubEntry[];
 };
-/** Find a specific agent stub by name (checks AICore/ first, then .aicore-mcp-stubs/) */
+/** Find a specific agent stub by name (checks .codesquad/ first, then .aicore-mcp-stubs/) */
 export declare function findAgentStub(name: string): StubEntry | undefined;
-/** Find a specific skill stub by name (checks AICore/ first, then .aicore-mcp-stubs/) */
+/** Find a specific skill stub by name (checks .codesquad/ first, then .aicore-mcp-stubs/) */
 export declare function findSkillStub(name: string): StubEntry | undefined;
 /** Filter stubs by tag */
 export declare function filterByTag(stubs: StubEntry[], tag: string): StubEntry[];

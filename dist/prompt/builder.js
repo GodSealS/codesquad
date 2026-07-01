@@ -9,7 +9,7 @@
  *   2. agentSystemPrompt       — @agent-name loaded prompt
  *   3. customSystemPrompt      — user configured
  *   4. defaultSystemPrompt     — standard sections assembly
- *   5. appendSystemPrompt      — always appended (AICore/CODESQUAD.md, etc.)
+ *   5. appendSystemPrompt      — always appended (.codesquad/CODESQUAD.md, etc.)
  *
  * Phase 3.2
  */

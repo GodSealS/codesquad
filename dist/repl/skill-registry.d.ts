@@ -1,5 +1,5 @@
 /**
- * Skill registry — scans skills from three layers (AICore → User → Project).
+ * Skill registry — scans skills from three layers (.codesquad → User → Project).
  *
  * Two skill types:
  *   - workflow: Standalone multi-step guided workflow (user-invocable, /skill-name)

@@ -76,7 +76,7 @@ import { clearSessionCache } from '../tools/file-state.js';
 // Skill instance system (P0 — step-by-step execution with pause/resume)
 import { SkillInstance } from '../skills/instance.js';
 import { skillInstances } from '../skills/manager.js';
-import { initHooksFromAICore } from '../hooks/config-loader.js';
+import { initHooksFromCodesquad } from '../hooks/config-loader.js';
 import { executeSessionStartHooks, executeStopHooks, resetHookState } from '../hooks/executor.js';
 import { loadSandboxConfig } from '../permissions/sandbox.js';
 // MCP Bridge (Phase 7.0) — wire MCP tools into the tool pool
@@ -101,7 +101,7 @@ import { resolveModel } from '../generators/model-resolver.js';
 import { loadModelsConfig } from '../core/models.js';
 // ── Version ──
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const AICORE_DIR = join(__dirname, '..', '..', 'AICore');
+const AICORE_DIR = join(__dirname, '..', '..', '.codesquad');
 const PROJECT_ROOT = join(__dirname, '..', '..');
 // Read version with embedded mode fallback (Bun compile)
 function getReplPkg() {
@@ -127,7 +127,7 @@ function getModelsConfig() {
     }
     return _modelsConfigCache;
 }
-// Initialize skill registry with AICore root (before startRepl is called)
+// Initialize skill registry with .codesquad root (before startRepl is called)
 setAicodeRoot(AICORE_DIR);
 // ── CLI flag helpers (P3) ──
 /** Convert CLI --permission-mode value (default|acceptEdits|bypassPermissions|plan) to ChatMode. */
@@ -148,13 +148,13 @@ function permissionModeToChatModeState(raw) {
 // ── MCP Tool Loading (Phase 7.0 / P0 fix) ──
 /**
  * Load MCP server configurations and register their tools.
- * Reads from AICore/settings.json mcpServers block (if present),
+ * Reads from .codesquad/settings.json mcpServers block (if present),
  * or from Config/mcp.config.yaml fallback.
  *
  * Mirrors Claude Code's MCP client initialization in bootstrap.
  */
 export async function loadAndRegisterMCPTools(aicoreDir) {
-    // Try loading MCP server configs from AICore/settings.json
+    // Try loading MCP server configs from .codesquad/settings.json
     const settingsPath = join(aicoreDir, 'settings.json');
     let mcpServers = [];
     try {
@@ -411,10 +411,10 @@ async function loadAndRegisterMCPToolsFromPath(configPath) {
         catch { /* skip unavailable */ }
     }
 }
-// ── Project guidance (Claude Code alignment: like CLAUDE.md + AICore/system config) ──
+// ── Project guidance (Claude Code alignment: like CLAUDE.md + .codesquad/system config) ──
 /**
  * Load project-level guidance from CODESQUAD.md (CLI config),
- * CODEBUDDY.md (IDE config), and AICore/CODESQUAD.md (system template).
+ * CODEBUDDY.md (IDE config), and .codesquad/CODESQUAD.md (system template).
  * Priority: .codesquad/CODESQUAD.md → project root CODESQUAD.md → CLI template
  * Mirrors Claude Code's loadMemoryPrompt() which reads CLAUDE.md + memory directory.
  */
@@ -432,7 +432,7 @@ function loadProjectGuidance() {
         }
         catch { /* try next */ }
     }
-    // Rule 3: Fallback to CLI's AICore template (backward compat, VirtualFS)
+    // Rule 3: Fallback to CLI's .codesquad template (backward compat, VirtualFS)
     if (parts.length === 0) {
         const cliTemplate = join(AICORE_DIR, 'CODESQUAD.md');
         try {
@@ -518,11 +518,11 @@ export async function startRepl() {
         // Phase 4: Chat feature gap fill
         SkillTool, ToolSearchTool,
     ]);
-    // ── Init permissions from AICore/settings.json (Phase 2 / 5.5) ──
-    const { loadAICoreConfig } = await import('../config/aicore-config.js');
-    loadAICoreConfig(AICORE_DIR);
-    // ── Init hooks from AICore settings.json (Phase 2) ──
-    initHooksFromAICore(AICORE_DIR);
+    // ── Init permissions from .codesquad/settings.json (Phase 2 / 5.5) ──
+    const { loadCodesquadConfig } = await import('../config/aicore-config.js');
+    loadCodesquadConfig(AICORE_DIR);
+    // ── Init hooks from .codesquad settings.json (Phase 2) ──
+    initHooksFromCodesquad(AICORE_DIR);
     // ── MCP Bridge wiring (Phase 7.0 / P0 fix) ──
     // Load MCP server configs and register their tools into the pool.
     // MCP tools get `mcp__<server>__<tool>` names to avoid collisions.

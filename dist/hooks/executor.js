@@ -6,14 +6,15 @@
  *
  * Phase 2.2
  */
-import { exec, spawn } from 'child_process';
+import { exec, spawn, execFile } from 'child_process';
 import { promisify } from 'util';
 import { DEFAULT_HOOK_TIMEOUT } from './types.js';
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 // ── Hook Registry ──
 let _hooksSettings = {};
 let _executedOnceHooks = new Set();
-/** Load hooks configuration (from AICore/settings.json or programmatic). */
+/** Load hooks configuration (from .codesquad/settings.json or programmatic). */
 export function loadHooksConfig(config) {
     _hooksSettings = config;
 }
@@ -130,7 +131,7 @@ async function executeHook(hook, input) {
 async function executeCommandHook(hook, input) {
     const timeout = hook.timeout || DEFAULT_HOOK_TIMEOUT.command;
     // Check if the command interpreter exists (e.g. "bash" on Windows may not be available).
-    // Extract first word: "bash AICore/hooks/validate-commit.sh" → "bash"
+    // Extract first word: "bash .codesquad/hooks/validate-commit.sh" → "bash"
     const interpreter = hook.command.split(/\s+/)[0];
     const interpreterMissing = await isInterpreterMissing(interpreter);
     if (interpreterMissing) {
@@ -153,6 +154,8 @@ async function executeCommandHook(hook, input) {
         env['CODESQUAD_SESSION_ID'] = input.session_id;
     // Use shell:true so Node.js handles quoting natively — no manual escaping needed.
     // This avoids command injection via unescaped $(), backticks, etc.
+    // Note: hook.command is validated at load time (config-loader.ts) to reject
+    // shell metacharacters (;&|`$(){}), preventing injection via user settings.
     const child = spawn(hook.command, [], {
         timeout: timeout * 1000,
         env,
@@ -213,13 +216,18 @@ async function executeCommandHook(hook, input) {
  */
 async function isInterpreterMissing(cmd) {
     try {
-        const checkCmd = process.platform === 'win32'
-            ? `where ${cmd}` // Windows: "where bash"
-            : `command -v ${cmd}`; // Unix: "command -v bash"
-        await execAsync(checkCmd, { timeout: 3000, windowsHide: true, shell: true });
+        // Use spawn array form (no shell) to prevent injection via user-configured
+        // interpreter names containing shell metacharacters.
+        if (process.platform === 'win32') {
+            await execFileAsync('where', [cmd], { timeout: 3000, windowsHide: true });
+        }
+        else {
+            await execFileAsync('command', ['-v', cmd], { timeout: 3000 });
+        }
         return false; // Found
     }
-    catch {
+    catch (err) {
+        console.warn(`[hooks] Interpreter check failed for "${cmd}": ${err.message}`);
         return true; // Not found
     }
 }

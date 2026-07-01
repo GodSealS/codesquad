@@ -9,7 +9,7 @@
  *   2. agentSystemPrompt       — @agent-name loaded prompt
  *   3. customSystemPrompt      — user configured
  *   4. defaultSystemPrompt     — standard sections assembly
- *   5. appendSystemPrompt      — always appended (AICore/CODESQUAD.md, etc.)
+ *   5. appendSystemPrompt      — always appended (.codesquad/CODESQUAD.md, etc.)
  *
  * Phase 3.2
  */
@@ -18,7 +18,7 @@ import { clearSystemPromptSections as clearCache } from './sections.js';
 export interface SystemPromptOptions {
     /** Full replacement prompt — used by --system-prompt CLI arg. */
     overrideSystemPrompt?: string | string[];
-    /** Agent-specific system prompt (from AICore/agents/*.md). */
+    /** Agent-specific system prompt (from .codesquad/agents/*.md). */
     agentSystemPrompt?: string;
     /** Custom system prompt from user config. */
     customSystemPrompt?: string;

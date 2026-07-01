@@ -20,11 +20,19 @@ import { getCompletedSpans, exportTraceJSON, getActiveSpans } from '../mcp/obser
 export function handleMcpStdio(projectRoot) {
     const root = resolve(projectRoot ?? process.cwd());
     const server = new CodeSquadMCPServer(root);
-    server.start();
     // Keep process alive; handle graceful shutdown
+    // Register signals BEFORE start() so Ctrl+C during startup is caught.
+    // Use process.on (not once) so repeated Ctrl+C still works.
     const shutdown = () => { server.stop(); process.exit(0); };
-    process.once('SIGINT', shutdown);
-    process.once('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+    try {
+        server.start();
+    }
+    catch (err) {
+        console.error(`MCP stdio start failed: ${err.message}`);
+        process.exit(1);
+    }
 }
 /** Start MCP server in HTTP mode */
 export async function handleMcpServe(projectRoot, options) {
@@ -105,10 +113,10 @@ export async function handleMcpServe(projectRoot, options) {
     console.log(`\nMCP Server running on http://${bind}:${actualPort}/mcp`);
     console.log(`Health: http://${bind}:${actualPort}/healthz | http://${bind}:${actualPort}/readyz`);
     const shutdown = () => { transport.stop(); process.exit(0); };
-    process.once('SIGINT', shutdown);
-    process.once('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
 }
-/** Convert AICore files to MCP stubs */
+/** Convert .codesquad files to MCP stubs */
 export function handleConvertStubs(outputDir) {
     const outDir = resolve(outputDir ?? join(process.cwd(), '.aicore-mcp-stubs'));
     try {
@@ -119,7 +127,7 @@ export function handleConvertStubs(outputDir) {
         console.error(err.message);
         process.exit(1);
     }
-    console.log(`Converting AICore agents/skills to MCP stubs in: ${outDir}\n`);
+    console.log(`Converting .codesquad agents/skills to MCP stubs in: ${outDir}\n`);
     const agentResult = convertAllAgents(outDir);
     console.log(`Agents: ${agentResult.converted}/${agentResult.total} converted`);
     if (agentResult.errors.length > 0)
@@ -154,7 +162,12 @@ export function handleMcpStatus(projectRoot) {
     const pidPath = join(root, 'Config', 'codesquad-mcp.pid');
     if (existsSync(pidPath)) {
         console.log(`  PID file:    ${pidPath}`);
-        console.log(`  PID info:    ${readFileSync(pidPath, 'utf-8').replace(/\n/g, ', ')}`);
+        try {
+            console.log(`  PID info:    ${readFileSync(pidPath, 'utf-8').replace(/\n/g, ', ')}`);
+        }
+        catch {
+            console.log(`  PID info:    (unreadable)`);
+        }
     }
     else {
         console.log('  PID file:    Not running');
@@ -185,9 +198,9 @@ export function handleMcpMetrics() {
     }, null, 2));
 }
 /** Bridge subcommand has been removed — REPL and Web Console are the primary interfaces. */
-/** Inject MCP server configuration into AICore/settings.json */
+/** Inject MCP server configuration into .codesquad/settings.json */
 export function injectMcpServerConfig(root) {
-    const aicoreDir = join(root, 'AICore');
+    const aicoreDir = join(root, '.codesquad');
     const settingsPath = join(aicoreDir, 'settings.json');
     // Fallback: create a minimal settings.json if it doesn't exist.
     // Inject codesquad MCP server config into settings.json
@@ -212,7 +225,7 @@ export function injectMcpServerConfig(root) {
             },
         };
         writeFileSync(settingsPath, JSON.stringify(minimal, null, 2) + '\n', 'utf-8');
-        console.log('  Created AICore/settings.json with MCP server config');
+        console.log('  Created .codesquad/settings.json with MCP server config');
         return;
     }
     try {
@@ -232,20 +245,21 @@ export function injectMcpServerConfig(root) {
         // hand-maintained settings.json does not see a noisy full-rewrite diff.
         const trailingNewline = raw.endsWith('\n') ? '\n' : '';
         writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + trailingNewline, 'utf-8');
-        console.log('  Injected MCP server config into AICore/settings.json');
+        console.log('  Injected MCP server config into .codesquad/settings.json');
     }
-    catch {
-        // Non-fatal — settings.json might be in a different format
-        console.log('  Note: Could not inject MCP config into settings.json (non-fatal)');
+    catch (err) {
+        // Non-fatal — settings.json might be corrupt or in a different format
+        console.error(`  Error: Failed to parse .codesquad/settings.json — ${err.message}`);
+        console.error('  Please fix the JSON and re-run, or delete .codesquad/settings.json to regenerate.');
     }
 }
 /**
  * Inverse of injectMcpServerConfig: remove the codesquad entry from
- * AICore/settings.json. Used by `--restore` to leave settings.json in the
+ * .codesquad/settings.json. Used by `--restore` to leave settings.json in the
  * same shape as a fresh `init` (no stale MCP routing entries).
  */
 function stripMcpServerConfig(root) {
-    const settingsPath = join(root, 'AICore', 'settings.json');
+    const settingsPath = join(root, '.codesquad', 'settings.json');
     if (!existsSync(settingsPath))
         return;
     try {
@@ -259,7 +273,7 @@ function stripMcpServerConfig(root) {
         }
         const trailingNewline = raw.endsWith('\n') ? '\n' : '';
         writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + trailingNewline, 'utf-8');
-        console.log('  Removed MCP server config from AICore/settings.json');
+        console.log('  Removed MCP server config from .codesquad/settings.json');
     }
     catch (err) {
         console.log('  Note: Could not strip MCP config from settings.json (non-fatal):', err.message);

@@ -4,7 +4,7 @@ When authoring or editing files in this directory, follow these standards.
 
 ## Architecture Decision Records (`docs/architecture/`)
 
-Use the ADR template: `AICore/docs/templates/architecture-decision-record.md`
+Use the ADR template: `.codesquad/docs/templates/architecture-decision-record.md`
 
 **Required sections:** Title, Status, Context, Decision, Consequences,
 ADR Dependencies, Engine Compatibility, GDD Requirements Addressed

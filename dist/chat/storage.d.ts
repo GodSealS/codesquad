@@ -40,11 +40,10 @@ export declare function ensureSessionDir(): Promise<void>;
 export declare function ensureSessionDirWithResult(): Promise<TaskResult<null>>;
 /**
  * Save a session JSON atomically:
- * 1. Backup existing file to .bak (P1 fix: prevent data loss)
- * 2. Write to a temp file with PID suffix
- * 3. Rename over the target (atomic on most filesystems)
- *
- * For cross-process safety, callers should use saveSessionLocked().
+ * 1. Serialize via per-session write queue (prevents concurrent overwrites)
+ * 2. Backup existing file to .bak (prevents data loss on crash)
+ * 3. Write to a temp file with PID + unique suffix
+ * 4. Rename over the target (atomic on most filesystems)
  */
 export declare function saveSession(data: unknown): Promise<void>;
 /**
@@ -65,4 +64,8 @@ export declare function deleteSessionWithResult(id: string): Promise<TaskResult<
  * Delete a session file.
  */
 export declare function deleteSession(id: string): Promise<void>;
+/** Read and increment the session counter. Returns the NEXT session ID. */
+export declare function getNextSessionId(): number;
+/** Reset the session counter to 0 (project init). */
+export declare function resetSessionCounter(): void;
 //# sourceMappingURL=storage.d.ts.map
