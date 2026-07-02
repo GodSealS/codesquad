@@ -13,7 +13,7 @@
  *
  * API source routing via models.config.yaml api.sources.
  */
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { calculateContextStats } from '../../context/monitor.js';
 import { parse as parseYaml } from 'yaml';
@@ -35,7 +35,11 @@ if (isBunCompiled) {
     // Bun-compiled: PKG_ROOT is the virtual binary root (used for embedded lookups).
     // The actual user project directory is process.cwd().
     PKG_ROOT = VFS_PKG_ROOT;
-    DEFAULT_PROJECT_ROOT = process.env.CODESQUAD_PROJECT_ROOT || process.cwd();
+    const cwd = process.cwd();
+    // Fallback: EXE directory when cwd is root or empty (e.g. launched from /)
+    const exeDir = dirname(process.execPath);
+    DEFAULT_PROJECT_ROOT = process.env.CODESQUAD_PROJECT_ROOT
+        || (cwd && cwd !== '/' && cwd !== '\\' ? cwd : exeDir);
 }
 else {
     // Dev/tsx: ../.. from src/web/routes/ reaches the project root.

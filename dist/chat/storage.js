@@ -11,7 +11,8 @@
  */
 import { readFile, writeFile, rename, unlink, mkdir, existsSync } from 'fs';
 import { promisify } from 'util';
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { tmpdir } from 'os';
 import { CODESQUAD_USER_ROOT } from '../core/paths.js';
 import { successResult, errorResult } from '../core/task-result.js';
 const readFileAsync = promisify(readFile);
@@ -27,11 +28,16 @@ let _projectRoot = null;
  * After calling this, all data is stored under <projectRoot>/.codesquad/.
  */
 export function setProjectRoot(root) {
-    _projectRoot = resolve(root);
+    if (!root || root === '/' || root === '\\') {
+        console.warn('[storage] setProjectRoot called with invalid root:', JSON.stringify(root), '— falling back to CODESQUAD_USER_ROOT');
+        _projectRoot = null;
+    }
+    else {
+        _projectRoot = resolve(root);
+    }
     // Reset directory-ensured flag so directories get re-created under new root
     dirsEnsured = false;
 }
-import { resolve } from 'path';
 // ── Paths ──
 /**
  * Resolve the CodeSquad home directory.
@@ -40,13 +46,17 @@ import { resolve } from 'path';
  *   1. CODESQUAD_HOME env var (tests / custom override)
  *   2. _projectRoot/.codesquad  (project-scoped, set by setProjectRoot)
  *   3. ~/.codesquad             (fallback, no project root set)
+ *   4. os.tmpdir()/.codesquad   (ultimate fallback — always writable)
  */
 export function codesquadHome() {
     if (process.env.CODESQUAD_HOME)
         return process.env.CODESQUAD_HOME;
     if (_projectRoot)
         return join(_projectRoot, '.codesquad');
-    return CODESQUAD_USER_ROOT;
+    if (CODESQUAD_USER_ROOT)
+        return CODESQUAD_USER_ROOT;
+    // Ultimate fallback: system temp directory (always exists and is writable)
+    return join(tmpdir(), '.codesquad');
 }
 export function sessionDir() {
     return join(codesquadHome(), 'sessions');

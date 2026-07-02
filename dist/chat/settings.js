@@ -11,8 +11,10 @@ import { codesquadHome } from './storage.js';
 const DEFAULT_SEMANTIC_CONTEXT = {
     enabled: false,
     embeddingModel: { type: 'local-bge-m3' },
-    contextMessageLimit: 20,
-    similarityThreshold: 0.5,
+    // 语义过滤相似度百分比：默认 35%（内部转为 cosine threshold 0.35）
+    similarityThresholdPercent: 35,
+    // 匹配源上下文条数：查询向量 + 语义过滤激活门槛，默认 5
+    queryContextLength: 5,
     routingThreshold: 0.65,
     features: {
         semanticFilter: false,
@@ -27,6 +29,8 @@ const DEFAULTS = {
     memoryLimitChats: 5,
     hasCraftConfirmed: false,
     streamingEnabled: false,
+    cliSmartEnhancement: false,
+    maxGenerationPercent: 50,
     semanticContext: DEFAULT_SEMANTIC_CONTEXT,
 };
 const MIN_MEMORY_LIMIT = 2;
@@ -52,6 +56,8 @@ export function loadSettings() {
             memoryLimitChats: DEFAULTS.memoryLimitChats,
             hasCraftConfirmed: DEFAULTS.hasCraftConfirmed,
             streamingEnabled: DEFAULTS.streamingEnabled,
+            cliSmartEnhancement: DEFAULTS.cliSmartEnhancement,
+            maxGenerationPercent: DEFAULTS.maxGenerationPercent,
             semanticContext: {
                 ...DEFAULTS.semanticContext,
                 embeddingModel: { ...DEFAULTS.semanticContext.embeddingModel },
@@ -66,6 +72,8 @@ export function loadSettings() {
             memoryLimitChats: clampMemoryLimit(parsed.memoryLimitChats ?? DEFAULTS.memoryLimitChats),
             hasCraftConfirmed: parsed.hasCraftConfirmed ?? DEFAULTS.hasCraftConfirmed,
             streamingEnabled: parsed.streamingEnabled ?? DEFAULTS.streamingEnabled,
+            cliSmartEnhancement: parsed.cliSmartEnhancement ?? DEFAULTS.cliSmartEnhancement,
+            maxGenerationPercent: clampGenPercent(parsed.maxGenerationPercent ?? DEFAULTS.maxGenerationPercent),
             semanticContext: deepMergeSemanticConfig(parsed.semanticContext),
         };
     }
@@ -103,6 +111,14 @@ function clampMemoryLimit(n) {
         return MAX_MEMORY_LIMIT;
     return num;
 }
+function clampGenPercent(n) {
+    const num = Math.round(n);
+    if (num < 30)
+        return 30;
+    if (num > 90)
+        return 90;
+    return num;
+}
 /** Deep-merge partial semantic config with defaults. */
 function deepMergeSemanticConfig(partial) {
     const def = DEFAULT_SEMANTIC_CONTEXT;
@@ -114,8 +130,8 @@ function deepMergeSemanticConfig(partial) {
             type: partial.embeddingModel?.type ?? def.embeddingModel.type,
             modelId: partial.embeddingModel?.modelId ?? def.embeddingModel.modelId,
         },
-        contextMessageLimit: partial.contextMessageLimit ?? def.contextMessageLimit,
-        similarityThreshold: partial.similarityThreshold ?? def.similarityThreshold,
+        similarityThresholdPercent: partial.similarityThresholdPercent ?? def.similarityThresholdPercent,
+        queryContextLength: partial.queryContextLength ?? def.queryContextLength,
         routingThreshold: partial.routingThreshold ?? def.routingThreshold,
         features: {
             semanticFilter: partial.features?.semanticFilter ?? def.features.semanticFilter,

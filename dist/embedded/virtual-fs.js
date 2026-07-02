@@ -39,13 +39,14 @@ AICORE_ROOT = join(PKG_ROOT, '.codesquad');
 function toEmbeddedPath(absPath) {
     const normalized = absPath.replace(/\\/g, '/');
     // .codesquad content → strip AICORE_ROOT
-    const aicoreNorm = AICORE_ROOT.replace(/\\/g, '/');
+    let aicoreNorm = AICORE_ROOT.replace(/\\/g, '/').replace(/\/+$/, '');
     if (normalized.startsWith(aicoreNorm + '/') || normalized === aicoreNorm) {
         const rel = relative(AICORE_ROOT, absPath).replace(/\\/g, '/');
         return rel || '.';
     }
     // Package-root files (models.config.yaml, codesquad.config.yaml, etc.)
-    const pkgNorm = PKG_ROOT.replace(/\\/g, '/');
+    // Strip trailing slashes — PKG_ROOT may end with '\' in Bun-compiled mode.
+    let pkgNorm = PKG_ROOT.replace(/\\/g, '/').replace(/\/+$/, '');
     if (normalized.startsWith(pkgNorm + '/') || normalized === pkgNorm) {
         return relative(PKG_ROOT, absPath).replace(/\\/g, '/');
     }

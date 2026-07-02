@@ -40,9 +40,11 @@ import { save } from './session.js';
 import { ensureToolResultPairing } from '../tools/pairing-guard.js';
 // Semantic context retrieval (Step 5)
 import { loadSettings } from './settings.js';
-import { getEmbeddingProvider } from '../embedding/provider.js';
+import { isSemanticEnabled, getEmbeddingProvider } from '../embedding/provider.js';
 import { assembleSemanticContext } from '../context/semantic-context.js';
 import { summarizeMessageAsync } from '../embedding/summarizer.js';
+import { countTokens } from './tokenizer.js';
+import { getContextWindow } from '../context/auto-compact.js';
 // ── Fork Skill Execution ──
 /**
  * Execute a fork skill in an isolated ephemeral session.
@@ -547,7 +549,11 @@ export async function runAgent(config) {
         // 🔧 Bug Fix: loadSettings() 移到循环外，避免每轮重复磁盘 I/O
         const settings = loadSettings();
         const sc = settings.semanticContext;
-        const contextLimit = sc.contextMessageLimit;
+        // Token 预算：模型最大上下文 × maxGenerationPercent（通用设置，非语义特有）
+        const contextWindow = getContextWindow(modelId);
+        const maxContextTokens = Math.floor(contextWindow * settings.maxGenerationPercent / 100);
+        // 纯时间窗口预算：取 maxContextTokens 的 80%（给语义匹配留空间）
+        const timeWindowTokens = Math.floor(maxContextTokens * 0.8);
         let shutdownRequested = false;
         while (turn < maxTurns) {
             if (shutdownRequested)
@@ -663,14 +669,13 @@ export async function runAgent(config) {
             }
             // History — semantic context filtering (Step 5) or time window fallback
             const historyMsgs = [];
-            // 🔧 Fix E + CHAT-3: 一次 embed，多路分发。try/catch 包裹防止 embedding 失败导致整个对话崩溃
+            // 🔧 Fix TOKEN + GATE: 语义过滤激活门槛 = queryContextLength（默认 5）
             let semanticFiltered = false;
-            if (sc.enabled && sc.features.semanticFilter && session.messages.length > 30) {
+            if (isSemanticEnabled() && sc.features.semanticFilter && session.messages.length > sc.queryContextLength) {
                 try {
                     const provider = await getEmbeddingProvider(sc.embeddingModel);
                     if (provider) {
                         // 构建语义消息列表（带 index）
-                        // 🔧 Bug Fix: 先 map 保留原始索引，再 filter，确保 index 对应 session.messages[i]
                         const semanticMsgs = session.messages
                             .map((m, i) => ({
                             role: m.role,
@@ -678,17 +683,18 @@ export async function runAgent(config) {
                             index: i,
                         }))
                             .filter(m => m.role !== 'system');
-                        const userEmbedding = await provider.embed(userInput);
-                        // 并行：语义过滤 + 预留路由/示例/文档接口
-                        const [filtered] = await Promise.all([
-                            assembleSemanticContext(userInput, semanticMsgs, {
-                                targetCount: contextLimit,
-                                similarityThreshold: sc.similarityThreshold,
-                                provider,
-                                userEmbedding,
-                            }),
-                            // 后续 Step 9/11/12 在此并行注入路由/示例/文档结果
-                        ]);
+                        // 🔧 Fix QUERY: 用最近 N 条消息拼接做查询源（N = queryContextLength）
+                        const recentForQuery = semanticMsgs.slice(-sc.queryContextLength);
+                        const queryText = recentForQuery.map(m => m.content.slice(0, 500)).join('\n---\n');
+                        const userEmbedding = await provider.embed(queryText);
+                        const simThreshold = sc.similarityThresholdPercent / 100;
+                        const filtered = await assembleSemanticContext(userInput, semanticMsgs, {
+                            maxTokens: maxContextTokens,
+                            similarityThreshold: simThreshold,
+                            provider,
+                            userEmbedding,
+                            model: modelId,
+                        });
                         // 将语义结果转回历史消息格式
                         for (const sm of filtered) {
                             const orig = session.messages[sm.index];
@@ -711,17 +717,25 @@ export async function runAgent(config) {
                     // Fall through to time window below
                 }
             }
-            // 纯时间窗口（默认行为 / embedding 失败回退）
+            // 纯时间窗口回退（基于 token 预算）
             if (!semanticFiltered) {
-                for (const msg of session.messages.slice(-contextLimit)) {
+                let used = 0;
+                for (let i = session.messages.length - 1; i >= 0; i--) {
+                    const msg = session.messages[i];
                     if (msg.role === 'system')
                         continue;
+                    // 🔧 TOKEN: 去掉 [Tool Result: 前缀的噪声字符再计数
+                    const displayContent = msg.content.replace(/^\[Tool Result[^\]]*\]:?\s*/i, '');
+                    const t = countTokens(modelId, displayContent);
+                    if (used + t > timeWindowTokens)
+                        break;
                     const hm = {
                         role: msg.role, content: msg.content, timestamp: msg.timestamp,
                     };
                     if (msg.tool_calls)
                         hm.tool_calls = msg.tool_calls;
-                    historyMsgs.push(hm);
+                    historyMsgs.unshift(hm);
+                    used += t;
                 }
             }
             // Compact old tool results to save tokens (S09: tool-type filtering + time trigger)

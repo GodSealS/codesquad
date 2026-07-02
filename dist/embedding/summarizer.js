@@ -15,7 +15,7 @@ import { isSemanticEnabled, getEmbeddingProvider } from './provider.js';
 import { getVectorStore } from './store.js';
 import { loadSettings } from '../chat/settings.js';
 import { existsSync } from 'fs';
-import { qwenModelPath } from './downloader.js';
+import { qwenModelPath, verifyQwenModel } from './downloader.js';
 import { getLlamaOnce } from './llama-singleton.js';
 // ── Ollama 兼容配置 ──
 const OLLAMA_BASE_URL = process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434';
@@ -71,6 +71,11 @@ class LocalQwenSummarizer {
         const path = qwenModelPath();
         if (!existsSync(path)) {
             throw new Error(`[Summarizer] Qwen GGUF not found at ${path}. Please download the model first.`);
+        }
+        // Verify integrity before loading — corrupt model files cause cryptic crashes
+        const valid = await verifyQwenModel();
+        if (!valid) {
+            throw new Error(`[Summarizer] Qwen GGUF SHA256 mismatch at ${path}. File may be corrupted. Please re-download the model.`);
         }
         const llama = await getLlamaOnce();
         this.model = await llama.loadModel({ modelPath: path });

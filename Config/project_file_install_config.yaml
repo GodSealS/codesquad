@@ -1,16 +1,14 @@
 
+
 version: 1
 
 project_file_install_config:
   root_system_file: 
     from: Root/CODESQUAD.md
     dist: ${Project}/CODESQUAD.md
-  entities:
-    from: Root/design/registry/entities.yaml
-    dist: ${Project}/design/registry/entities.yaml
-  design_system_file: 
-    from: Root/design/CODESQUAD.md
-    dist: ${Project}/design/CODESQUAD.md
+  design_dir:
+    from: Root/design
+    dist: ${Project}/design
   codesquad_system_file: 
     from: Root/.codesquad/CODESQUAD.md
     dist: ${Project}/.codesquad/CODESQUAD.md
@@ -23,3 +21,4 @@ project_file_install_config:
   root_docs_dir:
     from: Root/docs
     dist: ${Project}/docs
+

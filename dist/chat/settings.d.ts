@@ -11,6 +11,10 @@ export interface UserSettings {
     hasCraftConfirmed: boolean;
     /** Whether streaming output is enabled (P3.1). */
     streamingEnabled: boolean;
+    /** CLI智能增强 — 语义提取/过滤的总开关。关闭时所有语义功能不可用。 */
+    cliSmartEnhancement: boolean;
+    /** 单次请求最大生成百分比 — 占模型最大上下文的百分比 (30-90)，默认 50。同时控制上下文窗口和生成上限。 */
+    maxGenerationPercent: number;
     /** 语义上下文检索配置 */
     semanticContext: SemanticContextConfig;
 }

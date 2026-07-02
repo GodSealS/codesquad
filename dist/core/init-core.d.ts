@@ -13,6 +13,9 @@ export interface InitOptions {
 }
 /**
  * Initialize CodeSquad in a project directory.
+ *
+ * Without --tools: install project config files only (CODESQUAD.md, etc.)
+ * With    --tools: full init — generate agents/skills + install project files
  */
 export declare function initProject(options: InitOptions): Promise<void>;
 /**

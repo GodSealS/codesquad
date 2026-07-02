@@ -124,8 +124,8 @@ ${chalk.dim('Storage:')}
     // ── init ───────────────────────────────────────
     program
         .command('init [path]')
-        .description('Initialize CodeSquad in a project')
-        .option('--tools <tools>', 'Comma-separated tool list (e.g., codebuddy,claude,codex)')
+        .description('Initialize CodeSquad in a project (project files only when --tools omitted)')
+        .option('--tools <tools>', 'Comma-separated tool list for full agent/skill generation')
         .option('--force', 'Force overwrite existing files')
         .action(async (targetPath, options) => {
         await handleInit(targetPath, options);

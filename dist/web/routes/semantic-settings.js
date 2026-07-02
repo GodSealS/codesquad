@@ -53,11 +53,11 @@ export async function handleSemanticSettings(req, res, method) {
                     return;
                 }
             }
-            if (partial.contextMessageLimit !== undefined) {
-                partial.contextMessageLimit = Math.max(5, Math.min(100, partial.contextMessageLimit));
+            if (partial.similarityThresholdPercent !== undefined) {
+                partial.similarityThresholdPercent = Math.max(1, Math.min(95, partial.similarityThresholdPercent));
             }
-            if (partial.similarityThreshold !== undefined) {
-                partial.similarityThreshold = Math.max(0.1, Math.min(0.95, partial.similarityThreshold));
+            if (partial.queryContextLength !== undefined) {
+                partial.queryContextLength = Math.max(5, Math.min(20, partial.queryContextLength));
             }
             if (partial.routingThreshold !== undefined) {
                 partial.routingThreshold = Math.max(0.2, Math.min(0.95, partial.routingThreshold));
@@ -85,8 +85,8 @@ function deepMerge(base, partial) {
             type: partial.embeddingModel?.type ?? base.embeddingModel.type,
             modelId: partial.embeddingModel?.modelId ?? base.embeddingModel.modelId,
         },
-        contextMessageLimit: partial.contextMessageLimit ?? base.contextMessageLimit,
-        similarityThreshold: partial.similarityThreshold ?? base.similarityThreshold,
+        similarityThresholdPercent: partial.similarityThresholdPercent ?? base.similarityThresholdPercent,
+        queryContextLength: partial.queryContextLength ?? base.queryContextLength,
         routingThreshold: partial.routingThreshold ?? base.routingThreshold,
         features: {
             semanticFilter: partial.features?.semanticFilter ?? base.features.semanticFilter,

@@ -23,6 +23,7 @@ export declare function setProjectRoot(root: string): void;
  *   1. CODESQUAD_HOME env var (tests / custom override)
  *   2. _projectRoot/.codesquad  (project-scoped, set by setProjectRoot)
  *   3. ~/.codesquad             (fallback, no project root set)
+ *   4. os.tmpdir()/.codesquad   (ultimate fallback — always writable)
  */
 export declare function codesquadHome(): string;
 export declare function sessionDir(): string;

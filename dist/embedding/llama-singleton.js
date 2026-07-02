@@ -6,10 +6,16 @@
  *
  * Fix: Bug 2 — 消除 local.ts / summarizer.ts 重复定义的 _getLlamaPromise
  */
+import { isBunCompiled } from '../embedded/runtime.js';
 let _getLlamaPromise = null;
 export async function getLlamaOnce() {
     if (!_getLlamaPromise) {
-        _getLlamaPromise = import('node-llama-cpp').then(m => m.getLlama());
+        if (isBunCompiled) {
+            _getLlamaPromise = Promise.reject(new Error('node-llama-cpp is not available in the compiled binary (use online summarizer)'));
+        }
+        else {
+            _getLlamaPromise = import('node-llama-cpp').then(m => m.getLlama());
+        }
     }
     return _getLlamaPromise;
 }

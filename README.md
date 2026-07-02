@@ -76,7 +76,11 @@
 > **前置要求**：[Git](https://git-scm.com/) · [Node.js](https://nodejs.org/) ≥ 20.19.0 · npm ≥ 10
 
 ### 方法一：全局安装（推荐）
+```bash
+npm install -g @GodSealS/codesquad
+```
 
+### 方法二：自定义安装
 ```bash
 # 克隆仓库
 git clone https://github.com/GodSealS/codesquad.git
@@ -106,6 +110,13 @@ codesquad --version
 ```
 
 ---
+### 方法三：下载EXE版
+
+```bash
+exe 版是bun版本，不依赖nodejs，直接运行
+下载地址：https://github.com/GodSealS/codesquad/releases/tag/v1.0.1
+```
+
 ### 快速模型配置
 #### 终端设置
 设置源

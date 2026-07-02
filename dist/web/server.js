@@ -16,6 +16,7 @@ import { join, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { virtualExists, virtualReadFile, AICORE_ROOT, PKG_ROOT as VFS_PKG_ROOT } from '../embedded/virtual-fs.js';
 import { readEmbeddedFile, isBunCompiled } from '../embedded/runtime.js';
+import { loadSettings, saveSettings } from '../chat/settings.js';
 import { generateToken, checkAuth, handleLogin, setAuthEnabled } from './middleware/auth.js';
 import { handleSessions } from './routes/sessions.js';
 import { handleChatV2, handleChatStream, handlePermissionResponse } from './routes/chat-v2.js';
@@ -344,6 +345,14 @@ export async function startWebServer(options) {
                     await handleSemanticSettings(req, res, method ?? 'GET');
                     return;
                 }
+                if (reqPath === '/api/settings/cli-smart') {
+                    handleCliSmartEnhancement(req, res, method ?? 'GET');
+                    return;
+                }
+                if (reqPath === '/api/settings/max-gen-percent') {
+                    handleMaxGenPercent(req, res, method ?? 'GET');
+                    return;
+                }
                 if (reqPath === '/api/usage') {
                     await handleUsage(req, res, { projectRoot });
                     return;
@@ -421,5 +430,82 @@ export async function startWebServer(options) {
         console.log(`\n  ✅ Web Console started on http://${options.bind}:${options.port}`);
     });
     return { server, token, port: options.port };
+}
+// ── CLI智能增强 开关 API（模块作用域函数）──
+function readJsonBody(req) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => {
+            try {
+                resolve(JSON.parse(Buffer.concat(chunks).toString()));
+            }
+            catch (e) {
+                reject(e);
+            }
+        });
+        req.on('error', reject);
+    });
+}
+function handleCliSmartEnhancement(req, res, method) {
+    try {
+        if (method === 'GET') {
+            const s = loadSettings();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ cliSmartEnhancement: s.cliSmartEnhancement }));
+            return;
+        }
+        if (method === 'POST') {
+            readJsonBody(req).then(body => {
+                const val = body.cliSmartEnhancement === true;
+                saveSettings({ cliSmartEnhancement: val });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, cliSmartEnhancement: val }));
+            }).catch(() => {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+            });
+            return;
+        }
+        res.writeHead(405, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+    }
+    catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+    }
+}
+function handleMaxGenPercent(req, res, method) {
+    try {
+        if (method === 'GET') {
+            const s = loadSettings();
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ maxGenerationPercent: s.maxGenerationPercent }));
+            return;
+        }
+        if (method === 'POST') {
+            readJsonBody(req).then(body => {
+                let val = typeof body.maxGenerationPercent === 'number'
+                    ? Math.round(body.maxGenerationPercent) : 50;
+                if (val < 30)
+                    val = 30;
+                if (val > 90)
+                    val = 90;
+                saveSettings({ maxGenerationPercent: val });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, maxGenerationPercent: val }));
+            }).catch(() => {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+            });
+            return;
+        }
+        res.writeHead(405, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+    }
+    catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+    }
 }
 //# sourceMappingURL=server.js.map

@@ -95,18 +95,18 @@ export interface SummarizerProvider {
     dispose(): void;
 }
 export interface SemanticContextConfig {
-    /** 全局总开关 */
+    /** 全局总开关（CLI智能增强必须同时开启才生效） */
     enabled: boolean;
     /** Embedding 模型配置 */
     embeddingModel: {
         type: EmbeddingBackend;
         modelId?: string;
     };
-    /** 语义过滤保留消息数上限 */
-    contextMessageLimit: number;
-    /** 语义过滤相似度阈值 */
-    similarityThreshold: number;
-    /** 路由相似度阈值 */
+    /** 语义过滤相似度百分比 (0-100)，默认 35（内部转换为 0.35 的 cosine 阈值） */
+    similarityThresholdPercent: number;
+    /** 匹配源上下文条数 — 用于查询向量的最近 N 条消息，同时也是语义过滤激活门槛 (5-20)，默认 5 */
+    queryContextLength: number;
+    /** 路由相似度阈值 [0, 1]（内部使用，不暴露百分比） */
     routingThreshold: number;
     /** 功能级开关 */
     features: SemanticFeatures;

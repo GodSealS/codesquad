@@ -125,10 +125,12 @@ let instanceConfigKey = null;
 // ── 公共 API ──
 /**
  * 🔧 Fix C: 语义检索总开关。
+ * CLI智能增强 + semanticContext.enabled 双重门控。
  * 为 false 时所有 embedding 操作应短路。
  */
 export function isSemanticEnabled() {
-    return loadSettings().semanticContext.enabled;
+    const s = loadSettings();
+    return s.cliSmartEnhancement && s.semanticContext.enabled;
 }
 /**
  * 获取全局单例 EmbeddingProvider。

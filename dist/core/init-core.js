@@ -16,11 +16,15 @@ import { writeLock } from './lockfile.js';
 import { loadOrInitModelsConfig, writeModelsConfigTemplate } from './models.js';
 import { AICORE_CONTENT_ROOT, CLI_PACKAGE_ROOT, PROJECT_INSTALL_CONFIG_PATH, isEmbeddedMode, readAicoreFile, readAicoreDir } from './paths.js';
 import { injectMcpServerConfig } from '../commands/mcp.js';
-import { readYaml } from '../utils/yaml.js';
+import { parse as parseYaml } from 'yaml';
+import { readEmbeddedFile, readEmbeddedDir } from '../embedded/runtime.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 /**
  * Initialize CodeSquad in a project directory.
+ *
+ * Without --tools: install project config files only (CODESQUAD.md, etc.)
+ * With    --tools: full init — generate agents/skills + install project files
  */
 export async function initProject(options) {
     const targetPath = pathResolve(options.targetPath || '.');
@@ -28,7 +32,17 @@ export async function initProject(options) {
     // Resolve which tools to bind
     const toolIds = resolveTools(options.tools);
     if (toolIds.length === 0) {
-        logger.error('No tools specified. Use --tools codebuddy,claude or --tools all');
+        // No tools specified → install project files only (lightweight init)
+        logger.info(`Target: ${targetPath}`);
+        logger.info('Mode:  project-files-only (use --tools <tool> for full init)');
+        mkdirSync(targetPath, { recursive: true });
+        const count = installProjectFiles(targetPath, options.force);
+        if (count > 0) {
+            logger.success(`Installed ${count} project file(s)`);
+        }
+        else {
+            logger.warn('No project files installed — config may be empty');
+        }
         return;
     }
     logger.info(`Target: ${targetPath}`);
@@ -148,11 +162,27 @@ function resolveTools(tools) {
  * Existing files are skipped unless `force` is true.
  */
 export function installProjectFiles(targetPath, force) {
-    if (!existsSync(PROJECT_INSTALL_CONFIG_PATH)) {
+    // ── Load config: try embedded first, then disk ──
+    const CONFIG_EMBEDDED_KEY = 'Config/project_file_install_config.yaml';
+    let configRaw = readEmbeddedFile(CONFIG_EMBEDDED_KEY);
+    if (configRaw === null && existsSync(PROJECT_INSTALL_CONFIG_PATH)) {
+        try {
+            configRaw = readFileSync(PROJECT_INSTALL_CONFIG_PATH, 'utf-8');
+        }
+        catch { /* fall through */ }
+    }
+    if (!configRaw) {
         logger.warn('project_file_install_config.yaml not found');
         return 0;
     }
-    const config = readYaml(PROJECT_INSTALL_CONFIG_PATH);
+    let config = null;
+    try {
+        config = parseYaml(configRaw);
+    }
+    catch {
+        logger.warn('Failed to parse project_file_install_config.yaml');
+        return 0;
+    }
     if (!config?.project_file_install_config) {
         logger.warn('No project_file_install_config entries found');
         return 0;
@@ -163,48 +193,47 @@ export function installProjectFiles(targetPath, force) {
         const relPath = entry.from.replace(/^Root\//, '');
         const srcPath = join(rootDir, relPath);
         const destPath = entry.dist.replace(/\$\{Project\}/g, targetPath);
-        // ── Embedded mode: read .codesquad files from memory ──
-        if (isEmbeddedMode() && relPath.startsWith('.codesquad/')) {
-            const aicoreRel = relPath.replace(/^.codesquad\//, '');
-            // Check if it's a directory
-            const dirEntries = readAicoreDir(aicoreRel);
-            if (dirEntries.length > 0) {
-                // Directory — recursive copy from embedded
-                if (existsSync(destPath) && !force) {
-                    logger.info(`"${name}" already exists — skipping`);
-                    continue;
-                }
-                const dirCount = walkCopyEmbeddedDir(aicoreRel, destPath, force);
-                logger.info(`Installed "${name}" (${dirCount} files)`);
-                count += dirCount;
+        // 🔧 Fix: 始终先尝试嵌入数据，再回退磁盘。解决两个问题：
+        //   1. isEmbeddedMode() 在某些 Bun 版本下可能误判为 false
+        //   2. .codesquad/ 根文件的嵌入 key 不含 .codesquad/ 前缀
+        //      (embed-aicore.ts 把 CODESQUAD.md/settings.json 存为顶层 key)
+        const normRel = relPath.replace(/\\/g, '/');
+        // ── Try embedded file (full path + stripped .codesquad/ prefix) ──
+        let content = readEmbeddedFile(normRel);
+        if (content === null && normRel.startsWith('.codesquad/')) {
+            content = readEmbeddedFile(normRel.slice('.codesquad/'.length));
+        }
+        if (content !== null) {
+            if (existsSync(destPath) && !force) {
+                logger.info(`"${name}" already exists — skipping`);
+                continue;
             }
-            else {
-                // Single file
-                const content = readAicoreFile(aicoreRel);
-                if (content === null) {
-                    logger.warn(`Source not found (embedded) for "${name}": ${aicoreRel}`);
-                    continue;
-                }
-                if (existsSync(destPath) && !force) {
-                    logger.info(`"${name}" already exists — skipping`);
-                    continue;
-                }
-                mkdirSync(dirname(destPath), { recursive: true });
-                writeFileSync(destPath, content, 'utf-8');
-                logger.info(`Installed "${name}"`);
-                count++;
-            }
+            mkdirSync(dirname(destPath), { recursive: true });
+            writeFileSync(destPath, content, 'utf-8');
+            logger.info(`Installed "${name}"`);
+            count++;
             continue;
         }
-        // ── Dev mode / non-.codesquad files: read from disk ──
+        // ── Try embedded directory ──
+        let dirEntries = readEmbeddedDir(normRel);
+        if (dirEntries.length > 0) {
+            if (existsSync(destPath) && !force) {
+                logger.info(`"${name}" already exists — skipping`);
+                continue;
+            }
+            const dirCount = walkCopyEmbeddedTree(normRel, destPath, force);
+            logger.info(`Installed "${name}" (${dirCount} files)`);
+            count += dirCount;
+            continue;
+        }
+        // ── Fallback: disk ──
         if (!existsSync(srcPath)) {
-            logger.warn(`Source not found for "${name}": ${srcPath}`);
+            logger.warn(`Source not found for "${name}": ${normRel}`);
             continue;
         }
         const srcStat = statSync(srcPath);
         const isDir = srcStat.isDirectory();
         if (isDir) {
-            // Directory: recursively copy contents (skip if dest exists and not forced)
             if (existsSync(destPath) && !force) {
                 logger.info(`"${name}" already exists — skipping`);
                 continue;
@@ -214,7 +243,6 @@ export function installProjectFiles(targetPath, force) {
             count += dirCount;
         }
         else {
-            // Single file
             if (existsSync(destPath) && !force) {
                 logger.info(`"${name}" already exists — skipping`);
                 continue;
@@ -472,6 +500,43 @@ function walkCopyEmbeddedDir(relativeDir, destDir, force) {
                 const destPath = join(destDir, entry);
                 if (!existsSync(destPath) || force) {
                     mkdirSync(dirname(destPath), { recursive: true });
+                    writeFileSync(destPath, content, 'utf-8');
+                    count++;
+                }
+            }
+        }
+    }
+    return count;
+}
+/**
+ * Recursively copy a directory tree from embedded data to disk.
+ * Works with project-root embedded paths (e.g. "docs/", "design/", "Config/").
+ * Unlike walkCopyEmbeddedDir, this reads directly from EMBEDDED_FILES/DIRS.
+ *
+ * @param relativePrefix  Path prefix in embedded data (e.g. "docs")
+ * @param destDir         Absolute disk path to write to
+ * @param force           Overwrite existing files
+ */
+function walkCopyEmbeddedTree(relativePrefix, destDir, force) {
+    const entries = readEmbeddedDir(relativePrefix);
+    if (entries.length === 0)
+        return 0;
+    let count = 0;
+    mkdirSync(destDir, { recursive: true });
+    for (const entry of entries) {
+        const subPath = `${relativePrefix}/${entry}`;
+        const subEntries = readEmbeddedDir(subPath);
+        if (subEntries.length > 0) {
+            // Directory — recurse
+            const destSub = join(destDir, entry);
+            count += walkCopyEmbeddedTree(subPath, destSub, force);
+        }
+        else {
+            // File — read from embedded and write to disk
+            const content = readEmbeddedFile(subPath);
+            if (content !== null) {
+                const destPath = join(destDir, entry);
+                if (!existsSync(destPath) || force) {
                     writeFileSync(destPath, content, 'utf-8');
                     count++;
                 }

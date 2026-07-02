@@ -6,7 +6,7 @@
  *
  * Step 3 / 18 执行步骤
  */
-import { createWriteStream, existsSync, statSync, mkdirSync, readFileSync } from 'fs';
+import { createWriteStream, existsSync, statSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { createHash } from 'crypto';
 import { codesquadHome } from '../chat/storage.js';
@@ -74,28 +74,31 @@ function buildBgeM3Urls() {
 let _cachedSHA256 = null;
 // ── Qwen Summarizer 模型常量 ──
 const QWEN_MODEL_NAME = 'qwen2.5';
-const QWEN_FILENAME = 'qwen2.5-3b-instruct-Q4_K_M.gguf';
-const QWEN_DOWNLOAD_URL = 'https://github.com/GodSealS/codesquad/releases/download/GameAgentModel/qwen2.5-3b-instruct-Q4_K_M.gguf';
+const QWEN_FILENAME = 'Qwen2.5-3B-Instruct-Q4_K_M.gguf';
+const QWEN_DOWNLOAD_URL = 'https://github.com/GodSealS/codesquad/releases/download/GameAgentModel/Qwen2.5-3B-Instruct-Q4_K_M.gguf';
 // 轻量模式
-const QWEN_LITE_FILENAME = 'qwen2.5-1.5b-instruct-Q4_K_M.gguf';
+const QWEN_LITE_FILENAME = 'Qwen2.5-1.5B-Instruct-Q4_K_M.gguf';
 const QWEN_LITE_DOWNLOAD_URL = 'https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf';
 const QWEN_MIRROR_URLS = [
+    // ── ModelScope（国内最快）──
+    'https://modelscope.cn/models/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/master/Qwen2.5-3B-Instruct-Q4_K_M.gguf',
+    'https://www.modelscope.cn/models/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/master/Qwen2.5-3B-Instruct-Q4_K_M.gguf',
     // ── GitHub 加速代理 ──
     ...['ghfast.top', 'gh.con.sh', 'ghp.ci'].map(p => `https://${p}/${QWEN_DOWNLOAD_URL}`),
     // ── HuggingFace 镜像 ──
     'https://hf-mirror.com/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf',
-    'https://cdn-lfs-us-1.huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf',
-    'https://cdn-lfs-eu-1.huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf',
-    'https://hf.zhangkai.xin/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf',
+    'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
+    'https://hf-mirror.com/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf',
     // ── GitHub 直连（兜底）──
     QWEN_DOWNLOAD_URL,
 ];
 const QWEN_LITE_MIRROR_URLS = [
+    'https://modelscope.cn/models/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/master/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
+    'https://www.modelscope.cn/models/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/master/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
     QWEN_LITE_DOWNLOAD_URL,
     'https://hf-mirror.com/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
-    'https://cdn-lfs-us-1.huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
-    'https://cdn-lfs-eu-1.huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
-    'https://hf.zhangkai.xin/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf',
+    'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
+    'https://hf-mirror.com/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
 ];
 // ── 路径 ──
 export function modelDir() {
@@ -125,11 +128,32 @@ export function qwenModelPath() {
     const filename = liteMode ? QWEN_LITE_FILENAME : QWEN_FILENAME;
     return join(qwenModelDir(), filename);
 }
+/** 下载中哨兵文件路径 — 存在表示模型正在下载，不完整不可用 */
+function downloadLockPath(modelPath) {
+    return modelPath + '.downloading';
+}
+/** 标记开始下载 */
+function lockDownload(targetPath) {
+    writeFileSync(downloadLockPath(targetPath), JSON.stringify({
+        startedAt: new Date().toISOString(),
+        pid: process.pid,
+    }));
+}
+/** 下载完成 + 校验通过后解锁 */
+function unlockDownload(targetPath) {
+    const lockPath = downloadLockPath(targetPath);
+    try {
+        unlinkSync(lockPath);
+    }
+    catch { /* already gone */ }
+}
 export function getModelStatus() {
     const path = modelPath();
     const exists = existsSync(path);
+    // 下载中哨兵文件：存在 = 正在下载 / 下载中断，模型不完整
+    const downloading = existsSync(downloadLockPath(path));
     return {
-        downloaded: exists,
+        downloaded: exists && !downloading,
         size: exists ? statSync(path).size : 0,
         path,
         verified: false, // 由 verifyModel 单独设置
@@ -143,6 +167,8 @@ export async function downloadModel(onProgress) {
     if (!existsSync(targetDir)) {
         mkdirSync(targetDir, { recursive: true });
     }
+    // 标记开始下载 — 用于状态查询区分“下载中”和“已完成”
+    lockDownload(targetPath);
     // 获取已下载大小（断点续传）
     let downloadedBytes = 0;
     if (existsSync(targetPath)) {
@@ -153,6 +179,8 @@ export async function downloadModel(onProgress) {
     for (const url of urls) {
         try {
             await downloadFromUrl(url, targetPath, downloadedBytes, onProgress);
+            // 🔧 Bug Fix: 下载成功后清除锁文件，否则 getModelStatus().downloaded 永远为 false
+            unlockDownload(targetPath);
             return; // 成功
         }
         catch (e) {
@@ -216,7 +244,12 @@ async function downloadFromUrl(url, targetPath, resumeFrom, onProgress) {
             const { done, value } = await reader.read();
             if (done)
                 break;
-            writeStream.write(Buffer.from(value));
+            const buffer = Buffer.from(value);
+            // 🔧 Bug Fix: 处理写流背压 — 当 write() 返回 false 时等待 drain 事件
+            // 对于 1-2GB 的 GGUF 文件，忽略背压可能导致数据损坏
+            if (!writeStream.write(buffer)) {
+                await new Promise(resolve => writeStream.once('drain', resolve));
+            }
             downloaded += value.length;
             // 节流进度回调（每 100ms 报告一次）
             const now = Date.now();
@@ -312,15 +345,24 @@ export async function ensureModel() {
     if (status.downloaded) {
         // 校验已有文件
         const valid = await verifyModel();
-        if (valid)
+        if (valid) {
+            unlockDownload(status.path);
             return true;
-        // 校验失败，重新下载
+        }
+        // 校验失败，清除损坏文件和锁，重新下载
         console.warn('[Downloader] model verification failed, re-downloading');
+        try {
+            unlinkSync(status.path);
+        }
+        catch { /* gone */ }
     }
     // 下载模型
     await downloadModel();
     // 校验下载结果
-    return verifyModel();
+    const valid = await verifyModel();
+    if (valid)
+        unlockDownload(modelPath());
+    return valid;
 }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Qwen Summarizer 模型
@@ -329,8 +371,9 @@ export async function ensureModel() {
 export function getQwenModelStatus() {
     const path = qwenModelPath();
     const exists = existsSync(path);
+    const downloading = existsSync(downloadLockPath(path));
     return {
-        downloaded: exists,
+        downloaded: exists && !downloading,
         size: exists ? statSync(path).size : 0,
         path,
         verified: false,
@@ -343,6 +386,7 @@ export async function downloadQwenModel(onProgress) {
     if (!existsSync(targetDir)) {
         mkdirSync(targetDir, { recursive: true });
     }
+    lockDownload(targetPath);
     let downloadedBytes = 0;
     if (existsSync(targetPath)) {
         downloadedBytes = statSync(targetPath).size;
@@ -352,6 +396,8 @@ export async function downloadQwenModel(onProgress) {
     for (const url of urls) {
         try {
             await downloadFromUrl(url, targetPath, downloadedBytes, onProgress);
+            // 🔧 Bug Fix: 下载成功后清除锁文件，否则 getQwenModelStatus().downloaded 永远为 false
+            unlockDownload(targetPath);
             return;
         }
         catch (e) {
@@ -371,22 +417,32 @@ async function fetchQwenExpectedSHA256() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         const liteMode = process.env.CODESQUAD_LITE === '1';
-        const repoName = liteMode
-            ? 'bartowski/Qwen2.5-1.5B-Instruct-GGUF'
-            : 'bartowski/Qwen2.5-3B-Instruct-GGUF';
-        const response = await fetch(`https://huggingface.co/api/models/${repoName}`, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (!response.ok)
-            return null;
-        const data = (await response.json());
         const filename = liteMode ? QWEN_LITE_FILENAME : QWEN_FILENAME;
-        const file = data?.siblings?.find(s => s.rfilename === filename);
-        const sha256 = file?.sha256 ?? file?.lfs?.sha256;
-        if (sha256) {
-            _cachedQwenSHA256 = sha256;
-            console.log(`[Downloader] fetched expected Qwen SHA256: ${sha256}`);
-            return sha256;
+        // 🔧 Bug Fix: 尝试多个 HF repo 获取 SHA256
+        // Bartowski 是主要 GGUF 发布者，Qwen 官方 repo 作为备选
+        const repoNames = liteMode
+            ? ['bartowski/Qwen2.5-1.5B-Instruct-GGUF', 'Qwen/Qwen2.5-1.5B-Instruct-GGUF']
+            : ['bartowski/Qwen2.5-3B-Instruct-GGUF', 'Qwen/Qwen2.5-3B-Instruct-GGUF'];
+        for (const repoName of repoNames) {
+            try {
+                const response = await fetch(`https://huggingface.co/api/models/${repoName}`, { signal: controller.signal });
+                if (!response.ok)
+                    continue;
+                const data = (await response.json());
+                const file = data?.siblings?.find(s => s.rfilename === filename);
+                const sha256 = file?.sha256 ?? file?.lfs?.sha256;
+                if (sha256) {
+                    clearTimeout(timeoutId);
+                    _cachedQwenSHA256 = sha256;
+                    console.log(`[Downloader] fetched expected Qwen SHA256 from ${repoName}: ${sha256}`);
+                    return sha256;
+                }
+            }
+            catch {
+                continue; // 尝试下一个 repo
+            }
         }
+        clearTimeout(timeoutId);
     }
     catch {
         // HuggingFace API 不可达，跳过在线校验
@@ -413,6 +469,27 @@ export async function verifyQwenModel() {
     if (!valid) {
         console.warn(`[Downloader] Qwen SHA256 mismatch!\n  Expected: ${expected}\n  Got:      ${computed}`);
     }
+    return valid;
+}
+/** 确保 Qwen 模型已下载并校验。校验失败自动重下。 */
+export async function ensureQwenModel() {
+    const status = getQwenModelStatus();
+    if (status.downloaded) {
+        const valid = await verifyQwenModel();
+        if (valid) {
+            unlockDownload(status.path);
+            return true;
+        }
+        console.warn('[Downloader] Qwen model verification failed, re-downloading');
+        try {
+            unlinkSync(status.path);
+        }
+        catch { /* gone */ }
+    }
+    await downloadQwenModel();
+    const valid = await verifyQwenModel();
+    if (valid)
+        unlockDownload(qwenModelPath());
     return valid;
 }
 //# sourceMappingURL=downloader.js.map

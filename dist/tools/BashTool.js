@@ -15,6 +15,7 @@
  * Phase 2.0
  */
 import { spawn } from 'child_process';
+import { existsSync } from 'fs';
 import { writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -87,12 +88,21 @@ function detectShell() {
     if (_detectedShell)
         return _detectedShell;
     if (process.platform === 'win32') {
-        if (process.env.PATHEXT?.includes('.ps1') || process.env.ProgramFiles) {
-            _detectedShell = 'powershell.exe';
+        const sysRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+        // PowerShell 5.1 (bundled with Windows)
+        const ps5 = join(sysRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+        if (existsSync(ps5)) {
+            _detectedShell = ps5;
+            return ps5;
         }
-        else {
-            _detectedShell = 'cmd.exe';
+        // pwsh 7 (optional install)
+        const ps7 = join(process.env.ProgramFiles || 'C:\\Program Files', 'PowerShell', '7', 'pwsh.exe');
+        if (existsSync(ps7)) {
+            _detectedShell = ps7;
+            return ps7;
         }
+        // Fallback: cmd.exe always exists at System32
+        _detectedShell = join(sysRoot, 'System32', 'cmd.exe');
     }
     else {
         _detectedShell = process.env.SHELL || '/bin/sh';

@@ -6,14 +6,14 @@
  *
  * Phase 1.3
  */
-import { readFileSync, statSync, realpathSync } from 'fs';
+import { readFileSync, statSync, existsSync, realpathSync } from 'fs';
 import { extname, resolve, join } from 'path';
 import { z } from 'zod';
 import { buildTool } from './types.js';
 import { recordFileRead, getSessionCache } from './file-state.js';
 import { writeDiskCacheAsync } from '../cache/disk-cache.js';
 import { fileExists, fileRead } from '../embedded/virtual-fs.js';
-import { isProtectedAicorePath } from '../core/paths.js';
+import { isProtectedAicorePath, CODESQUAD_USER_ROOT } from '../core/paths.js';
 // ── Schema ──
 export const FileReadInputSchema = z.object({
     file_path: z.string().min(1).describe('Path to the file to read (relative to project root)'),
@@ -29,6 +29,33 @@ const DEVICE_FILES = new Set([
     '/dev/null', '/dev/zero', '/dev/random', '/dev/urandom',
     '/dev/stdin', '/dev/stdout', '/dev/stderr',
 ]);
+// ── .codesquad/ path resolution ──
+/**
+ * Resolve a .codesquad/ file path with 3-tier fallback:
+ *   1. ${project}/.codesquad/<relativePath>   — project-level
+ *   2. ${user}/.codesquad/<relativePath>       — user-level (~)
+ *   3. ${CLI}/.codesquad/<relativePath>        — CLI package (aicoreDir)
+ *
+ * Returns the resolved absolute path, or null if not found in any tier.
+ * Uses fileExists() which is virtual-fs aware (handles embedded content).
+ */
+function resolveCodesquadPath(relativePath, projectRoot, aicoreDir) {
+    // Tier 1: Project
+    const projectPath = join(projectRoot, '.codesquad', relativePath);
+    if (fileExists(projectPath))
+        return projectPath;
+    // Tier 2: User (~/.codesquad/)
+    const userPath = join(CODESQUAD_USER_ROOT, relativePath);
+    if (fileExists(userPath))
+        return userPath;
+    // Tier 3: CLI package (.codesquad bundled with the CLI)
+    if (aicoreDir) {
+        const aicorePath = join(aicoreDir, relativePath);
+        if (fileExists(aicorePath))
+            return aicorePath;
+    }
+    return null;
+}
 // ── Tool ──
 export const FileReadTool = buildTool({
     name: 'Read',
@@ -70,20 +97,20 @@ export const FileReadTool = buildTool({
     },
     validateInput(input, context) {
         let filePath = resolve(context.projectRoot, input.file_path);
-        // If not found in project root and path starts with .codesquad/, try aicoreDir fallback
-        // Use fileExists (virtual-fs aware) for both the initial check and fallback
-        if (!fileExists(filePath) && context.aicoreDir && !input.file_path.startsWith('..')) {
-            // Strip leading .codesquad/ prefix since aicoreDir already points to the .codesquad directory
+        // ── 3-tier fallback for .codesquad/ paths ──
+        // Project root → User home → CLI package
+        const isCodesquadPath = input.file_path.startsWith('.codesquad/') || input.file_path.startsWith('.codesquad\\');
+        if (!fileExists(filePath) && isCodesquadPath && !input.file_path.startsWith('..')) {
             const relPath = input.file_path.replace(/^.codesquad[\\/]/, '');
-            const aicorePath = join(context.aicoreDir, relPath);
-            if (fileExists(aicorePath)) {
-                filePath = aicorePath;
-            }
+            const resolved = resolveCodesquadPath(relPath, context.projectRoot, context.aicoreDir);
+            if (resolved)
+                filePath = resolved;
         }
-        // Check outside both project root and aicore dir
+        // Bound-check: must be within project, user codesquad, or CLI aicore
         const isWithinProject = filePath.startsWith(context.projectRoot);
+        const isWithinUserCodesquad = CODESQUAD_USER_ROOT ? filePath.startsWith(CODESQUAD_USER_ROOT) : false;
         const isWithinAicore = context.aicoreDir ? filePath.startsWith(context.aicoreDir) : false;
-        if (!isWithinProject && !isWithinAicore && !input.file_path.startsWith('..')) {
+        if (!isWithinProject && !isWithinUserCodesquad && !isWithinAicore && !input.file_path.startsWith('..')) {
             return {
                 valid: false,
                 message: 'File path must be within the project directory.',
@@ -110,22 +137,33 @@ export const FileReadTool = buildTool({
                 errorCode: 'ENOENT',
             };
         }
+        // 🔧 Fix: 区分虚拟文件和磁盘文件。Bun 编译模式下 .codesquad/ 路径
+        // 不是 B:\~BUN\ 而是 B:\.codesquad\ → 不能用字符串匹配判断。
+        // fileExists() 返回 true 但 existsSync() 返回 false → 虚拟文件，跳过 symlink/stat。
+        const isRealDiskFile = existsSync(filePath);
         // Resolve symlinks to prevent path traversal (symlink → /etc/passwd bypass)
-        try {
-            const realPath = realpathSync(filePath);
-            const safe = context.aicoreDir ? realPath.startsWith(context.projectRoot) || realPath.startsWith(context.aicoreDir) : realPath.startsWith(context.projectRoot);
-            if (!safe) {
-                return {
-                    valid: false,
-                    message: 'File path resolves outside the project directory (symlink traversal).',
-                    errorCode: 'PATH_OUTSIDE_PROJECT',
-                };
+        // Only for real disk files — virtual/embedded files have no symlink risk.
+        const isUserPath = CODESQUAD_USER_ROOT ? filePath.startsWith(CODESQUAD_USER_ROOT) : false;
+        if (isRealDiskFile && !isUserPath) {
+            try {
+                const realPath = realpathSync(filePath);
+                const safe = (isWithinProject && realPath.startsWith(context.projectRoot))
+                    || (isWithinAicore && context.aicoreDir && realPath.startsWith(context.aicoreDir));
+                if (!safe) {
+                    return {
+                        valid: false,
+                        message: 'File path resolves outside the project directory (symlink traversal).',
+                        errorCode: 'PATH_OUTSIDE_PROJECT',
+                    };
+                }
+            }
+            catch {
+                return { valid: false, message: 'Broken symlink.', errorCode: 'ENOENT' };
             }
         }
-        catch {
-            return { valid: false, message: 'Broken symlink.', errorCode: 'ENOENT' };
-        }
-        // Check is file
+        // stat only for real disk files — virtual files are always regular
+        if (!isRealDiskFile)
+            return { valid: true };
         const stat = statSync(filePath);
         if (!stat.isFile()) {
             return { valid: false, message: 'Path is not a file.', errorCode: 'NOT_A_FILE' };
@@ -146,12 +184,13 @@ export const FileReadTool = buildTool({
     },
     async call(input, context) {
         let filePath = resolve(context.projectRoot, input.file_path);
-        // Fallback to aicoreDir if not found in project root (virtual-fs aware)
-        if (!fileExists(filePath) && context.aicoreDir && !input.file_path.startsWith('..')) {
+        // ── 3-tier fallback for .codesquad/ paths ──
+        const isCodesquadPath = input.file_path.startsWith('.codesquad/') || input.file_path.startsWith('.codesquad\\');
+        if (!fileExists(filePath) && isCodesquadPath && !input.file_path.startsWith('..')) {
             const relPath = input.file_path.replace(/^.codesquad[\\/]/, '');
-            const aicorePath = join(context.aicoreDir, relPath);
-            if (fileExists(aicorePath))
-                filePath = aicorePath;
+            const resolved = resolveCodesquadPath(relPath, context.projectRoot, context.aicoreDir);
+            if (resolved)
+                filePath = resolved;
         }
         const ext = extname(filePath).toLowerCase();
         // ── Image files ──
@@ -162,24 +201,30 @@ export const FileReadTool = buildTool({
         // Use virtual-fs for reading (supports embedded .codesquad in published builds)
         const content = fileRead(filePath);
         const allLines = content.split('\n');
+        // Detect whether the file lives on real disk (needed for stat/mtime)
+        // 🔧 Fix: 用 existsSync 而非 ~BUN/ 字符串匹配，覆盖 B:\.codesquad\ 等虚拟路径
+        const onRealDisk = existsSync(filePath);
         // Detect binary
         if (isBinary(allLines)) {
             // Try reading as image even if extension isn't standard
             if (IMAGE_EXTENSIONS.has(ext)) {
                 return readImageFile(filePath, input.file_path);
             }
+            const sizeStr = onRealDisk ? formatSize(statSync(filePath).size) : 'embedded';
             return {
                 toolCallId: '',
                 output: { lines: [], totalLines: allLines.length, filePath: input.file_path },
-                content: `[Binary file] Cannot display binary content. File: ${input.file_path} (${formatSize(statSync(filePath).size)})`,
+                content: `[Binary file] Cannot display binary content. File: ${input.file_path} (${sizeStr})`,
             };
         }
         // Record read for Read-then-Write enforcement
         recordFileRead(getSessionCache(), filePath, content);
         // Write to DiskCache (fire-and-forget, non-blocking)
         // write() already sets _accessedAt to Date.now(), no separate touch needed
-        const mtime = statSync(filePath).mtimeMs;
-        writeDiskCacheAsync(filePath, content, mtime, allLines);
+        if (onRealDisk) {
+            const mtime = statSync(filePath).mtimeMs;
+            writeDiskCacheAsync(filePath, content, mtime, allLines);
+        }
         // Paginate
         const offset = (input.offset ?? 1) - 1;
         const limit = input.limit ?? 200;

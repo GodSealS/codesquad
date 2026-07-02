@@ -49,25 +49,26 @@ export function registerTargets(targets) {
  * @returns 路由结果，或 null（使用默认 main agent）
  */
 export async function resolveAgent(userInput, explicitMention) {
-    // Level 1: 显式 @mention
+    // Level 1: 显式 @mention（无模型依赖）
     if (explicitMention) {
         const target = findTarget(explicitMention);
         if (target) {
             return { target, method: 'mention' };
         }
     }
-    // 🔧 Fix B: features.agentRouting=false → 跳过语义路由
-    if (!isSemanticEnabled())
-        return null;
+    // 🔧 Fix GATE: keywords 不需要模型，不应被 isSemanticEnabled() 阻塞
     const settings = loadSettings();
-    if (!settings.semanticContext.features.agentRouting)
-        return null;
-    // Level 2: keywords 快速匹配
+    const routingEnabled = settings.semanticContext.features.agentRouting;
+    // Level 2: keywords 快速匹配（始终可用）
     const keywordMatch = matchKeywords(userInput);
     if (keywordMatch) {
         return keywordMatch;
     }
-    // Level 3: 语义路由
+    // Level 3: 语义路由 — 需 CLI智能增强 + features.agentRouting
+    if (!isSemanticEnabled())
+        return null;
+    if (!routingEnabled)
+        return null;
     return semanticRoute(userInput, settings);
 }
 /**

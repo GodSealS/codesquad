@@ -181,27 +181,18 @@ function loadProjectGuidance(projectRoot, extraDirs, bare) {
     const dotCodesquadMd = join(projectRoot, '.codesquad', 'CODESQUAD.md');
     const projectRootMd = join(projectRoot, 'CODESQUAD.md');
     const codebuddyMd = join(projectRoot, 'CODEBUDDY.md');
-    let CODESQUADFound = false;
     for (const p of [dotCodesquadMd, projectRootMd]) {
         try {
             if (existsSync(p)) {
                 parts.push(resolveIncludes(readFileSync(p, 'utf-8'), dirname(p)));
-                CODESQUADFound = true;
                 break;
             }
         }
         catch { /* try next */ }
     }
-    // Fallback: CLI template from .codesquad (backward compat, rule 3)
-    if (!CODESQUADFound) {
-        const cliTemplate = join(projectRoot, '.codesquad', 'CODESQUAD.md');
-        try {
-            if (existsSync(cliTemplate)) {
-                parts.push(resolveIncludes(readFileSync(cliTemplate, 'utf-8'), dirname(cliTemplate)));
-            }
-        }
-        catch { /* optional */ }
-    }
+    // 🔧 Bug Fix: 移除冗余回退 — dotCodesquadMd (line 193) 已经在上面检查过，
+    // 这里再次检查同一路径毫无意义。保留注释说明历史上此为 CLI 模板兼容路径。
+    // (已移除：join(projectRoot, '.codesquad', 'CODESQUAD.md') 与上面重复)
     // CODEBUDDY.md: resolve @.codesquad/... includes to inline content
     try {
         parts.push(resolveIncludes(readFileSync(codebuddyMd, 'utf-8'), projectRoot));
@@ -285,13 +276,16 @@ export function getToneAndStyleSection() {
  */
 export function getEnvInfoSection() {
     return systemPromptSection('env_info', async (ctx) => {
-        return [
+        const lines = [
             '## Environment',
             `- OS: ${platform()} ${release()}`,
             `- Shell: ${process.env.SHELL || (platform() === 'win32' ? 'PowerShell' : 'bash')}`,
             `- Workspace: ${ctx.projectRoot}`,
             `- Date: ${new Date().toISOString().slice(0, 10)}`,
-        ].join('\n');
+        ];
+        // Prevent LLM from using Bun virtual paths (B:\~BUN\) as the project root
+        lines.push('- IMPORTANT: Use ONLY the "Workspace" path above as the project root.', '  Do NOT use virtual paths like B:\\, B:\\~BUN\\, or B:\\~BUN\\root\\.', '  All file paths (Read, Glob, Grep, Bash) must be relative to the Workspace.', '  Paths like "B:\\something", "B:\\AICore\\..." are INCORRECT — use the real Workspace.');
+        return lines.join('\n');
     });
 }
 /**

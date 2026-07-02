@@ -9,8 +9,7 @@
  * Step 3 / 18 执行步骤
  * 🔧 Migration: Qwen 状态从 Ollama API 查询改为 GGUF 文件存在性检测
  */
-import { existsSync } from 'fs';
-import { getModelStatus, downloadModel, qwenModelPath, getQwenModelStatus, downloadQwenModel, } from '../../embedding/downloader.js';
+import { getModelStatus, downloadModel, getQwenModelStatus, downloadQwenModel, verifyQwenModel, verifyModel, } from '../../embedding/downloader.js';
 // ── SSE 进度流下载 bge-m3 ──
 export async function handleDownloadEmbedding(_req, res) {
     // SSE headers
@@ -38,11 +37,16 @@ export async function handleDownloadEmbedding(_req, res) {
             if (progress.status === 'error') {
                 sendEvent('error', { message: progress.error });
             }
-            else if (progress.status === 'completed') {
-                sendEvent('done', { path: getModelStatus().path });
-            }
         });
-        sendEvent('done', { path: getModelStatus().path });
+        // 下载完成后校验完整性
+        const bgeVerified = await verifyModel();
+        sendEvent(bgeVerified ? 'verified' : 'verification_failed', {
+            path: getModelStatus().path,
+            status: bgeVerified ? 'verified' : 'verification_failed',
+            message: bgeVerified ? 'SHA256 verified' : 'SHA256 mismatch — file may be corrupted',
+        });
+        // 前端 onDone() 依赖 data.status === 'done'，必须在 data 里带 status 字段
+        sendEvent('done', { status: 'done', path: getModelStatus().path });
     }
     catch (e) {
         sendEvent('error', { message: e.message });
@@ -77,11 +81,16 @@ export async function handleDownloadQwen(_req, res) {
             if (progress.status === 'error') {
                 sendEvent('error', { message: progress.error });
             }
-            else if (progress.status === 'completed') {
-                sendEvent('done', { path: getQwenModelStatus().path });
-            }
         });
-        sendEvent('done', { path: getQwenModelStatus().path });
+        // 下载完成后校验完整性
+        const verified = await verifyQwenModel();
+        sendEvent(verified ? 'verified' : 'verification_failed', {
+            path: getQwenModelStatus().path,
+            status: verified ? 'verified' : 'verification_failed',
+            message: verified ? 'SHA256 verified' : 'SHA256 mismatch — file may be corrupted',
+        });
+        // 前端 onDone() 依赖 data.status === 'done'
+        sendEvent('done', { status: 'done', path: getQwenModelStatus().path });
     }
     catch (e) {
         sendEvent('error', { message: e.message });
@@ -91,22 +100,23 @@ export async function handleDownloadQwen(_req, res) {
     }
 }
 // ── 下载状态（含 Qwen 摘要模型检测）──
-/** 检测 Qwen Summarizer 模型：基于 GGUF 文件存在性（node-llama-cpp） */
-function checkQwenModel() {
-    const liteMode = process.env.CODESQUAD_LITE === '1';
-    const model = liteMode ? 'Qwen2.5-1.5B-Instruct' : 'Qwen2.5-3B-Instruct';
-    const exists = existsSync(qwenModelPath());
-    return { available: exists, model, liteMode };
-}
 export async function handleEmbeddingStatus(_req, res) {
     try {
         const bgeStatus = getModelStatus();
-        const qwenStatus = checkQwenModel();
+        const qwenRaw = getQwenModelStatus();
+        const liteMode = process.env.CODESQUAD_LITE === '1';
+        // 没有 .downloading 锁文件 → 模型已完整下载并通过校验
+        bgeStatus.verified = bgeStatus.downloaded;
+        const qwenStatus = {
+            available: qwenRaw.downloaded,
+            verified: qwenRaw.downloaded,
+            model: liteMode ? 'Qwen2.5-1.5B-Instruct' : 'Qwen2.5-3B-Instruct',
+            liteMode,
+            size: qwenRaw.size,
+            path: qwenRaw.path,
+        };
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            bge: bgeStatus,
-            qwen: qwenStatus,
-        }));
+        res.end(JSON.stringify({ bge: bgeStatus, qwen: qwenStatus }));
     }
     catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json' });

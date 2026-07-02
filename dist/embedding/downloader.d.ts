@@ -42,4 +42,6 @@ export declare function getQwenModelStatus(): ModelStatus;
 export declare function downloadQwenModel(onProgress?: ProgressCallback): Promise<void>;
 /** 🔧 Fix Bug 4: 验证 Qwen 模型 SHA256 完整性 */
 export declare function verifyQwenModel(): Promise<boolean>;
+/** 确保 Qwen 模型已下载并校验。校验失败自动重下。 */
+export declare function ensureQwenModel(): Promise<boolean>;
 //# sourceMappingURL=downloader.d.ts.map

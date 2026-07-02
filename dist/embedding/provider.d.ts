@@ -16,6 +16,7 @@ export { OnlineEmbeddingProvider } from './online.js';
 export type { EmbeddingProvider, EmbeddingBackend, SimilarityResult, EmbeddingRecord, SemanticContextConfig, SemanticFeatures, OnlineEmbeddingConfig, } from './types.js';
 /**
  * 🔧 Fix C: 语义检索总开关。
+ * CLI智能增强 + semanticContext.enabled 双重门控。
  * 为 false 时所有 embedding 操作应短路。
  */
 export declare function isSemanticEnabled(): boolean;
