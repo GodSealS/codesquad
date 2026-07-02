@@ -152,6 +152,8 @@ codesquad config show
 
 ![模型配置3](https://raw.githubusercontent.com/GodSealS/codesquad/main/docs/translations/CN/ModelSetting3.jpg)
 
+![模型配置4](https://github.com/GodSealS/codesquad/blob/main/docs/translations/CN/ModelSetting4.jpg)
+
 ---
 ## 📚 使用手册
 

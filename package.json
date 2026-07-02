@@ -1,5 +1,5 @@
 {
-  "name": "codesquad",
+  "name": "@GodSealS/codesquad",
   "version": "1.0.1",
   "description": "AI-native game development CLI — multi-tool agent & skill binding for CodeBuddy Game Studios",
   "keywords": [
@@ -9,16 +9,17 @@
     "cli",
     "codebuddy"
   ],
-  "homepage": "https://github.com/CodeSquad/codesquad",
+  "homepage": "https://github.com/GodSealS/codesquad",
   "repository": {
     "type": "git",
-    "url": "https://github.com/CodeSquad/codesquad"
+    "url": "https://github.com/GodSealS/codesquad.git"
   },
   "license": "MIT",
   "author": "CodeSquad Contributors",
   "type": "module",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://npm.pkg.github.com"
   },
   "exports": {
     ".": {
