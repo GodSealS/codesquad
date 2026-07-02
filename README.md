@@ -114,7 +114,7 @@ codesquad --version
 
 ```bash
 exe 版是bun版本，不依赖nodejs，直接运行
-下载地址：https://github.com/GodSealS/codesquad/releases/tag/v1.0.1
+下载地址：https://github.com/GodSealS/codesquad/releases/tag/GameAgentGroup
 ```
 
 ### 快速模型配置
