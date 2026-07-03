@@ -42,7 +42,9 @@ if (isBunCompiled) {
         || (cwd && cwd !== '/' && cwd !== '\\' ? cwd : exeDir);
 }
 else {
-    // Dev/tsx: ../.. from src/web/routes/ reaches the project root.
+    // Dev/tsx: use process.cwd() as the project root — this is the directory
+    // where the user ran "codesquad web" (NOT the CLI installation directory).
+    // PKG_ROOT is for embedded resource lookups (AICORE_DIR, templates), not file writes.
     try {
         const __dirname = fileURLToPath(new URL('.', import.meta.url));
         PKG_ROOT = join(__dirname, '..', '..', '..');
@@ -50,7 +52,7 @@ else {
     catch {
         PKG_ROOT = process.cwd();
     }
-    DEFAULT_PROJECT_ROOT = process.env.CODESQUAD_PROJECT_ROOT || PKG_ROOT;
+    DEFAULT_PROJECT_ROOT = process.env.CODESQUAD_PROJECT_ROOT || process.cwd();
 }
 /** Maps HTTP status codes to human-readable Chinese annotations. */
 const STATUS_NOTE = {
