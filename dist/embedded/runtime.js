@@ -38,10 +38,10 @@ export function readEmbeddedDir(relativeDir) {
     return EMBEDDED_DIRS[relativeDir] ?? [];
 }
 /**
- * Check if a path exists in embedded data.
+ * Check if a path exists in embedded data (files or directories).
  */
 export function existsEmbeddedPath(relativePath) {
-    return EMBEDDED_FILE_SET.has(relativePath);
+    return EMBEDDED_FILE_SET.has(relativePath) || relativePath in EMBEDDED_DIRS;
 }
 /**
  * Get embedded generation statistics.

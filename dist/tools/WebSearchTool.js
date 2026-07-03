@@ -149,6 +149,53 @@ async function searchDuckDuckGoLite(query, maxResults) {
     }
     return results;
 }
+// ── Bing fallback (works in China, no API key needed) ──
+async function searchBing(query, maxResults) {
+    const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=${maxResults}`;
+    let response;
+    try {
+        response = await fetchWithTimeout(url, {
+            headers: {
+                'User-Agent': DDG_MOBILE_UA,
+                'Accept': 'text/html,application/xhtml+xml',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            },
+        });
+    }
+    catch (err) {
+        if (err.name === 'AbortError') {
+            throw new Error(`Bing timed out after ${FETCH_TIMEOUT_MS / 1000}s`);
+        }
+        throw new Error(`Bing unreachable: ${err.message || 'network error'}`);
+    }
+    if (!response.ok)
+        throw new Error(`Bing returned HTTP ${response.status}`);
+    const html = await response.text();
+    // Bing result patterns
+    const resultRegex = /<li class="b_algo"[^>]*>[\s\S]*?<h2[^>]*>\s*<a[^>]*href="([^"]*)"[^>]*>\s*([\s\S]*?)\s*<\/a>[\s\S]*?<p[^>]*>\s*([\s\S]*?)\s*<\/p>/gi;
+    const results = [];
+    let m;
+    while ((m = resultRegex.exec(html)) !== null && results.length < maxResults) {
+        const url = m[1];
+        const title = m[2].replace(/<[^>]+>/g, '').trim();
+        const snippet = m[3].replace(/<[^>]+>/g, '').trim();
+        if (url.startsWith('http') && title) {
+            results.push({ title, url, snippet: snippet.slice(0, 300) });
+        }
+    }
+    if (results.length === 0) {
+        // Fallback: generic link extraction
+        const linkRegex = /<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>\s*([\s\S]*?)\s*<\/a>/gi;
+        while ((m = linkRegex.exec(html)) !== null && results.length < maxResults) {
+            const url = m[1];
+            const title = m[2].replace(/<[^>]+>/g, '').trim();
+            if (title && !url.includes('bing.com') && !url.includes('microsoft.com/bing') && url.startsWith('http')) {
+                results.push({ title, url, snippet: '' });
+            }
+        }
+    }
+    return results;
+}
 // ── Tool ──
 export const WebSearchTool = buildTool({
     name: 'WebSearch',
@@ -227,14 +274,29 @@ After searching, use WebFetch to retrieve full content from interesting URLs.`;
                             content: `❌ DuckDuckGo search unavailable.\n\n` +
                                 `Regular: ${ddgErr.message}\n` +
                                 `Lite: ${liteErr.message}\n\n` +
-                                `Switch to Brave in Settings → Search Provider (requires BRAVE_API_KEY).`,
+                                `Switch to Brave in Settings → Search Provider (requires BRAVE_API_KEY), or try bing/auto.`,
                             isError: true,
                         };
                     }
                 }
             }
+            else if (provider === 'bing') {
+                // Bing only
+                try {
+                    results = await searchBing(input.query, input.maxResults);
+                    usedEngine = 'Bing';
+                }
+                catch (err) {
+                    return {
+                        toolCallId,
+                        output: [],
+                        content: `❌ Bing search failed: ${err.message}`,
+                        isError: true,
+                    };
+                }
+            }
             else {
-                // 'auto' (default): try Brave → DDG regular → DDG Lite
+                // 'auto' (default): try Brave → DDG regular → DDG Lite → Bing
                 const errors = [];
                 try {
                     results = await searchBrave(input.query, input.maxResults);
@@ -254,13 +316,20 @@ After searching, use WebFetch to retrieve full content from interesting URLs.`;
                         }
                         catch (liteErr) {
                             errors.push(`DuckDuckGo Lite: ${liteErr.message}`);
-                            return {
-                                toolCallId,
-                                output: [],
-                                content: `❌ All search providers failed:\n${errors.map(e => `  - ${e}`).join('\n')}\n\n` +
-                                    `Set BRAVE_API_KEY for Brave, or check network access to duckduckgo.com.`,
-                                isError: true,
-                            };
+                            try {
+                                results = await searchBing(input.query, input.maxResults);
+                                usedEngine = 'Bing';
+                            }
+                            catch (bingErr) {
+                                errors.push(`Bing: ${bingErr.message}`);
+                                return {
+                                    toolCallId,
+                                    output: [],
+                                    content: `❌ All search providers failed:\n${errors.map(e => `  - ${e}`).join('\n')}\n\n` +
+                                        `Set BRAVE_API_KEY for Brave, or check network access.`,
+                                    isError: true,
+                                };
+                            }
                         }
                     }
                 }

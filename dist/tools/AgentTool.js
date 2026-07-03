@@ -133,10 +133,7 @@ export const AgentTool = buildTool({
             message: `Unknown subagent type: "${input.subagent_type}". Available built-ins: ${Object.keys(BUILTIN_SUBAGENTS).join(', ')}`,
         };
     },
-    checkPermissions(_input, context) {
-        if (context.permissionMode === 'plan') {
-            return { behavior: 'deny', message: 'Agent spawning is not available in Plan mode.' };
-        }
+    checkPermissions(_input, _context) {
         return { behavior: 'allow' };
     },
     async call(input, context) {

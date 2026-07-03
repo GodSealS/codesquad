@@ -323,12 +323,11 @@ export const BashTool = buildTool({
                 };
             }
         }
-        // 6. Plan mode: only allow commands with read-only prefixes
-        if (context.permissionMode === 'plan') {
-            return {
-                behavior: 'deny',
-                message: 'Bash tool is not available in Plan mode.',
-            };
+        // 6. Plan / bypassPermissions / acceptEdits: auto-allow
+        if (context.permissionMode === 'plan' ||
+            context.permissionMode === 'bypassPermissions' ||
+            context.permissionMode === 'acceptEdits') {
+            return { behavior: 'allow' };
         }
         // 7. Default: ask for permission (safe-by-default)
         return {

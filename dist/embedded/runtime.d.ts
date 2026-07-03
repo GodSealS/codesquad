@@ -26,7 +26,7 @@ export declare function readEmbeddedFile(relativePath: string): string | null;
  */
 export declare function readEmbeddedDir(relativeDir: string): string[];
 /**
- * Check if a path exists in embedded data.
+ * Check if a path exists in embedded data (files or directories).
  */
 export declare function existsEmbeddedPath(relativePath: string): boolean;
 /**

@@ -124,11 +124,10 @@ export const FileEditTool = buildTool({
         return { valid: true };
     },
     checkPermissions(input, context) {
-        if (context.permissionMode === 'plan') {
-            return {
-                behavior: 'deny',
-                message: 'File editing is not allowed in Plan mode.',
-            };
+        if (context.permissionMode === 'plan' ||
+            context.permissionMode === 'bypassPermissions' ||
+            context.permissionMode === 'acceptEdits') {
+            return { behavior: 'allow' };
         }
         const filePath = resolve(context.projectRoot, input.file_path);
         // Enforce Read-then-Write
@@ -141,14 +140,11 @@ export const FileEditTool = buildTool({
         // Check staleness
         const currentContent = fileRead(filePath);
         const stale = checkFileStaleness(getSessionCache(), filePath, currentContent);
-        if (stale.stale && !(context.permissionMode === 'bypassPermissions')) {
+        if (stale.stale) {
             return {
                 behavior: 'deny',
                 message: 'File has been modified since read. Read again before editing.',
             };
-        }
-        if (context.permissionMode === 'bypassPermissions' || context.permissionMode === 'acceptEdits') {
-            return { behavior: 'allow' };
         }
         return { behavior: 'ask', message: `Edit ${input.file_path}?` };
     },

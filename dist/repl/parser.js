@@ -40,6 +40,7 @@ const COMMAND_REGISTRY = new Map();
  */
 export function scanCommands(codesquadDir) {
     const dir = join(codesquadDir, 'commands');
+    COMMAND_REGISTRY.clear(); // Bug 6: clear stale entries before re-scan
     if (!existsSync(dir))
         return;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {

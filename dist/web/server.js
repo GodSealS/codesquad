@@ -22,6 +22,7 @@ import { handleSessions } from './routes/sessions.js';
 import { handleChatV2, handleChatStream, handlePermissionResponse } from './routes/chat-v2.js';
 import { handleOptimizePrompt } from './routes/optimize-prompt.js';
 import { handleAgents, handleSkills } from './routes/agents.js';
+import { handleCommands } from './routes/commands.js';
 import { handleUsage } from './routes/usage.js';
 import { handleProviders } from './routes/providers.js';
 import { handleProject } from './routes/project.js';
@@ -315,6 +316,10 @@ export async function startWebServer(options) {
                 }
                 if (reqPath.startsWith('/api/skills')) {
                     await handleSkills(req, res, { projectRoot }, reqPath);
+                    return;
+                }
+                if (reqPath.startsWith('/api/commands')) {
+                    await handleCommands(req, res, { projectRoot }, reqPath);
                     return;
                 }
                 if (reqPath === '/api/models') {

@@ -105,21 +105,20 @@ export const FileWriteTool = buildTool({
         return { valid: true };
     },
     checkPermissions(input, context) {
-        // Plan mode: no writes allowed
-        if (context.permissionMode === 'plan') {
-            return {
-                behavior: 'deny',
-                message: 'File writing is not allowed in Plan mode. Switch to Craft mode to write files.',
-            };
+        // Plan mode / bypassPermissions / acceptEdits: auto-allow (silent approval)
+        if (context.permissionMode === 'plan' ||
+            context.permissionMode === 'bypassPermissions' ||
+            context.permissionMode === 'acceptEdits') {
+            return { behavior: 'allow' };
         }
         const filePath = resolve(context.projectRoot, input.file_path);
         const isNew = !existsSync(filePath);
-        // New files: check bypassPermissions or acceptEdits
+        // New files in headless mode: auto-allow (no user to ask, no overwrite risk)
+        if (isNew && context.headless) {
+            return { behavior: 'allow' };
+        }
+        // New files in interactive ask mode: prompt user
         if (isNew) {
-            if (context.permissionMode === 'bypassPermissions' || context.permissionMode === 'acceptEdits') {
-                return { behavior: 'allow' };
-            }
-            // Default: ask
             return {
                 behavior: 'ask',
                 message: `Create new file: ${input.file_path}?`,
@@ -134,15 +133,11 @@ export const FileWriteTool = buildTool({
         }
         // Check staleness
         const stale = checkFileStaleness(getSessionCache(), filePath, input.content);
-        if (stale.stale && !(context.permissionMode === 'bypassPermissions')) {
+        if (stale.stale) {
             return {
                 behavior: 'deny',
                 message: `File "${input.file_path}" has been modified since it was last read. Read it again before writing.`,
             };
-        }
-        // acceptEdits or bypass: auto-allow
-        if (context.permissionMode === 'bypassPermissions' || context.permissionMode === 'acceptEdits') {
-            return { behavior: 'allow' };
         }
         return { behavior: 'ask', message: `Write to ${input.file_path}?` };
     },

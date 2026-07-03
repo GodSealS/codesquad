@@ -50,7 +50,7 @@ export declare const PROJECT_INSTALL_CONFIG_PATH: string;
  *  External tools (e.g. graphify install --platform codesquad) place files here. */
 export declare const CODESQUAD_USER_ROOT: string;
 /** User-level .codesquad subdirectory for a given category. */
-export declare function getCodeSquadUserCategory(category: 'agents' | 'skills' | 'rules' | 'hooks'): string;
+export declare function getCodeSquadUserCategory(category: 'agents' | 'skills' | 'rules' | 'hooks' | 'commands'): string;
 /** User-level .codesquad/settings.json path. */
 export declare const CODESQUAD_USER_SETTINGS: string;
 /**
