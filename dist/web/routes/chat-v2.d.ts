@@ -14,6 +14,15 @@
  * API source routing via models.config.yaml api.sources.
  */
 import type http from 'http';
+/**
+ * P1 fix: now delegates to runAgent() (shared execution engine) instead of
+ * manually building a system prompt and calling the LLM directly. This ensures:
+ *   - Full tool execution loop (Bash, Read, Write, Edit, Grep, Glob, etc.)
+ *   - Prompt caching + system prompt from agent-runner (builtin-sections, rules, hooks)
+ *   - Fallback provider chain
+ *   - Token budget + auto-compact
+ *   - Consistent behavior with the streaming endpoint
+ */
 export declare function handleChatV2(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
 /**
  * POST /api/chat/stream

@@ -65,10 +65,19 @@ const STATUS_NOTE = {
     503: '服务暂时不可用',
 };
 // ── Helpers ──
-function readBody(req) {
+function readBody(req, maxBytes = 1_048_576) {
     return new Promise((resolve, reject) => {
         const chunks = [];
-        req.on('data', (c) => chunks.push(c));
+        let total = 0;
+        req.on('data', (c) => {
+            total += c.length;
+            if (total > maxBytes) {
+                req.destroy();
+                reject(new Error('Request body too large (>1MB)'));
+                return;
+            }
+            chunks.push(c);
+        });
         req.on('end', () => {
             try {
                 resolve(JSON.parse(Buffer.concat(chunks).toString()));
@@ -112,16 +121,21 @@ function loadApiSources() {
         return {};
     }
 }
-/** Load full models config (agents, skills, batch, default) for model resolution */
+/**
+ * Load models.config.yaml for model resolution (agents, skills, batch, default).
+ *
+ * NOTE: `api.sources` is NOT loaded here — use `loadApiSources()` for that.
+ * This function only provides model-name mapping (batch globs + default model)
+ * used by `resolveBatchModel()` during API source resolution.
+ */
 function loadFullModelsConfig() {
     try {
         const raw = readModelsConfigRaw();
         if (!raw)
-            return { version: 1, api: { sources: {} } };
+            return { version: 1 };
         const config = parseYaml(raw);
         return {
             version: config.version ?? 1,
-            api: { sources: {} },
             agents: config.agents ?? undefined,
             skills: config.skills ?? undefined,
             batch: config.batch ?? undefined,
@@ -130,7 +144,7 @@ function loadFullModelsConfig() {
     }
     catch (err) {
         console.warn(`[chat-v2] Failed to parse full models config: ${err.message}`);
-        return { version: 1, api: { sources: {} } };
+        return { version: 1 };
     }
 }
 /** Map model name to API source key (e.g. "Deepseek-V4-Pro" → "deepseek-v4-pro") */
@@ -246,6 +260,15 @@ function buildRuntimeProviderConfig(apiConfig) {
     };
 }
 // ── Main handler (non-streaming, backward compat) ──
+/**
+ * P1 fix: now delegates to runAgent() (shared execution engine) instead of
+ * manually building a system prompt and calling the LLM directly. This ensures:
+ *   - Full tool execution loop (Bash, Read, Write, Edit, Grep, Glob, etc.)
+ *   - Prompt caching + system prompt from agent-runner (builtin-sections, rules, hooks)
+ *   - Fallback provider chain
+ *   - Token budget + auto-compact
+ *   - Consistent behavior with the streaming endpoint
+ */
 export async function handleChatV2(req, res) {
     let body;
     try {
@@ -256,13 +279,13 @@ export async function handleChatV2(req, res) {
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
         return;
     }
-    const { prompt, history, modelName, agentId, skillId, mode, customSources, attachments, generationConfig } = body;
+    const { prompt, history, modelName, agentId, skillId, mode, lang, customSources, generationConfig } = body;
     if (!prompt) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'prompt is required' }));
         return;
     }
-    // 🔧 Step 9: 语义路由 — 无显式 agentId 时自动匹配最佳 agent
+    // Semantic routing — auto-select best agent when agentId not specified
     let effectiveAgentName = agentId || 'game-designer';
     if (!agentId) {
         try {
@@ -291,143 +314,112 @@ export async function handleChatV2(req, res) {
             }
         }
         catch {
-            // Skill model resolution is non-critical — fall through to agent config
+            // Skill model resolution is non-critical
         }
     }
     const resolvedModel = resolveModel(targetModel, resolveName, resolveType, modelsConfig);
     const apiConfig = resolveApiConfig(resolvedModel, customSources);
     if (!apiConfig) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'No API source configured. Please set up models.config.yaml or provide customSources.' }));
+        res.end(JSON.stringify({ error: 'No API source configured' }));
         return;
     }
-    // Build system prompt from agent/skill
-    let systemPrompt = '';
-    if (agentId) {
-        const agentPrompt = loadAgentPrompt(agentId);
-        if (agentPrompt)
-            systemPrompt += agentPrompt + '\n\n';
+    const effectiveMode = (mode || 'ask').toLowerCase();
+    const chatMode = effectiveMode === 'craft' ? 'craft' : effectiveMode === 'plan' ? 'plan' : 'ask';
+    // Build RuntimeProviderConfig from models.config.yaml
+    const runtimeConfig = buildRuntimeProviderConfig(apiConfig);
+    // Create session
+    const requestSessionId = body.sessionId;
+    let session = requestSessionId ? (await loadSession(requestSessionId)) : null;
+    if (!session) {
+        session = createSession(effectiveAgentName, {
+            provider: apiConfig.sourceKey,
+            model: resolvedModel,
+            maxTokens: generationConfig?.maxTokens ?? 4096,
+            temperature: generationConfig?.temperature ?? 0.7,
+        });
+        if (history && history.length > 0) {
+            for (const msg of history.slice(-20)) {
+                if (msg.sender !== 'user' && msg.sender !== 'assistant')
+                    continue;
+                addMessage(session, msg.sender, msg.content);
+            }
+        }
     }
+    // Inject skill guidance if skillId provided
     if (skillId) {
-        const skillPrompt = loadSkillPrompt(skillId);
-        if (skillPrompt)
-            systemPrompt += `[Skill: ${skillId}]\n${skillPrompt}\n\n`;
-    }
-    // Mode-specific augmentation
-    const effectiveMode = mode || 'Ask';
-    if (systemPrompt) {
-        switch (effectiveMode.toLowerCase()) {
-            case 'ask':
-                systemPrompt = `[MODE: ASK — READ-ONLY]\nYou are in ASK mode. You can read files, search code, browse documentation, and answer questions. Do NOT write, edit, delete, or create any files. Do NOT run commands that modify the project.\n\n${systemPrompt}`;
-                break;
-            case 'plan':
-                systemPrompt = `[MODE: PLAN — STRATEGIC ANALYSIS]\nYou are in PLAN mode. Analyze the current state, propose architectural decisions, create detailed implementation plans, and outline steps. Do NOT implement any code or modify any files.\n\n${systemPrompt}`;
-                break;
-            // craft: use unchanged
-        }
-    }
-    // Build messages
-    const messages = [];
-    if (systemPrompt) {
-        messages.push({ role: 'system', content: systemPrompt });
-    }
-    // Add history
-    if (history && history.length > 0) {
-        for (const msg of history.slice(-20)) {
-            if (msg.sender === 'user') {
-                messages.push({ role: 'user', content: msg.content });
-            }
-            else if (msg.sender === 'assistant') {
-                messages.push({ role: 'assistant', content: msg.content });
+        try {
+            const { setAicodeRoot, loadSkill } = await import('../../repl/skill-registry.js');
+            setAicodeRoot(AICORE_DIR);
+            const skill = loadSkill(skillId);
+            if (skill) {
+                const skillMdPath = join(AICORE_DIR, 'skills', skillId, 'SKILL.md');
+                if (virtualExists(skillMdPath)) {
+                    const skillContent = virtualReadFile(skillMdPath, 'utf-8');
+                    const sanitized = expandAicoreRefs(sanitizeAicorePaths(skillContent));
+                    if (skill.context === 'fork') {
+                        const { markForkSkill } = await import('../../context/fork-executor.js');
+                        markForkSkill(session, { skillName: skillId, content: sanitized, model: skill.model });
+                    }
+                    else {
+                        session.context.injectedContent = `## Activated Skill: ${skillId}\n${sanitized}\n`;
+                    }
+                }
             }
         }
-    }
-    // Add current user message (with attachment context if any)
-    let userContent = prompt;
-    if (attachments && attachments.length > 0) {
-        userContent += '\n\n[Attached files:]\n';
-        for (const att of attachments) {
-            if (att.type?.startsWith('image/')) {
-                userContent += `\n[Image: ${att.name}]`;
-            }
-            else {
-                userContent += `\n--- ${att.name} ---\n${att.content?.slice(0, 5000) ?? ''}\n--- end ---`;
-            }
+        catch {
+            // Non-critical — agent still works without skill injection
         }
     }
-    messages.push({ role: 'user', content: userContent });
-    // Determine protocol for the API call
-    const isAnthropic = apiConfig.provider?.toLowerCase() === 'anthropic';
-    // For Anthropic: system prompt goes as a top-level field, not in messages array
-    const anthropicSystem = isAnthropic
-        ? messages.find(m => m.role === 'system')?.content ?? undefined
-        : undefined;
-    const anthropicMessages = isAnthropic
-        ? messages.filter(m => m.role !== 'system')
-        : messages;
+    // P1 fix: delegate to shared runAgent() execution engine
     try {
-        let response;
-        if (isAnthropic) {
-            // ── Anthropic Messages API (native, no proxy needed) ──
-            response = await fetch(`${apiConfig.baseUrl}/v1/messages`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': apiConfig.apiKey,
-                    'anthropic-version': '2023-06-01',
-                },
-                body: JSON.stringify({
-                    model: apiConfig.resolvedModel,
-                    system: anthropicSystem,
-                    messages: anthropicMessages,
-                    max_tokens: generationConfig?.maxTokens ?? 4096,
-                    temperature: generationConfig?.temperature ?? 0.7,
-                    top_p: generationConfig?.topP ?? 0.95,
-                }),
-            });
+        const result = await runAgent({
+            agentName: effectiveAgentName,
+            userInput: prompt,
+            session,
+            providerId: apiConfig.sourceKey,
+            modelId: resolvedModel,
+            projectRoot: DEFAULT_PROJECT_ROOT,
+            aicoreDir: AICORE_DIR,
+            mode: chatMode,
+            maxTurns: 20,
+            lang: lang || 'zh',
+            runtimeConfig,
+            stream: false,
+        });
+        // Persist session
+        try {
+            setProjectRoot(DEFAULT_PROJECT_ROOT);
+            await persistSession(session);
         }
-        else {
-            // ── OpenAI-compatible (Chat Completions API) ──
-            response = await fetch(`${apiConfig.baseUrl}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${apiConfig.apiKey}`,
-                },
-                body: JSON.stringify({
-                    model: apiConfig.resolvedModel,
-                    messages,
-                    max_tokens: generationConfig?.maxTokens ?? 4096,
-                    temperature: generationConfig?.temperature ?? 0.7,
-                    top_p: generationConfig?.topP ?? 0.95,
-                }),
-            });
-        }
-        if (!response.ok) {
-            const errText = await response.text().catch(() => 'Unknown error');
-            const note = STATUS_NOTE[response.status];
-            const annotated = note ? `${response.status}（${note}）` : `${response.status}`;
-            console.error(`[chat-v2] API error ${annotated}: ${errText.slice(0, 500)}`);
-            res.writeHead(response.status, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: `API 错误 ${annotated}: ${errText.slice(0, 200)}` }));
+        catch { /* non-critical */ }
+        // ── Handle interactive pauses (AskUserQuestion / permission) ──
+        if (result.needsUserInput) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                needsUserInput: true,
+                questions: result.needsUserInput.questions,
+                toolCallId: result.needsUserInput.toolCallId,
+                sessionId: session.id,
+                _deprecated: true,
+                _migration: 'Use POST /api/chat/stream for interactive Q&A.',
+            }));
             return;
         }
-        const raw = (await response.json());
-        // Parse response based on protocol
-        let content;
-        let modelUsed;
-        if (isAnthropic) {
-            // Anthropic format: { content: [{ type: "text", text: "..." }], model: "...", ... }
-            const blocks = raw.content;
-            content = blocks?.filter(b => b.type === 'text').map(b => b.text ?? '').join('') ?? '';
-            modelUsed = raw.model || resolvedModel;
+        if (result.needsApproval) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                needsApproval: true,
+                toolName: result.needsApproval.toolName,
+                message: result.needsApproval.message,
+                toolCallId: result.needsApproval.toolCallId,
+                sessionId: session.id,
+                _deprecated: true,
+                _migration: 'Use POST /api/chat/stream for permission dialogs.',
+            }));
+            return;
         }
-        else {
-            // OpenAI format: { choices: [{ message: { content: "..." } }], model: "..." }
-            const data = raw;
-            content = data.choices?.[0]?.message?.content ?? '';
-            modelUsed = data.model || resolvedModel;
-        }
+        // Return JSON response (deprecated but functional)
         res.writeHead(200, {
             'Content-Type': 'application/json',
             Deprecation: 'true',
@@ -435,17 +427,20 @@ export async function handleChatV2(req, res) {
             Link: '</api/chat/stream>; rel="successor-version"',
         });
         res.end(JSON.stringify({
-            content,
-            modelUsed,
-            modeUsed: effectiveMode,
+            content: result.finalResponse,
+            turns: result.turnsUsed,
+            toolCalls: result.toolCallsMade,
+            sessionId: session.id,
+            durationMs: result.durationMs,
             _deprecated: true,
             _migration: 'Use POST /api/chat/stream for full vibe coding with tools, SSE streaming, and permission support.',
         }));
     }
     catch (err) {
-        console.error('[chat-v2] Fetch error:', err);
+        const e = err;
+        console.error('[chat-v2] runAgent error:', e.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err instanceof Error ? err.message : 'Internal server error' }));
+        res.end(JSON.stringify({ error: e.message || 'Internal server error' }));
     }
 }
 // ── Streaming Chat (SSE) — Unified agent-runner.ts integration ──

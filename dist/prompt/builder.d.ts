@@ -22,7 +22,7 @@ export interface SystemPromptOptions {
     agentSystemPrompt?: string;
     /** Custom system prompt from user config. */
     customSystemPrompt?: string;
-    /** Always-appended prompt (project guidance, CLAUDE.md, etc.). */
+    /** Always-appended prompt (project guidance, CODEBUDDY.md, etc.). */
     appendSystemPrompt?: string[];
     /** Section context for compute functions. */
     context: PromptSectionContext;

@@ -4,10 +4,12 @@
  * Parses input lines into structured commands:
  *   @agent-name [input]   → AgentCommand
  *   /skill-name [args]    → SkillCommand
- *   /cmd                  → BuiltinCommand
+ *   /cmd                  → BuiltinCommand or CommandCommand
  *   plain text            → TextInput
  * Phase 1.1 — Step 1.1.2.
  */
+import { readdirSync, existsSync } from 'fs';
+import { join } from 'path';
 // ── Builtin command names ──
 const BUILTIN_COMMANDS = new Set([
     'agents', 'skills', 'help', 'quit', 'exit',
@@ -17,13 +19,44 @@ const BUILTIN_COMMANDS = new Set([
     'export',
     'usage',
     'rename',
-    'agent', // /agent <name> → view agent description
-    'skill', // /skill <name> → view skill description
-    'mode', // /mode [ask|craft|plan] → switch or query mode
-    'memory-limit', // /memory-limit [n] → get/set cross-chat memory limit (2-15)
-    'tools', // /tools → list available tools
-    'compact', // /compact → manually compact conversation context
+    'agent',
+    'skill',
+    'mode',
+    'memory-limit',
+    'tools',
+    'compact',
+    'delete', 'del',
+    'stream',
+    'tasks',
+    'team',
+    'reset',
 ]);
+// ── Command file registry ──
+/** Map of command name → absolute path to .codesquad/commands/<name>.md */
+const COMMAND_REGISTRY = new Map();
+/**
+ * Scan `.codesquad/commands/` for `.md` command files on startup.
+ * Each file name (without .md) becomes a registered command.
+ */
+export function scanCommands(codesquadDir) {
+    const dir = join(codesquadDir, 'commands');
+    if (!existsSync(dir))
+        return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith('.md'))
+            continue;
+        const name = entry.name.replace(/\.md$/, '');
+        COMMAND_REGISTRY.set(name, join(dir, entry.name));
+    }
+}
+/** Get all registered command names. */
+export function getCommandNames() {
+    return [...COMMAND_REGISTRY.keys()];
+}
+/** Get command file path by name. */
+export function getCommandPath(name) {
+    return COMMAND_REGISTRY.get(name);
+}
 // ── Parse function ──
 /**
  * Parse a raw input line into a structured command.
@@ -32,40 +65,42 @@ const BUILTIN_COMMANDS = new Set([
  *   1. Empty / whitespace-only → EmptyInput
  *   2. "@" prefix → AgentCommand
  *   3. "/" prefix + known builtin → BuiltinCommand
- *   4. "/" prefix + unknown → SkillCommand (pass-through)
- *   5. Everything else → TextInput
+ *   4. "/" prefix + registered command → CommandCommand
+ *   5. "/" prefix + unknown → SkillCommand (pass-through)
+ *   6. Everything else → TextInput
  */
 export function parseInput(raw) {
     const trimmed = raw.trim();
-    // Empty line
     if (trimmed.length === 0) {
         return { type: 'empty' };
     }
-    // @agent-name [input]
     if (trimmed.startsWith('@')) {
         const agentMatch = trimmed.match(/^@(\S+)\s*(.*)/s);
         if (!agentMatch || !agentMatch[1]) {
-            return { type: 'text', content: trimmed }; // bare "@", treat as text
+            return { type: 'text', content: trimmed };
         }
         const name = agentMatch[1];
         const input = (agentMatch[2] ?? '').trim();
         return { type: 'agent', name, input };
     }
-    // /command [args]
     if (trimmed.startsWith('/')) {
         const cmdMatch = trimmed.match(/^\/(\S+)\s*(.*)/s);
         if (!cmdMatch || !cmdMatch[1]) {
-            return { type: 'text', content: trimmed }; // bare "/", treat as text
+            return { type: 'text', content: trimmed };
         }
         const name = cmdMatch[1].toLowerCase();
         const args = (cmdMatch[2] ?? '').trim();
         if (BUILTIN_COMMANDS.has(name)) {
             return { type: 'builtin', name, args };
         }
+        // Check command file registry
+        const cmdPath = COMMAND_REGISTRY.get(name);
+        if (cmdPath) {
+            return { type: 'command', name, args, path: cmdPath };
+        }
         // Unknown / prefix → treat as skill invocation
         return { type: 'skill', name, args };
     }
-    // Plain text
     return { type: 'text', content: trimmed };
 }
 //# sourceMappingURL=parser.js.map

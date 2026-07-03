@@ -15,7 +15,7 @@ import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import { virtualExists, virtualReadFile, virtualReadDir } from '../embedded/virtual-fs.js';
 import { readEmbeddedFile } from '../embedded/runtime.js';
-import { parseInput } from './parser.js';
+import { parseInput, scanCommands, getCommandNames } from './parser.js';
 import { renderBanner, renderProviderStatus, renderHelp, renderTokenUsage, errorLine, warnLine, okLine, infoLine, separator, startSpinner, stopSpinner, renderFormattedContent, } from './display.js';
 import { createEditor, enterEditMode, appendLine, getFullText, cancelEdit, isInEditMode, editPrompt, getSubmitFallbackHint, } from './editor.js';
 import { resolveKeyAction } from './keybinds.js';
@@ -129,6 +129,8 @@ function getModelsConfig() {
 }
 // Initialize skill registry with .codesquad root (before startRepl is called)
 setAicodeRoot(AICORE_DIR);
+// Scan .codesquad/commands/ for slash command files
+scanCommands(join(PROJECT_ROOT, '.codesquad'));
 // ── CLI flag helpers (P3) ──
 /** Convert CLI --permission-mode value (default|acceptEdits|bypassPermissions|plan) to ChatMode. */
 function permissionModeToChatModeState(raw) {
@@ -231,7 +233,9 @@ async function discoverMCPTools(server) {
     }
     return [];
 }
-/** Discover MCP tools via stdio (spawn child process). */
+/** Discover MCP tools via stdio (spawn child process).
+ * Sends initialize first, waits for response, then sends tools/list.
+ * Strictly follows MCP JSON-RPC protocol. */
 async function discoverMCPToolsViaStdio(command, args, env) {
     const { spawn } = await import('child_process');
     return new Promise((resolve) => {
@@ -241,18 +245,26 @@ async function discoverMCPToolsViaStdio(command, args, env) {
             windowsHide: true,
         });
         let buffer = '';
+        let initDone = false;
         const timer = setTimeout(() => {
             child.kill();
             resolve([]);
-        }, 10000); // 10s timeout for tool discovery
+        }, 15000); // 15s timeout for full init+tools/list handshake
         child.stdout?.on('data', (data) => {
             buffer += data.toString();
-            // Try to parse complete JSON-RPC messages
             const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // keep incomplete line in buffer
             for (const line of lines) {
                 try {
                     const msg = JSON.parse(line.trim());
-                    if (msg.id === 'tools-list-1' && msg.result?.tools) {
+                    if (!initDone && msg.id === 'init-1' && msg.result) {
+                        // Initialize response received → now safe to send tools/list
+                        initDone = true;
+                        child.stdin?.write(JSON.stringify({
+                            jsonrpc: '2.0', id: 'tools-list-1', method: 'tools/list', params: {},
+                        }) + '\n');
+                    }
+                    else if (msg.id === 'tools-list-1' && msg.result?.tools) {
                         clearTimeout(timer);
                         child.kill();
                         resolve(msg.result.tools.map((t) => ({
@@ -274,13 +286,10 @@ async function discoverMCPToolsViaStdio(command, args, env) {
             clearTimeout(timer);
             resolve([]);
         });
-        // Send initialize + tools/list
+        // Send initialize (protocol-compliant: don't send tools/list until response)
         child.stdin?.write(JSON.stringify({
             jsonrpc: '2.0', id: 'init-1', method: 'initialize',
             params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'codesquad', version: '0.1.0' } },
-        }) + '\n');
-        child.stdin?.write(JSON.stringify({
-            jsonrpc: '2.0', id: 'tools-list-1', method: 'tools/list', params: {},
         }) + '\n');
     });
 }
@@ -328,26 +337,36 @@ async function invokeMCPToolViaStdio(command, args, toolName, input, env) {
             windowsHide: true,
         });
         let buffer = '';
+        let initDone = false;
         const timer = setTimeout(() => { child.kill(); reject(new Error('MCP tool timeout')); }, 120000);
         child.stdout?.on('data', (data) => {
             buffer += data.toString();
-            try {
-                const msg = JSON.parse(buffer.trim());
-                if (msg.id === 'call-1') {
-                    clearTimeout(timer);
-                    child.kill();
-                    if (msg.error)
-                        reject(new Error(msg.error.message));
-                    else
-                        resolve(msg.result?.content?.[0]?.text ?? msg.result);
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+                try {
+                    const msg = JSON.parse(line.trim());
+                    if (!initDone && msg.id === 'init-1' && msg.result) {
+                        initDone = true;
+                        // Init done → send tools/call
+                        child.stdin?.write(JSON.stringify({ jsonrpc: '2.0', id: 'call-1', method: 'tools/call', params: { name: toolName, arguments: input } }) + '\n');
+                    }
+                    else if (msg.id === 'call-1') {
+                        clearTimeout(timer);
+                        child.kill();
+                        if (msg.error)
+                            reject(new Error(msg.error.message));
+                        else
+                            resolve(msg.result?.content?.[0]?.text ?? msg.result);
+                    }
                 }
+                catch { /* incomplete */ }
             }
-            catch { /* incomplete */ }
         });
         child.on('error', (err) => { clearTimeout(timer); reject(err); });
         child.on('exit', () => { clearTimeout(timer); reject(new Error('MCP process exited unexpectedly')); });
+        // Send initialize first (protocol-compliant)
         child.stdin?.write(JSON.stringify({ jsonrpc: '2.0', id: 'init-1', method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'codesquad', version: '0.1.0' } } }) + '\n');
-        child.stdin?.write(JSON.stringify({ jsonrpc: '2.0', id: 'call-1', method: 'tools/call', params: { name: toolName, arguments: input } }) + '\n');
     });
 }
 async function invokeMCPToolViaSSE(url, toolName, input) {
@@ -411,12 +430,12 @@ async function loadAndRegisterMCPToolsFromPath(configPath) {
         catch { /* skip unavailable */ }
     }
 }
-// ── Project guidance (Claude Code alignment: like CLAUDE.md + .codesquad/system config) ──
+// ── Project guidance (Claude Code alignment: like CODEBUDDY.md + .codesquad/system config) ──
 /**
  * Load project-level guidance from CODESQUAD.md (CLI config),
  * CODEBUDDY.md (IDE config), and .codesquad/CODESQUAD.md (system template).
  * Priority: .codesquad/CODESQUAD.md → project root CODESQUAD.md → CLI template
- * Mirrors Claude Code's loadMemoryPrompt() which reads CLAUDE.md + memory directory.
+ * Mirrors Claude Code's loadMemoryPrompt() which reads CODEBUDDY.md + memory directory.
  */
 function loadProjectGuidance() {
     const parts = [];
@@ -446,6 +465,23 @@ function loadProjectGuidance() {
         parts.push(readFileSync(projectMd, 'utf-8'));
     }
     catch { /* optional */ }
+    // AGENTS.md: tool-level AI interaction rules
+    // Priority: .codesquad/AGENTS.md → project root AGENTS.md
+    const agentsParts = [];
+    const dotAgents = join(PROJECT_ROOT, '.codesquad', 'AGENTS.md');
+    const rootAgents = join(PROJECT_ROOT, 'AGENTS.md');
+    for (const p of [dotAgents, rootAgents]) {
+        try {
+            if (existsSync(p)) {
+                agentsParts.push(readFileSync(p, 'utf-8'));
+                break;
+            }
+        }
+        catch { /* try next */ }
+    }
+    if (agentsParts.length > 0) {
+        parts.push('# Agent-Specific Instructions\n\n' + agentsParts.join('\n\n---\n\n'));
+    }
     return parts.length > 0 ? parts.join('\n\n---\n\n') : null;
 }
 // ── Default model config ──
@@ -699,6 +735,9 @@ export async function startRepl() {
             case 'skill':
                 await handleSkillCommand(cmd);
                 break;
+            case 'command':
+                await handleCommandFile(cmd);
+                break;
             case 'builtin':
                 await handleBuiltinCommand(cmd);
                 break;
@@ -767,6 +806,44 @@ export async function startRepl() {
             }
         }
         await sendToAgent(agentName, userInput);
+    }
+    // ── Command file (/.codesquad/commands/*.md) ──
+    async function handleCommandFile(cmd) {
+        // Check file exists
+        if (!existsSync(cmd.path)) {
+            console.log(errorLine(`Command 文件未找到: ${chalk.bold(cmd.path)}`));
+            return;
+        }
+        console.log(infoLine(`执行 command: ${chalk.bold(cmd.name)}`));
+        try {
+            // Read and parse command file (mirrors Claude Code's loadCommandsFromDirectory)
+            const rawContent = readFileSync(cmd.path, 'utf-8');
+            if (!rawContent.trim()) {
+                console.log(errorLine(`Command 文件为空: ${chalk.bold(cmd.name)}`));
+                return;
+            }
+            // Parse frontmatter: ---\nkey: value\n---\nbody
+            let body = rawContent;
+            const fmMatch = rawContent.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
+            if (fmMatch) {
+                body = rawContent.slice(fmMatch[0].length);
+            }
+            // $ARGUMENTS substitution (mirrors Claude Code's substituteArguments)
+            const finalContent = body.replace(/\$ARGUMENTS/g, cmd.args || '');
+            // Inject as system context via session.injectedContent (mirrors Claude Code's getPromptForCommand)
+            const agentName = state.currentSession?.agent || 'game-designer';
+            if (!state.currentSession || state.currentSession.agent !== agentName) {
+                state.currentSession = createSession(agentName, resolveAgentModel(agentName));
+            }
+            const session = state.currentSession;
+            session.context.injectedContent = finalContent;
+            await sendToAgent(agentName, `/${cmd.name} ${cmd.args || ''}`.trim());
+            // Clean up: clear injected command context after execution
+            session.context.injectedContent = '';
+        }
+        catch (err) {
+            console.log(errorLine(`Command 执行失败: ${err.message}`));
+        }
     }
     // ── Skill command ──
     async function handleSkillCommand(cmd) {
@@ -927,9 +1004,16 @@ export async function startRepl() {
     // ── Builtin commands ──
     async function handleBuiltinCommand(cmd) {
         switch (cmd.name) {
-            case 'help':
-                console.log(renderHelp());
+            case 'help': {
+                const cmdNames = getCommandNames();
+                let help = renderHelp();
+                if (cmdNames.length > 0) {
+                    help += '\n' + chalk.bold('  Agent-Skills 命令:') + '\n\n' +
+                        cmdNames.map(n => `  ${chalk.green('/' + n)}`).join('\n') + '\n';
+                }
+                console.log(help);
                 break;
+            }
             case 'quit':
             case 'exit':
                 await saveAndExit();
@@ -1143,6 +1227,11 @@ export async function startRepl() {
             return;
         }
         state.__pendingQuestions = undefined;
+        // P1 fix: re-set wasPlanBefore so the re-invoked sendToAgent() injects
+        // [plan_mode_exit] context for the follow-up agent call. The original
+        // sendToAgent() already consumed and cleared wasPlanBefore; without this,
+        // the agent won't know it's operating post-plan-mode approval.
+        state.modeState.wasPlanBefore = true;
         // Re-invoke agent with answers
         const answerPrompt = `[AskUserQuestion Answers]\n` +
             Object.entries(answers).map(([k, v]) => `- ${k}: ${v}`).join('\n');
@@ -2218,9 +2307,10 @@ export async function startRepl() {
             void saveAndExit();
         }
         else {
-            console.log(warnLine('\n再按一次 Ctrl+C 退出 (1 秒内)'));
-            resetCtrlC();
-            ctrlCTimer = setTimeout(resetCtrlC, 1000);
+            console.log(warnLine('\n再按一次 Ctrl+C 退出 (2 秒内)'));
+            // Don't reset ctrlCCount here — only arm a timer. If the user presses
+            // Ctrl+C again within 2 seconds, ctrlCCount will reach 2 and trigger exit.
+            ctrlCTimer = setTimeout(resetCtrlC, 2000);
             rl.prompt();
         }
     });

@@ -82,11 +82,14 @@ export function loadSettings() {
         return { ...DEFAULTS };
     }
 }
-/** Save a partial update, validate ranges, and persist to disk. */
-export function saveSettings(partial) {
-    const current = loadSettings();
+/** Save a partial update, validate ranges, and persist to disk.
+ * @param partial New values to merge
+ * @param current  Optional: pre-loaded current settings (avoids double I/O)
+ */
+export function saveSettings(partial, current) {
+    const base = current ?? loadSettings();
     const merged = {
-        ...current,
+        ...base,
         ...partial,
     };
     // Validate and clamp

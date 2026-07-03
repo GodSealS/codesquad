@@ -20,8 +20,11 @@ export interface UserSettings {
 }
 /** Load user settings, merging with defaults for missing fields. */
 export declare function loadSettings(): UserSettings;
-/** Save a partial update, validate ranges, and persist to disk. */
-export declare function saveSettings(partial: Partial<UserSettings>): UserSettings;
+/** Save a partial update, validate ranges, and persist to disk.
+ * @param partial New values to merge
+ * @param current  Optional: pre-loaded current settings (avoids double I/O)
+ */
+export declare function saveSettings(partial: Partial<UserSettings>, current?: UserSettings): UserSettings;
 /** Shortcut to get the current memory limit. */
 export declare function getMemoryLimit(): number;
 //# sourceMappingURL=settings.d.ts.map

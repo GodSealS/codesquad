@@ -151,7 +151,20 @@ export function getModelStatus() {
     const path = modelPath();
     const exists = existsSync(path);
     // 下载中哨兵文件：存在 = 正在下载 / 下载中断，模型不完整
-    const downloading = existsSync(downloadLockPath(path));
+    let downloading = existsSync(downloadLockPath(path));
+    // Auto-clean stale lock: if the .gguf exists and is > 1MB, the lock is a zombie
+    // from a previous failed download — silently remove it so the user doesn't see
+    // "needs re-download" when the model is actually present on disk.
+    if (exists && downloading) {
+        try {
+            const size = statSync(path).size;
+            if (size > 1_048_576) { // > 1MB → model is substantial, lock is stale
+                unlinkSync(downloadLockPath(path));
+                downloading = false;
+            }
+        }
+        catch { /* permission issue — keep lock */ }
+    }
     return {
         downloaded: exists && !downloading,
         size: exists ? statSync(path).size : 0,
@@ -188,6 +201,9 @@ export async function downloadModel(onProgress) {
             // 继续尝试下一个镜像
         }
     }
+    // All URLs failed — clean up the lock file so getModelStatus() doesn't
+    // permanently think the model is "downloading" when the .gguf exists.
+    unlockDownload(targetPath);
     throw new Error('[Downloader] all download sources failed');
 }
 async function downloadFromUrl(url, targetPath, resumeFrom, onProgress) {
@@ -371,7 +387,18 @@ export async function ensureModel() {
 export function getQwenModelStatus() {
     const path = qwenModelPath();
     const exists = existsSync(path);
-    const downloading = existsSync(downloadLockPath(path));
+    let downloading = existsSync(downloadLockPath(path));
+    // Auto-clean stale lock (same logic as getModelStatus)
+    if (exists && downloading) {
+        try {
+            const size = statSync(path).size;
+            if (size > 1_048_576) {
+                unlinkSync(downloadLockPath(path));
+                downloading = false;
+            }
+        }
+        catch { /* permission issue — keep lock */ }
+    }
     return {
         downloaded: exists && !downloading,
         size: exists ? statSync(path).size : 0,
@@ -404,6 +431,8 @@ export async function downloadQwenModel(onProgress) {
             console.warn(`[Downloader] Qwen failed from ${url}: ${e.message}`);
         }
     }
+    // All URLs failed — clean up the lock file.
+    unlockDownload(targetPath);
     throw new Error('[Downloader] all Qwen download sources failed');
 }
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -432,10 +432,19 @@ export async function startWebServer(options) {
     return { server, token, port: options.port };
 }
 // ── CLI智能增强 开关 API（模块作用域函数）──
-function readJsonBody(req) {
+function readJsonBody(req, maxBytes = 65536) {
     return new Promise((resolve, reject) => {
         const chunks = [];
-        req.on('data', (c) => chunks.push(c));
+        let total = 0;
+        req.on('data', (c) => {
+            total += c.length;
+            if (total > maxBytes) {
+                req.destroy();
+                reject(new Error('Request body too large'));
+                return;
+            }
+            chunks.push(c);
+        });
         req.on('end', () => {
             try {
                 resolve(JSON.parse(Buffer.concat(chunks).toString()));
@@ -447,6 +456,31 @@ function readJsonBody(req) {
         req.on('error', reject);
     });
 }
+// P2 fix: serialize settings writes to prevent concurrent-request race conditions.
+// Two simultaneous POSTs could both load→merge→write and lose each other's changes.
+let _settingsWriteLock = Promise.resolve();
+/**
+ * Serialize settings writes to prevent concurrent-request race conditions.
+ *
+ * IMPORTANT: `fn` must be synchronous (`() => T`, not `() => Promise<T>`).
+ * The lock is released immediately after fn() returns — it does NOT wait
+ * for any async work inside fn to complete. If you need async-safe locking,
+ * change the signature to `() => Promise<T>` and use:
+ *   `return Promise.resolve(fn()).finally(() => resolveLock!());`
+ */
+function withSettingsWriteLock(fn) {
+    const prev = _settingsWriteLock;
+    let resolveLock;
+    _settingsWriteLock = new Promise(r => { resolveLock = r; });
+    return prev.then(() => {
+        try {
+            return fn();
+        }
+        finally {
+            resolveLock();
+        }
+    });
+}
 function handleCliSmartEnhancement(req, res, method) {
     try {
         if (method === 'GET') {
@@ -456,12 +490,12 @@ function handleCliSmartEnhancement(req, res, method) {
             return;
         }
         if (method === 'POST') {
-            readJsonBody(req).then(body => {
+            readJsonBody(req).then(body => withSettingsWriteLock(() => {
                 const val = body.cliSmartEnhancement === true;
                 saveSettings({ cliSmartEnhancement: val });
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ ok: true, cliSmartEnhancement: val }));
-            }).catch(() => {
+            })).catch(() => {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Invalid JSON body' }));
             });
@@ -484,7 +518,7 @@ function handleMaxGenPercent(req, res, method) {
             return;
         }
         if (method === 'POST') {
-            readJsonBody(req).then(body => {
+            readJsonBody(req).then(body => withSettingsWriteLock(() => {
                 let val = typeof body.maxGenerationPercent === 'number'
                     ? Math.round(body.maxGenerationPercent) : 50;
                 if (val < 30)
@@ -494,7 +528,7 @@ function handleMaxGenPercent(req, res, method) {
                 saveSettings({ maxGenerationPercent: val });
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ ok: true, maxGenerationPercent: val }));
-            }).catch(() => {
+            })).catch(() => {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Invalid JSON body' }));
             });

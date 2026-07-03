@@ -88,7 +88,9 @@ After calling, the user's answers will be injected into the conversation.`;
             for (const q of questions) {
                 const answer = input.answers[q.header];
                 if (answer) {
-                    const selected = answer.split(',').map((a) => a.trim());
+                    // Use the same separator as the frontend dialog (", ") to avoid
+                    // leading spaces when splitting multi-select answers.
+                    const selected = answer.split(', ').map((a) => a.trim()).filter(Boolean);
                     answerLines.push(`**${q.header}**: ${selected.join(', ')}`);
                 }
             }

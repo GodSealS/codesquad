@@ -110,6 +110,66 @@ function discoverCodesquadFiles(projectRoot, extraDirs) {
     return found;
 }
 /**
+ * Discover AGENTS.md files across layers.
+ * Mirrors CodeBuddy IDE's AGENTS.md protocol — loads tool-level AI interaction rules.
+ *
+ * Load order (lowest to highest priority):
+ *   1. Managed:   ~/.codesquad/AGENTS.md
+ *   2. Ancestor:  agents.md in each parent directory (root → cwd)
+ *   3. Project:   .codesquad/AGENTS.md (at project root)
+ *   4. Project:   <projectRoot>/AGENTS.md (root-level backward compat)
+ *
+ * AGENTS.md is concatenated (not merged) — all sources are joined.
+ * Unlike CODESQUAD.md, AGENTS.md focuses on tool interaction rules
+ * (e.g. "use graphify before answering architecture questions").
+ */
+function discoverAgentsFiles(projectRoot) {
+    const found = [];
+    const cwd = process.cwd();
+    // 1. Managed: ~/.codesquad/AGENTS.md
+    try {
+        const managedPath = join(CODESQUAD_USER_ROOT, 'AGENTS.md');
+        if (existsSync(managedPath)) {
+            found.push(`# Managed Agent Instructions\n\n${readFileSync(managedPath, 'utf-8')}`);
+        }
+    }
+    catch { /* optional */ }
+    // 2. Ancestor: agents.md in each parent directory (root → cwd)
+    const ancestors = getAncestorDirectories(cwd);
+    for (const dir of ancestors) {
+        const mdPath = join(dir, 'agents.md');
+        if (existsSync(mdPath)) {
+            try {
+                const content = readFileSync(mdPath, 'utf-8');
+                if (content.trim()) {
+                    found.push(`# Agent Instructions (${dir})\n\n${content}`);
+                }
+            }
+            catch { /* skip */ }
+        }
+    }
+    // 3. Project-level: .codesquad/AGENTS.md
+    const projectAgents = join(projectRoot, '.codesquad', 'AGENTS.md');
+    if (existsSync(projectAgents)) {
+        try {
+            found.push(`# Project Agent Instructions\n\n${readFileSync(projectAgents, 'utf-8')}`);
+        }
+        catch { /* optional */ }
+    }
+    // 4. Project root: AGENTS.md (backward compat, matches CodeBuddy IDE convention)
+    const rootAgents = join(projectRoot, 'AGENTS.md');
+    if (existsSync(rootAgents)) {
+        try {
+            const content = readFileSync(rootAgents, 'utf-8');
+            if (content.trim()) {
+                found.push(`# Project Agent Instructions (root)\n\n${content}`);
+            }
+        }
+        catch { /* optional */ }
+    }
+    return found;
+}
+/**
  * Get ancestor directories from cwd up to filesystem root.
  * Returns directories in root-to-cwd order.
  */
@@ -198,6 +258,15 @@ function loadProjectGuidance(projectRoot, extraDirs, bare) {
         parts.push(resolveIncludes(readFileSync(codebuddyMd, 'utf-8'), projectRoot));
     }
     catch { /* optional */ }
+    // AGENTS.md: tool-level AI interaction rules (cross-tool ecosystem standard)
+    // Loaded as a separate section — complements CODESQUAD.md (project conventions)
+    // and CODEBUDDY.md (IDE/tech stack context) with tool-specific instructions.
+    if (!bare) {
+        const agentsParts = discoverAgentsFiles(projectRoot);
+        if (agentsParts.length > 0) {
+            parts.push('# Agent-Specific Instructions\n\n' + agentsParts.join('\n\n---\n\n'));
+        }
+    }
     const result = parts.join('\n\n---\n\n');
     _projectGuidanceCache.set(key, result);
     return result;
