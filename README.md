@@ -5,11 +5,11 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/agents-49-blueviolet?style=flat-square" alt="49 Agents">
-  <img src="https://img.shields.io/badge/skills-72-green?style=flat-square" alt="72 Skills">
-  <img src="https://img.shields.io/badge/hooks-12-orange?style=flat-square" alt="12 Hooks">
-  <img src="https://img.shields.io/badge/rules-11-red?style=flat-square" alt="11 Rules">
-  <img src="https://img.shields.io/badge/templates-39-lightgrey?style=flat-square" alt="39 Templates">
+  <img src="https://img.shields.io/badge/agents-43-blueviolet?style=flat-square" alt="43 Agents">
+  <img src="https://img.shields.io/badge/skills-121-green?style=flat-square" alt="121 Skills">
+  <img src="https://img.shields.io/badge/hooks-13-orange?style=flat-square" alt="13 Hooks">
+  <img src="https://img.shields.io/badge/rules-12-red?style=flat-square" alt="12 Rules">
+  <img src="https://img.shields.io/badge/templates-44-lightgrey?style=flat-square" alt="44 Templates">
 </p>
 
 
@@ -17,7 +17,7 @@
 <p align="center"><strong>AI 原生的游戏开发 CLI —— 多工具代理与技能绑定框架</strong></p>
 <p align="center">
   将单一 AI 会话转变为一个完整的游戏开发工作室。<br>
-  一个协调的 AI 团队，包含 <strong>37 个代理</strong> 和 <strong>99 个技能</strong>，覆盖设计、编程、美术、音频、叙事、QA 和生产全流程。
+  一个协调的 AI 团队，包含 <strong>43 个代理</strong> 和 <strong>121 个技能</strong>，覆盖设计、编程、美术、音频、叙事、QA 和生产全流程。
 </p>
 
 <p align="center">
@@ -266,14 +266,12 @@ Unreal 适合 大型AAA游戏
 ```
 CODESQUAD.md                    # 主配置文件
 .codesquad/
-  agents/                        # 49 个代理定义
-  skills/                        # 72 个技能定义
+agents/                        # 43 个代理定义
+skills/                        # 121 个技能定义
   hooks/                         # 12 个钩子脚本
   rules/                         # 11 个路径级编码规范
   docs/
     quick-start.md               # 快速入门指南
-    templates/                   # 39 个文档模板
-src/                             # CLI 源代码
 UI/                              # Web 控制台前端
 ```
 
