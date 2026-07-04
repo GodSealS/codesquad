@@ -580,38 +580,29 @@ codesquad backup
 
 ### Cocos MCP 集成推荐
 
-```bash
-[https://github.com/DaxianLee/cocos-mcp-server]
+- [DaxianLee/cocos-mcp-server](https://github.com/DaxianLee/cocos-mcp-server)
+- [Spaydo/cocos-mcp-extension](https://github.com/Spaydo/cocos-mcp-extension)
 
-[https://github.com/Spaydo/cocos-mcp-extension]
-```
 ### Godot MCP 集成推荐
 
-```bash
-[https://github.com/Coding-Solo/godot-mcp]
-[https://github.com/youichi-uda/godot-mcp-pro]
-[https://github.com/tugcantopaloglu/godot-mcp]
-[https://github.com/yurineko73/Godot-MCP-Native]
-```
-
+- [Coding-Solo/godot-mcp](https://github.com/Coding-Solo/godot-mcp)
+- [youichi-uda/godot-mcp-pro](https://github.com/youichi-uda/godot-mcp-pro)
+- [tugcantopaloglu/godot-mcp](https://github.com/tugcantopaloglu/godot-mcp)
+- [yurineko73/Godot-MCP-Native](https://github.com/yurineko73/Godot-MCP-Native)
 
 ### Unreal MCP 集成推荐
 
-```bash
-[https://github.com/db-lyon/ue-mcp]
-[https://github.com/VedantRGosavi/UE5-MCP]
-[https://github.com/yangskin/UEEditorMCP]
-```
+- [db-lyon/ue-mcp](https://github.com/db-lyon/ue-mcp)
+- [VedantRGosavi/UE5-MCP](https://github.com/VedantRGosavi/UE5-MCP)
+- [yangskin/UEEditorMCP](https://github.com/yangskin/UEEditorMCP)
+
 ### Unity MCP 集成推荐
 
-```bash
-[https://github.com/IvanMurzak/Unity-MCP]
-[https://github.com/CoplayDev/unity-mcp]
-[https://github.com/AnkleBreaker-Studio/unity-mcp-server]
-```
+- [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)
+- [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp)
+- [AnkleBreaker-Studio/unity-mcp-server](https://github.com/AnkleBreaker-Studio/unity-mcp-server)
+
 ### Blender MCP 集成推荐
 
-```bash
-[https://github.com/ahujasid/blender-mcp]
-[https://github.com/PatrykIti/blender-ai-mcp]
-```
+- [ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp)
+- [PatrykIti/blender-ai-mcp](https://github.com/PatrykIti/blender-ai-mcp)
