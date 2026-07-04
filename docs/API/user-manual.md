@@ -577,3 +577,41 @@ codesquad backup
 ---
 
 *文档基于知识图谱自动生成（提交 `a33aabf`）。源文件路径和数据来源于项目源码分析。*
+
+### Cocos MCP 集成推荐
+
+```bash
+[https://github.com/DaxianLee/cocos-mcp-server]
+
+[https://github.com/Spaydo/cocos-mcp-extension]
+```
+### Godot MCP 集成推荐
+
+```bash
+[https://github.com/Coding-Solo/godot-mcp]
+[https://github.com/youichi-uda/godot-mcp-pro]
+[https://github.com/tugcantopaloglu/godot-mcp]
+[https://github.com/yurineko73/Godot-MCP-Native]
+```
+
+
+### Unreal MCP 集成推荐
+
+```bash
+[https://github.com/db-lyon/ue-mcp]
+[https://github.com/VedantRGosavi/UE5-MCP]
+[https://github.com/yangskin/UEEditorMCP]
+```
+### Unity MCP 集成推荐
+
+```bash
+[https://github.com/IvanMurzak/Unity-MCP]
+[https://github.com/CoplayDev/unity-mcp]
+[https://github.com/AnkleBreaker-Studio/unity-mcp-server]
+```
+### Blender MCP 集成推荐
+
+```bash
+[https://github.com/ahujasid/blender-mcp]
+[https://github.com/PatrykIti/blender-ai-mcp]
+```

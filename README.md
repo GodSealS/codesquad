@@ -114,7 +114,7 @@ codesquad --version
 
 ```bash
 exe 版是bun版本，不依赖nodejs，直接运行
-下载地址：https://github.com/GodSealS/codesquad/releases/tag/GameAgentGroup
+下载地址：[https://github.com/GodSealS/codesquad/releases/tag/GameAgentGroup]
 ```
 
 ### 快速模型配置
@@ -329,7 +329,43 @@ qmd mcp
 
 > qmd 使用 SQLite FTS5 (BM25) + sqlite-vec (向量) + node-llama-cpp 本地模型，完全离线运行。CodeSquad CLI 自动通过 MCP bridge 发现并连接 qmd，Agent 可直接调用本地搜索能力。
 
+### Cocos MCP 集成推荐
 
+```bash
+[https://github.com/DaxianLee/cocos-mcp-server]
+
+[https://github.com/Spaydo/cocos-mcp-extension]
+```
+### Godot MCP 集成推荐
+
+```bash
+[https://github.com/Coding-Solo/godot-mcp]
+[https://github.com/youichi-uda/godot-mcp-pro]
+[https://github.com/tugcantopaloglu/godot-mcp]
+[https://github.com/yurineko73/Godot-MCP-Native]
+```
+
+
+### Unreal MCP 集成推荐
+
+```bash
+[https://github.com/db-lyon/ue-mcp]
+[https://github.com/VedantRGosavi/UE5-MCP]
+[https://github.com/yangskin/UEEditorMCP]
+```
+### Unity MCP 集成推荐
+
+```bash
+[https://github.com/IvanMurzak/Unity-MCP]
+[https://github.com/CoplayDev/unity-mcp]
+[https://github.com/AnkleBreaker-Studio/unity-mcp-server]
+```
+### Blender MCP 集成推荐
+
+```bash
+[https://github.com/ahujasid/blender-mcp]
+[https://github.com/PatrykIti/blender-ai-mcp]
+```
 ## 👤 作者
 
 - **房超** — [ttb475c@hotmail.com](mailto:ttb475c@hotmail.com)
