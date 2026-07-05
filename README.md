@@ -169,11 +169,11 @@ codesquad config show
 ---
 ## 📚 使用手册
 
-> 快速入门见 [docs/translations/CN/Quick-Start.md](docs/translations/CN/Quick-Start.md)
+> 快速入门见 [docs/translations/CN/Quick-Start.md](docs/translations/CN/Quick-Start.md)[English](docs/translations/EN/Quick-Start.md)
 
-> 工作流 [docs/translations/CN/Workflow-Guide.md](docs/translations/CN/Workflow-Guide.md)
+> 工作流 [docs/translations/CN/Workflow-Guide.md](docs/translations/CN/Workflow-Guide.md)[English](docs/translations/EN/Workflow-Guide.md)
 
-> 游戏开发指南 [docs/translations/CN/Workflow-Guide.md](docs/translations/CN/Workflow-Guide.md)
+> 游戏开发指南 [docs/translations/CN/Workflow-Guide.md](docs/translations/CN/Workflow-Guide.md)[English](docs/translations/EN/Workflow-Guide.md)
 
 ### 1. 理解代理层级
 
@@ -361,7 +361,8 @@ qmd mcp
 
 ## 👤 作者
 
-- **房超** — [ttb475c@hotmail.com](mailto:ttb475c@hotmail.com)
+- **FangChao** — [ttb475c@hotmail.com](mailto:ttb475c@hotmail.com)
+- **QQ交流群 Code Squad** — 650062945
 
 
 ## 📄 许可证

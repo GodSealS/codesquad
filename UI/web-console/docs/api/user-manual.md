@@ -1,4 +1,4 @@
-# CodeSquad 用户使用手册
+﻿# CodeSquad 用户使用手册
 
 > **版本**：v1.1.2
 > **生成来源**：知识图谱 `.understand-anything/knowledge-graph.json`（提交 `a33aabf`）
@@ -19,6 +19,8 @@
 9. [模型配置](#9-模型配置)
 10. [钩子系统](#10-钩子系统)
 11. [常见问题](#11-常见问题)
+12. [集成推荐](#12-集成推荐)
+
 
 ---
 
@@ -51,6 +53,9 @@ codesquad init --engine unreal    # 指定引擎初始化
 codesquad start       # 启动引导流程（首次使用推荐）
 codesquad setup-engine --engine godot    # 设置引擎
 ```
+
+
+
 
 ---
 
@@ -93,6 +98,10 @@ codesquad setup-engine --engine godot    # 设置引擎
 | `codesquad engine godot` | Godot 构建/测试 |
 | `codesquad engine cocos` | Cocos Creator 构建/测试 |
 
+
+[:arrow_up: 返回目录](#目录)
+
+
 ---
 
 ## 3. REPL 交互模式
@@ -128,6 +137,10 @@ codesquad setup-engine --engine godot    # 设置引擎
 - 语义过滤（CLI 智能增强开启后，第 5 条消息起启用）
 - 跨会话记忆（MEMORY.md）
 
+
+[:arrow_up: 返回目录](#目录)
+
+
 ---
 
 ## 4. Web 控制台
@@ -160,6 +173,10 @@ Web 控制台使用 Bearer Token 认证：
 2. 输入 API Token
 3. 浏览器自动设置 `codesquad_token` cookie
 4. 所有后续请求自动携带 cookie
+
+
+[:arrow_up: 返回目录](#目录)
+
 
 ---
 
@@ -370,6 +387,10 @@ data: {"sessionId": "...", "usage": {...}}
 #### POST /api/optimize-prompt
 优化 System Prompt。
 
+
+[:arrow_up: 返回目录](#目录)
+
+
 ---
 
 ## 6. Agent 系统
@@ -404,6 +425,10 @@ data: {"sessionId": "...", "usage": {...}}
 - `team inbox [name]` — 查看邮箱
 
 Agent 通过 `send_message` 工具进行团队通信。
+
+
+[:arrow_up: 返回目录](#目录)
+
 
 ---
 
@@ -442,6 +467,10 @@ model: Deepseek-V4-Flash
 ```
 调用时优先使用 Skill 指定的模型，而非 Agent 默认模型。
 
+
+[:arrow_up: 返回目录](#目录)
+
+
 ---
 
 ## 8. 权限模式
@@ -466,6 +495,10 @@ model: Deepseek-V4-Flash
 - **安全**：ls, cat, echo, git status 等
 - **中等**：npm install, git commit 等
 - **危险**：rm -rf, git push --force 等
+
+
+[:arrow_up: 返回目录](#目录)
+
 
 ---
 
@@ -503,6 +536,10 @@ primary → fallback_chain[0] → fallback_chain[1] → ... → Ollama
 
 502/503 错误自动重试 3 次后触发 fallback。
 
+
+[:arrow_up: 返回目录](#目录)
+
+
 ---
 
 ## 10. 钩子系统
@@ -537,6 +574,10 @@ primary → fallback_chain[0] → fallback_chain[1] → ... → Ollama
 echo "Running pre-commit code check..."
 npx tsc --noEmit
 ```
+
+
+[:arrow_up: 返回目录](#目录)
+
 
 ---
 
@@ -577,3 +618,37 @@ codesquad backup
 ---
 
 *文档基于知识图谱自动生成（提交 `a33aabf`）。源文件路径和数据来源于项目源码分析。*
+
+## 12. 集成推荐
+### Cocos MCP 
+
+- [DaxianLee/cocos-mcp-server](https://github.com/DaxianLee/cocos-mcp-server)
+- [Spaydo/cocos-mcp-extension](https://github.com/Spaydo/cocos-mcp-extension)
+
+### Godot MCP 
+
+- [Coding-Solo/godot-mcp](https://github.com/Coding-Solo/godot-mcp)
+- [youichi-uda/godot-mcp-pro](https://github.com/youichi-uda/godot-mcp-pro)
+- [tugcantopaloglu/godot-mcp](https://github.com/tugcantopaloglu/godot-mcp)
+- [yurineko73/Godot-MCP-Native](https://github.com/yurineko73/Godot-MCP-Native)
+
+### Unreal MCP 
+
+- [db-lyon/ue-mcp](https://github.com/db-lyon/ue-mcp)
+- [VedantRGosavi/UE5-MCP](https://github.com/VedantRGosavi/UE5-MCP)
+- [yangskin/UEEditorMCP](https://github.com/yangskin/UEEditorMCP)
+
+### Unity MCP 
+
+- [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)
+- [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp)
+- [AnkleBreaker-Studio/unity-mcp-server](https://github.com/AnkleBreaker-Studio/unity-mcp-server)
+
+### Blender MCP 
+
+- [ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp)
+- [PatrykIti/blender-ai-mcp](https://github.com/PatrykIti/blender-ai-mcp)
+
+---
+
+[:arrow_up: 返回目录](#目录)
