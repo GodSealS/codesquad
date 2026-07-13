@@ -31,14 +31,6 @@ export interface AgentDef {
     enabledAutoRun?: boolean;
     /** Thinking depth level: 'fast' | 'think' | 'deep'. Agents default to 'deep'. */
     thinkingLevel?: 'fast' | 'think' | 'deep';
-    /** Parent agent name (used by assembly files) */
-    agent_parent?: string;
-    /** Instance identifier for multi-role memory isolation */
-    instanceId?: string;
-    /** Body merge mode: 'append' (default) or 'replace' */
-    body_mode?: 'append' | 'replace';
-    /** Whether this agent is an assembly (aggregation of a parent agent) */
-    isAssembly?: boolean;
     /** Full body text (system prompt) */
     body: string;
     /** Raw frontmatter parsed extras (for adapter flexibility) */

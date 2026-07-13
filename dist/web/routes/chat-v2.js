@@ -281,7 +281,7 @@ export async function handleChatV2(req, res) {
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
         return;
     }
-    const { prompt, history, modelName, agentId, skillId, mode, lang, memorySummaryMode, customSources, generationConfig } = body;
+    const { prompt, history, modelName, agentId, skillId, mode, lang, customSources, generationConfig } = body;
     if (!prompt) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'prompt is required' }));
@@ -386,7 +386,6 @@ export async function handleChatV2(req, res) {
             mode: chatMode,
             maxTurns: 20,
             lang: lang || 'zh',
-            memorySummaryMode,
             runtimeConfig,
             stream: false,
         });
@@ -477,7 +476,7 @@ export async function handleChatStream(req, res) {
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
         return;
     }
-    const { prompt, history, modelName, agentId, skillId, mode, lang, thinkingMode, searchProvider, memorySummaryMode, customSources, generationConfig } = body;
+    const { prompt, history, modelName, agentId, skillId, mode, lang, thinkingMode, searchProvider, customSources, generationConfig } = body;
     // Apply search provider preference
     if (searchProvider) {
         process.env.SEARCH_PROVIDER = searchProvider;
@@ -657,7 +656,6 @@ export async function handleChatStream(req, res) {
             maxTurns: 20,
             lang: lang || 'zh',
             thinkingMode: thinkingMode || 'fast',
-            memorySummaryMode,
             runtimeConfig,
             stream: true,
             onToken(text) {

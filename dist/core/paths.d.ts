@@ -58,7 +58,7 @@ export declare const CODESQUAD_USER_SETTINGS: string;
  * Defaults to process.cwd().
  */
 export declare function getCodeSquadProjectRoot(cwd?: string): string;
-export declare function getCodeSquadProjectCategory(category: 'agents' | 'skills' | 'rules' | 'hooks' | 'commands' | 'agent-assemblies', cwd?: string): string;
+export declare function getCodeSquadProjectCategory(category: 'agents' | 'skills' | 'rules' | 'hooks', cwd?: string): string;
 /**
  * Whether the CLI is running as a Bun-compiled binary.
  * In embedded mode, .codesquad content is read from in-memory string constants

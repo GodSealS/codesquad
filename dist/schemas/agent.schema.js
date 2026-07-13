@@ -41,17 +41,11 @@ export function parseAgentMd(content, sourcePath) {
         body: (rawBody ?? '').trimEnd(),
         extra: {},
     };
-    // Parse assembly extension fields
-    agent.agent_parent = frontmatter.agent_parent;
-    agent.instanceId = frontmatter.instanceId;
-    agent.body_mode = frontmatter.body_mode;
-    agent.isAssembly = frontmatter.isAssembly;
     // Capture any unrecognized frontmatter keys
     const knownKeys = new Set([
         'name', 'description', 'tools', 'model', 'maxTurns',
         'disallowedTools', 'skills', 'memory', 'agentMode',
         'enabled', 'enabledAutoRun', 'thinkingLevel',
-        'agent_parent', 'instanceId', 'body_mode', 'isAssembly',
     ]);
     for (const key of Object.keys(frontmatter)) {
         if (!knownKeys.has(key)) {

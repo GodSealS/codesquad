@@ -16,7 +16,6 @@ import { join } from 'path';
 import { parseSkillFrontmatter } from './skill-frontmatter.js';
 import { getCodeSquadProjectCategory, getCodeSquadUserCategory, isEmbeddedMode, readAicoreFile, readAicoreDir } from '../core/paths.js';
 import { virtualExists } from '../embedded/virtual-fs.js';
-import { loadAssemblyAgents } from '../agents/assembly-loader.js';
 // ── Cache ──
 let skillCache = null;
 let _aicodeRoot = null;
@@ -203,46 +202,16 @@ export function clearSkillCache() {
  */
 export function getCapabilitySkillsForAgent(agentName) {
     const all = listSkills();
-    // Trace agent_parent for assembly agents (Agent Phase 2)
-    // Assembly agents inherit capability skills bound to their parent.
-    const parentNames = _getParentChain(agentName);
     return all.filter((s) => {
         if (s.type !== 'capability')
             return false;
-        // If bindTo is specified, match against agent name AND its parent chain
+        // If bindTo is specified, only match if agentName is in the list
         if (s.bindTo.length > 0) {
-            // Direct match
-            if (s.bindTo.includes(agentName))
-                return true;
-            // Assembly parent chain match
-            for (const parent of parentNames) {
-                if (s.bindTo.includes(parent))
-                    return true;
-            }
-            return false;
+            return s.bindTo.includes(agentName);
         }
-        // No bindTo specified — available to any agent
+        // No bindTo specified — available to any agent (but user must not invoke directly)
         return true;
     });
-}
-/**
- * Resolve parent agent chain for assembly agents.
- * Returns [agent_parent] if agentName is an assembly, otherwise empty array.
- */
-function _getParentChain(agentName) {
-    try {
-        const assemblyDir = getCodeSquadProjectCategory('agent-assemblies');
-        const assemblies = loadAssemblyAgents(assemblyDir);
-        for (const asm of assemblies) {
-            if (asm.name === agentName && asm.agent_parent) {
-                return [asm.agent_parent];
-            }
-        }
-    }
-    catch {
-        // assembly loading failed — skip tracing
-    }
-    return [];
 }
 /**
  * Load the content of a sub-file within a multi-file skill.

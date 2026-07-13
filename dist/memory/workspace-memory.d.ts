@@ -53,19 +53,4 @@ export declare function listMemoryFiles(): string[];
  * Distill daily logs older than 30 days into MEMORY.md.
  */
 export declare function distillOldLogs(maxAgeDays?: number): number;
-/**
- * Truncate memory content if it exceeds capacity limits.
- * Returns the truncated content and a warning message if truncation occurred.
- */
-export declare function truncateEntrypointContent(content: string): {
-    content: string;
-    truncated: boolean;
-    warning?: string;
-};
-/**
- * Ensure memory directory exists (creates if missing).
- */
-export declare function ensureMemoryDirExists(): string;
-/** Get the memory directory path (creates if missing). */
-export declare function getMemoryDir(): string;
 //# sourceMappingURL=workspace-memory.d.ts.map

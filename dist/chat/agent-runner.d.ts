@@ -26,14 +26,6 @@ export interface AgentRunConfig {
     /** Thinking mode: fast (no reasoning), think (medium), deep (extended). */
     thinkingMode?: 'fast' | 'think' | 'deep';
     /**
-     * Query source identifier for Session Memory extraction guard.
-     * Only 'repl_main_thread' triggers automatic extraction.
-     * Sub-agents and fork sessions use different identifiers to prevent recursion.
-     */
-    querySource?: string;
-    /** Memory summary mode: 'regex' | 'local-model' | 'online-model'. Default from settings. */
-    memorySummaryMode?: 'regex' | 'local-model' | 'online-model';
-    /**
      * Optional: provide a pre-resolved RuntimeProviderConfig directly.
      * When set, bypasses buildRuntimeConfig() registry lookup.
      * Used by the Web HTTP API to route through models.config.yaml sources.

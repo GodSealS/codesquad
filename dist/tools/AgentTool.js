@@ -343,7 +343,7 @@ export const AgentTool = buildTool({
 function _agentsLoaded() {
     return listAgents().length > 0;
 }
-/** Look up agent by type — checks built-ins first, then .codesquad (including assemblies). */
+/** Look up agent by type — checks built-ins first, then .codesquad. */
 function resolveToAgent(subagentType) {
     switch (subagentType) {
         case 'explore': return exploreAgent;

@@ -45,10 +45,6 @@ import { assembleSemanticContext } from '../context/semantic-context.js';
 import { summarizeMessageAsync } from '../embedding/summarizer.js';
 import { countTokens } from './tokenizer.js';
 import { getContextWindow } from '../context/auto-compact.js';
-// Session Memory integration (M7)
-import { initSessionMemory, shouldExtractMemory, recordToolCall, markExtractionStarted, extractSessionMemoryViaMode, resolveSideQueryConfig, } from '../memory/session-memory.js';
-// Agent Memory integration (M7)
-import { loadAgentMemoryPrompt, } from '../memory/agent-memory.js';
 // ── Fork Skill Execution ──
 /**
  * Execute a fork skill in an isolated ephemeral session.
@@ -239,40 +235,15 @@ function isForkErrorRetryable(err) {
 export async function runAgent(config) {
     const startTime = Date.now();
     const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, stream = false, onToken, onTurn, onToolUse, onToolProgress, onError, } = config;
-    // ── Session Memory setup (M7) ──
-    const querySource = config.querySource ?? 'repl_main_thread';
-    const autoCompactEnabled = true; // always enabled for now
-    initSessionMemory(session.id);
-    // ── Load agent path and content ──
+    // Load agent prompt (VirtualFS: embedded-first, disk-fallback)
     const agentPath = join(aicoreDir, 'agents', `${agentName}.md`);
-    let rawAgent;
+    let agentPrompt;
     try {
-        rawAgent = virtualReadFile(agentPath, 'utf-8');
+        agentPrompt = virtualReadFile(agentPath, 'utf-8');
     }
     catch {
         throw new Error(`Agent not found: ${agentName}`);
     }
-    // ── Agent Memory injection (M7) ──
-    let agentMemoryPrompt = '';
-    try {
-        // Check if agent frontmatter has memory field
-        const memMatch = rawAgent.match(/^memory\s*:\s*(.+)$/m);
-        if (memMatch) {
-            const memScope = (memMatch[1].trim() === 'local' || memMatch[1].trim() === 'project' || memMatch[1].trim() === 'user')
-                ? memMatch[1].trim()
-                : null;
-            if (memScope) {
-                // Check for instanceId
-                const instanceMatch = rawAgent.match(/^instanceId\s*:\s*(.+)$/m);
-                const instanceId = instanceMatch?.[1]?.trim();
-                agentMemoryPrompt = loadAgentMemoryPrompt(agentName, memScope, instanceId);
-            }
-        }
-    }
-    catch {
-        // Ignore — agent memory is optional
-    }
-    const agentPrompt = rawAgent;
     // Extract agent's thinkingLevel from YAML frontmatter (agents default to 'deep')
     let agentThinkingLevel;
     try {
@@ -952,7 +923,6 @@ export async function runAgent(config) {
                         const tc = exec;
                         const result = exec.result;
                         onToolUse?.(tc.name, tc.input, { content: result.content, isError: !!result.isError });
-                        recordToolCall(session.id); // Session Memory (M7)
                         addMessage(session, 'user', `[Tool Result: ${tc.name}]\n${result.content}`);
                         touchTool(tc.name); // update LRU timestamp — keep frequently-used tools active
                         toolCallsMade++;
@@ -1080,16 +1050,6 @@ export async function runAgent(config) {
             }
             onTurn?.(turn, content);
             finalResponse = response.content;
-            // ── Session Memory extraction (B+C+E: regex → local Qwen → online Flash) ──
-            if (shouldExtractMemory(session.id, session.messages, querySource, autoCompactEnabled)) {
-                markExtractionStarted(session.id);
-                // Fire-and-forget: resolve mode config, then extract in background
-                resolveSideQueryConfig(config.memorySummaryMode ?? 'regex', rc).then((sideConfig) => {
-                    return extractSessionMemoryViaMode([...session.messages], session.id, projectRoot, sideConfig);
-                }).catch(() => {
-                    // Non-blocking: extraction failure silently ignored
-                });
-            }
             break;
         }
     }
