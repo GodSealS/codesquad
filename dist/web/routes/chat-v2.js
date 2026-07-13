@@ -590,6 +590,7 @@ export async function handleChatStream(req, res) {
     // ── Inject skill guidance if skillId provided ──
     // IMPORTANT: When switching skills, clear previous skill's injected content to avoid
     // context pollution (LLM seeing instructions from multiple skills simultaneously).
+    let skillThinkingLevel;
     if (skillId) {
         const currentInjected = session.context.injectedContent || '';
         const alreadyInjected = currentInjected.includes(`Skill: ${skillId}`);
@@ -600,7 +601,8 @@ export async function handleChatStream(req, res) {
                 const { setAicodeRoot, loadSkill } = await import('../../repl/skill-registry.js');
                 setAicodeRoot(AICORE_DIR);
                 const skill = loadSkill(skillId);
-                console.log(`[chat-v2] Skill "${skillId}" loaded: context=${skill?.context}, model=${skill?.model}, allowedTools=${skill?.allowedTools?.length ?? 0}`);
+                skillThinkingLevel = skill?.thinkingLevel;
+                console.log(`[chat-v2] Skill "${skillId}" loaded: context=${skill?.context}, model=${skill?.model}, thinkingLevel=${skillThinkingLevel ?? '(inherit)'}, allowedTools=${skill?.allowedTools?.length ?? 0}`);
                 logDiagnostic('INFO', 'chat-v2', `Skill "${skillId}" loaded`, {
                     context: skill?.context,
                     model: skill?.model,
@@ -657,6 +659,7 @@ export async function handleChatStream(req, res) {
             maxTurns: 20,
             lang: lang || 'zh',
             thinkingMode: thinkingMode || 'fast',
+            skillThinkingLevel,
             memorySummaryMode,
             runtimeConfig,
             stream: true,

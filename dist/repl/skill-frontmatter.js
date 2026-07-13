@@ -26,6 +26,7 @@ const DEFAULTS = {
     bindTo: [],
     agent: undefined,
     model: undefined,
+    thinkingLevel: undefined,
     subFiles: [],
     context: undefined,
 };
@@ -89,6 +90,7 @@ export function parseSkillFrontmatter(raw, dirPath) {
         agent: fm['agent'] || undefined,
         model: fm['model'] || undefined,
         maxTokens: Number.isNaN(maxTokens) ? undefined : maxTokens,
+        thinkingLevel: ['fast', 'think', 'deep'].includes(fm['thinking-level']) ? fm['thinking-level'] : undefined,
         subFiles,
         context: fm['context'] || undefined,
         body,

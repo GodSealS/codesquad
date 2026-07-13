@@ -42,6 +42,8 @@ export interface SkillFrontmatter {
     model?: string;
     /** Override default maxTokens for LLM output (works for skill-only execution, not agent-routed). */
     maxTokens?: number;
+    /** Override agent's thinking level: fast (no reasoning), think (medium), deep (extended). Defaults to agent's own setting. */
+    thinkingLevel?: 'fast' | 'think' | 'deep';
     /** Sub-files for multi-file skills (lazy-loaded on demand based on trigger keywords). */
     subFiles: SkillSubFile[];
     /** Execution context: 'fork' means run in isolated context, return only summary. */

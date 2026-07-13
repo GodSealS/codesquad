@@ -25,6 +25,8 @@ export interface AgentRunConfig {
     lang?: string;
     /** Thinking mode: fast (no reasoning), think (medium), deep (extended). */
     thinkingMode?: 'fast' | 'think' | 'deep';
+    /** Skill-level thinking level override. Takes priority over agent's thinkingLevel. */
+    skillThinkingLevel?: 'fast' | 'think' | 'deep';
     /**
      * Query source identifier for Session Memory extraction guard.
      * Only 'repl_main_thread' triggers automatic extraction.

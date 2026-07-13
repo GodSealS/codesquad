@@ -238,7 +238,7 @@ function isForkErrorRetryable(err) {
 // ── Core Runner ──
 export async function runAgent(config) {
     const startTime = Date.now();
-    const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, stream = false, onToken, onTurn, onToolUse, onToolProgress, onError, } = config;
+    const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, stream = false, skillThinkingLevel, onToken, onTurn, onToolUse, onToolProgress, onError, } = config;
     // ── Session Memory setup (M7) ──
     const querySource = config.querySource ?? 'repl_main_thread';
     const autoCompactEnabled = true; // always enabled for now
@@ -285,8 +285,8 @@ export async function runAgent(config) {
         }
     }
     catch { /* fall through */ }
-    // Agent's own thinkingLevel takes priority; fall back to config.thinkingMode → LLM default
-    const effectiveThinkingMode = agentThinkingLevel || config.thinkingMode;
+    // Priority: skillThinkingLevel > agentThinkingLevel > config.thinkingMode > LLM default
+    const effectiveThinkingMode = skillThinkingLevel || agentThinkingLevel || config.thinkingMode;
     // Add user message
     addMessage(session, 'user', userInput);
     // 🔧 Bug Fix #2: fire-and-forget 摘要生成 → 写入 VectorStore
