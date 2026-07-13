@@ -32,6 +32,7 @@ const DEFAULTS = {
     cliSmartEnhancement: false,
     maxGenerationPercent: 50,
     semanticContext: DEFAULT_SEMANTIC_CONTEXT,
+    memorySummaryMode: 'regex',
 };
 const MIN_MEMORY_LIMIT = 2;
 const MAX_MEMORY_LIMIT = 15;
@@ -58,6 +59,7 @@ export function loadSettings() {
             streamingEnabled: DEFAULTS.streamingEnabled,
             cliSmartEnhancement: DEFAULTS.cliSmartEnhancement,
             maxGenerationPercent: DEFAULTS.maxGenerationPercent,
+            memorySummaryMode: DEFAULTS.memorySummaryMode,
             semanticContext: {
                 ...DEFAULTS.semanticContext,
                 embeddingModel: { ...DEFAULTS.semanticContext.embeddingModel },
@@ -74,6 +76,7 @@ export function loadSettings() {
             streamingEnabled: parsed.streamingEnabled ?? DEFAULTS.streamingEnabled,
             cliSmartEnhancement: parsed.cliSmartEnhancement ?? DEFAULTS.cliSmartEnhancement,
             maxGenerationPercent: clampGenPercent(parsed.maxGenerationPercent ?? DEFAULTS.maxGenerationPercent),
+            memorySummaryMode: parsed.memorySummaryMode ?? DEFAULTS.memorySummaryMode,
             semanticContext: deepMergeSemanticConfig(parsed.semanticContext),
         };
     }

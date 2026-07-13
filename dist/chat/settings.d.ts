@@ -17,6 +17,8 @@ export interface UserSettings {
     maxGenerationPercent: number;
     /** 语义上下文检索配置 */
     semanticContext: SemanticContextConfig;
+    /** 记忆摘要模式：'regex' | 'local-model' | 'online-model'。默认 'regex'。 */
+    memorySummaryMode: 'regex' | 'local-model' | 'online-model';
 }
 /** Load user settings, merging with defaults for missing fields. */
 export declare function loadSettings(): UserSettings;

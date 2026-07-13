@@ -152,4 +152,40 @@ export function distillOldLogs(maxAgeDays = 30) {
     }
     return distilled;
 }
+// ── Capacity Protection (M3) ──
+/** Maximum lines before truncation warning. */
+const MAX_MEMORY_LINES = 200;
+/** Maximum bytes before truncation (~25KB). */
+const MAX_MEMORY_BYTES = 25 * 1024;
+/**
+ * Truncate memory content if it exceeds capacity limits.
+ * Returns the truncated content and a warning message if truncation occurred.
+ */
+export function truncateEntrypointContent(content) {
+    const lines = content.split('\n');
+    const bytes = Buffer.byteLength(content, 'utf-8');
+    if (lines.length <= MAX_MEMORY_LINES && bytes <= MAX_MEMORY_BYTES) {
+        return { content, truncated: false };
+    }
+    let truncated = lines.slice(0, MAX_MEMORY_LINES).join('\n');
+    while (Buffer.byteLength(truncated, 'utf-8') > MAX_MEMORY_BYTES) {
+        const trimmedLines = truncated.split('\n');
+        truncated = trimmedLines.slice(0, Math.floor(trimmedLines.length * 0.8)).join('\n');
+    }
+    return {
+        content: truncated,
+        truncated: true,
+        warning: `[Memory truncated: ${lines.length} lines / ${(bytes / 1024).toFixed(0)}KB → ${truncated.split('\n').length} lines / ${(Buffer.byteLength(truncated, 'utf-8') / 1024).toFixed(0)}KB]`,
+    };
+}
+/**
+ * Ensure memory directory exists (creates if missing).
+ */
+export function ensureMemoryDirExists() {
+    return memoryDir();
+}
+/** Get the memory directory path (creates if missing). */
+export function getMemoryDir() {
+    return memoryDir();
+}
 //# sourceMappingURL=workspace-memory.js.map

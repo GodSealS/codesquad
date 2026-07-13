@@ -1,26 +1,19 @@
 /**
- * EverOS Bridge — cross-project memory synchronization stub.
+ * EverOS Bridge — cross-project memory synchronization.
  *
- * EverOS (https://github.com/EverMind-AI/EverOS) is a professional
- * cross-project memory system that persists agent context, decisions,
- * and knowledge across multiple projects via a centralized server.
+ * Delegates to EverOSMemoryBackend when evermemos-mcp is available.
+ * Maintains the existing exportToEverOS/importFromEverOS API signature
+ * for backward compatibility.
  *
- * When EverOS is integrated, this module will:
- *   - Export project memory (sessions, usage, decisions) to EverOS
- *   - Import cross-project context from EverOS on session start
- *   - Sync .codesquad/memory/ with EverOS's distributed storage
+ * EverOS (https://github.com/EverMind-AI/EverOS) + evermemos-mcp
+ * (https://github.com/tt-a1i/evermemos-mcp) provide distributed,
+ * cross-project memory with semantic search and automatic reflection.
  *
- * For now, this is a stub. All storage is project-local under
- * <projectRoot>/.codesquad/.
- *
- * Integration plan (future):
- *   Phase 1: Install EverOS server (Docker/dedicated instance)
- *   Phase 2: Implement EverOSClient below with `everos-js` SDK
- *   Phase 3: Wire into codesquadHome() to dual-write local + remote
- *   Phase 4: SessionStart hook reads cross-project context from EverOS
- *
- * Reference: https://github.com/EverMind-AI/EverOS
+ * Reference:
+ *   Idea/tutrue/memory-system-design.md §Phase 2
  */
+import { EverOSMemoryBackend } from './everos-backend.js';
+let _everosBackend = null;
 let _everosConfig = null;
 /** Check if EverOS is configured and enabled. */
 export function isEverOSEnabled() {
@@ -36,28 +29,61 @@ export function setEverOSConfig(config) {
     };
 }
 /**
- * Export project memory to EverOS.
- * Stub — returns false until EverOS SDK is integrated.
+ * Export project memory to EverOS via evermemos-mcp.
+ * Falls back gracefully when MCP tools are unavailable.
  */
 export async function exportToEverOS(_memoryType, _data) {
     if (!isEverOSEnabled())
         return false;
-    // TODO: Implement with everos-js SDK
-    //   const client = new EverOSClient(_everosConfig!.serverUrl, _everosConfig!.apiToken);
-    //   await client.exportMemory(_everosConfig!.projectId, _memoryType, _data);
-    return false;
+    if (!_everosBackend)
+        return false;
+    try {
+        const content = typeof _data === 'string' ? _data : JSON.stringify(_data);
+        await _everosBackend.store({
+            name: `export-${_memoryType}`,
+            description: `Exported ${_memoryType} memory`,
+            type: 'reference',
+            content,
+        });
+        return true;
+    }
+    catch {
+        return false;
+    }
 }
 /**
  * Import cross-project context from EverOS.
- * Stub — returns null until EverOS SDK is integrated.
  */
 export async function importFromEverOS(_query) {
     if (!isEverOSEnabled())
         return null;
-    // TODO: Implement with everos-js SDK
-    //   const client = new EverOSClient(_everosConfig!.serverUrl, _everosConfig!.apiToken);
-    //   const results = await client.searchMemory(_everosConfig!.projectId, _query);
-    //   return formatMemoryResults(results);
-    return null;
+    if (!_everosBackend)
+        return null;
+    try {
+        const results = await _everosBackend.retrieve({ query: _query, limit: 3 });
+        return results.map((r) => `## ${r.entry.name}\n${r.entry.content}`).join('\n\n');
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * Initialize EverOS backend with an MCP tool-call function.
+ * Called when evermemos-mcp is discovered during startup.
+ */
+export function initEverOSBackend(mcpCall, space) {
+    _everosConfig = {
+        serverUrl: 'mcp://evermemos',
+        apiToken: '',
+        projectId: space ?? 'coding:default',
+        enabled: true,
+    };
+    _everosBackend = new EverOSMemoryBackend(mcpCall, space ?? 'coding:default');
+}
+/**
+ * Get the EverOS backend instance (for manager integration).
+ */
+export function getEverOSBackend() {
+    return _everosBackend;
 }
 //# sourceMappingURL=everos-bridge.js.map

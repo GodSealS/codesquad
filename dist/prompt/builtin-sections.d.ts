@@ -74,6 +74,10 @@ export declare function getTaskStatusSection(): SystemPromptSection;
  */
 export declare function getCachedFileSummariesSection(): SystemPromptSection;
 /**
+ * Memory guidance — type taxonomy + save/access rules. (M2)
+ */
+export declare function getMemoryGuidanceSection(): SystemPromptSection;
+/**
  * Get all built-in sections in priority order.
  */
 export declare function getDefaultSections(): SystemPromptSection[];

@@ -1,26 +1,18 @@
 /**
- * EverOS Bridge — cross-project memory synchronization stub.
+ * EverOS Bridge — cross-project memory synchronization.
  *
- * EverOS (https://github.com/EverMind-AI/EverOS) is a professional
- * cross-project memory system that persists agent context, decisions,
- * and knowledge across multiple projects via a centralized server.
+ * Delegates to EverOSMemoryBackend when evermemos-mcp is available.
+ * Maintains the existing exportToEverOS/importFromEverOS API signature
+ * for backward compatibility.
  *
- * When EverOS is integrated, this module will:
- *   - Export project memory (sessions, usage, decisions) to EverOS
- *   - Import cross-project context from EverOS on session start
- *   - Sync .codesquad/memory/ with EverOS's distributed storage
+ * EverOS (https://github.com/EverMind-AI/EverOS) + evermemos-mcp
+ * (https://github.com/tt-a1i/evermemos-mcp) provide distributed,
+ * cross-project memory with semantic search and automatic reflection.
  *
- * For now, this is a stub. All storage is project-local under
- * <projectRoot>/.codesquad/.
- *
- * Integration plan (future):
- *   Phase 1: Install EverOS server (Docker/dedicated instance)
- *   Phase 2: Implement EverOSClient below with `everos-js` SDK
- *   Phase 3: Wire into codesquadHome() to dual-write local + remote
- *   Phase 4: SessionStart hook reads cross-project context from EverOS
- *
- * Reference: https://github.com/EverMind-AI/EverOS
+ * Reference:
+ *   Idea/tutrue/memory-system-design.md §Phase 2
  */
+import { EverOSMemoryBackend, type McpToolCallFn } from './everos-backend.js';
 /**
  * EverOS client configuration.
  * Reads from process.env or Config/everos.config.yaml (future).
@@ -40,13 +32,21 @@ export declare function isEverOSEnabled(): boolean;
 /** Set EverOS configuration (called at startup from settings). */
 export declare function setEverOSConfig(config: Partial<EverOSConfig>): void;
 /**
- * Export project memory to EverOS.
- * Stub — returns false until EverOS SDK is integrated.
+ * Export project memory to EverOS via evermemos-mcp.
+ * Falls back gracefully when MCP tools are unavailable.
  */
 export declare function exportToEverOS(_memoryType: 'session' | 'usage' | 'decision', _data: unknown): Promise<boolean>;
 /**
  * Import cross-project context from EverOS.
- * Stub — returns null until EverOS SDK is integrated.
  */
 export declare function importFromEverOS(_query: string): Promise<string | null>;
+/**
+ * Initialize EverOS backend with an MCP tool-call function.
+ * Called when evermemos-mcp is discovered during startup.
+ */
+export declare function initEverOSBackend(mcpCall: McpToolCallFn, space?: string): void;
+/**
+ * Get the EverOS backend instance (for manager integration).
+ */
+export declare function getEverOSBackend(): EverOSMemoryBackend | null;
 //# sourceMappingURL=everos-bridge.d.ts.map

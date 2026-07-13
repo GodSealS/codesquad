@@ -25,6 +25,8 @@ import { listTasks } from '../tasks/store.js';
 import { getDiskCache } from '../cache/disk-cache.js';
 // Virtual file system for embedded content in Bun-compiled builds
 import { fileExists, fileRead } from '../embedded/virtual-fs.js';
+// Memory type guidance (M2)
+import { TYPES_SECTION_INDIVIDUAL, WHAT_NOT_TO_SAVE_SECTION, WHEN_TO_ACCESS_SECTION, TRUSTING_RECALL_SECTION, } from '../memory/memory-types.js';
 // ── Cache: project guidance loaded once per project ──
 const _projectGuidanceCache = new Map();
 function _cacheKey(projectRoot, extraDirs, bare) {
@@ -617,6 +619,22 @@ function formatCacheBytes(bytes) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 /**
+ * Memory guidance — type taxonomy + save/access rules. (M2)
+ */
+export function getMemoryGuidanceSection() {
+    return systemPromptSection('memory_guidance', async () => {
+        return [
+            TYPES_SECTION_INDIVIDUAL,
+            '',
+            WHAT_NOT_TO_SAVE_SECTION,
+            '',
+            WHEN_TO_ACCESS_SECTION,
+            '',
+            TRUSTING_RECALL_SECTION,
+        ].join('\n');
+    });
+}
+/**
  * Get all built-in sections in priority order.
  */
 export function getDefaultSections() {
@@ -633,6 +651,7 @@ export function getDefaultSections() {
         getProjectGuidanceSection(),
         getConditionalRulesSection(),
         getCrossChatMemorySection(),
+        getMemoryGuidanceSection(),
         getTaskStatusSection(),
         getCachedFileSummariesSection(),
     ];

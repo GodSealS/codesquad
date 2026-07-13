@@ -14,6 +14,8 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { getCodeSquadProjectCategory, getCodeSquadUserCategory, isEmbeddedMode, readAicoreFile, readAicoreDir } from '../core/paths.js';
+import { loadAssemblyAgents } from './assembly-loader.js';
+import { resolveAssemblyBody } from './assembly-parser.js';
 // ── Cache ──
 const _agentsCache = new Map();
 let _activeCacheKey = null;
@@ -91,6 +93,63 @@ export function loadAllAgentsLayered(aicoreRoot, cwd) {
     // Layer 3: ${project}/.codesquad/agents/ (project-level, final override)
     for (const agent of loadAgentsFromDir(getCodeSquadProjectCategory('agents', cwd), 'project')) {
         seen.set(agent.agentType, agent);
+    }
+    // Layer 4: ${project}/.codesquad/agent-assemblies/ (assembly agents, additive)
+    const assemblyDir = getCodeSquadProjectCategory('agent-assemblies', cwd);
+    const assemblies = loadAssemblyAgents(assemblyDir);
+    const conflicts = [];
+    for (const asm of assemblies) {
+        if (seen.has(asm.name)) {
+            const existing = seen.get(asm.name);
+            console.error(`[AgentLoader] Name conflict: assembly '${asm.name}' from ` +
+                `'${asm.sourcePath}' conflicts with agent '${existing.agentType}' from ` +
+                `'${existing.sourcePath ?? 'unknown'}'. Assembly skipped. Rename one of them.`);
+            conflicts.push({ assembly: asm.name, existing: existing.agentType });
+            continue;
+        }
+        // Resolve assembly body eagerly (parent already loaded in Layers 1-3)
+        let resolvedBody = ''; // fallback
+        let resolvedTools;
+        let resolvedMaxTurns;
+        const parentAgent = seen.get(asm.agent_parent);
+        if (parentAgent) {
+            try {
+                const parentDef = {
+                    name: parentAgent.agentType,
+                    description: parentAgent.whenToUse,
+                    tools: (parentAgent.tools ?? []).join(', '),
+                    model: parentAgent.model ?? 'unknown',
+                    body: parentAgent.prompt,
+                    skills: undefined,
+                    maxTurns: parentAgent.maxTurns ?? 20,
+                };
+                const resolved = resolveAssemblyBody(asm, parentDef);
+                resolvedBody = resolved.body;
+                resolvedTools = resolved.tools?.split(',').map((t) => t.trim()).filter(Boolean);
+                resolvedMaxTurns = resolved.maxTurns;
+            }
+            catch (e) {
+                console.warn(`[AgentLoader] Failed to resolve assembly '${asm.name}':`, e.message);
+            }
+        }
+        else {
+            console.warn(`[AgentLoader] Parent agent '${asm.agent_parent}' not found for assembly '${asm.name}'`);
+        }
+        // Convert to AgentDefinition
+        seen.set(asm.name, {
+            agentType: asm.name,
+            whenToUse: asm.description.slice(0, 200),
+            prompt: resolvedBody,
+            tools: resolvedTools ?? (asm.tools ? asm.tools.split(',').map((t) => t.trim()).filter(Boolean) : undefined),
+            disallowedTools: asm.disallowedTools
+                ? asm.disallowedTools.split(',').map((t) => t.trim()).filter(Boolean)
+                : [],
+            model: asm.model ?? parentAgent?.model,
+            maxTurns: resolvedMaxTurns ?? asm.maxTurns ?? parentAgent?.maxTurns ?? 20,
+            subagent: true,
+            layer: 'project',
+            sourcePath: asm.sourcePath,
+        });
     }
     const result = Array.from(seen.values());
     _agentsCache.set(key, result);
