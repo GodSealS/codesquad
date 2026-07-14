@@ -49,4 +49,6 @@ export declare function initEverOSBackend(mcpCall: McpToolCallFn, space?: string
  * Get the EverOS backend instance (for manager integration).
  */
 export declare function getEverOSBackend(): EverOSMemoryBackend | null;
+/** Reset singleton state (for tests). */
+export declare function resetEverOSBridge(): void;
 //# sourceMappingURL=everos-bridge.d.ts.map

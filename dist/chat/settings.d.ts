@@ -19,6 +19,8 @@ export interface UserSettings {
     semanticContext: SemanticContextConfig;
     /** 记忆摘要模式：'regex' | 'local-model' | 'online-model'。默认 'regex'。 */
     memorySummaryMode: 'regex' | 'local-model' | 'online-model';
+    /** Session Memory 自动压缩开关。默认 true。 */
+    autoCompactEnabled: boolean;
 }
 /** Load user settings, merging with defaults for missing fields. */
 export declare function loadSettings(): UserSettings;

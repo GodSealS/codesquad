@@ -26,7 +26,7 @@ import { getDiskCache } from '../cache/disk-cache.js';
 // Virtual file system for embedded content in Bun-compiled builds
 import { fileExists, fileRead } from '../embedded/virtual-fs.js';
 // Memory type guidance (M2)
-import { TYPES_SECTION_INDIVIDUAL, WHAT_NOT_TO_SAVE_SECTION, WHEN_TO_ACCESS_SECTION, TRUSTING_RECALL_SECTION, } from '../memory/memory-types.js';
+import { TYPES_SECTION_INDIVIDUAL, WHAT_NOT_TO_SAVE_SECTION, WHEN_TO_ACCESS_SECTION, TRUSTING_RECALL_SECTION, MEMORY_SYSTEM_CAPABILITIES, } from '../memory/memory-types.js';
 // ── Cache: project guidance loaded once per project ──
 const _projectGuidanceCache = new Map();
 function _cacheKey(projectRoot, extraDirs, bare) {
@@ -627,6 +627,8 @@ export function getMemoryGuidanceSection() {
             TYPES_SECTION_INDIVIDUAL,
             '',
             WHAT_NOT_TO_SAVE_SECTION,
+            '',
+            MEMORY_SYSTEM_CAPABILITIES,
             '',
             WHEN_TO_ACCESS_SECTION,
             '',

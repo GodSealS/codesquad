@@ -187,7 +187,9 @@ export function resolveFileWithFallback(relativePath, projectRoot) {
         try {
             return { path: projectPath, content: readFileSync(projectPath, 'utf-8') };
         }
-        catch { }
+        catch (e) {
+            console.warn(`[paths] Failed to read project file: ${projectPath} — ${e.message}`);
+        }
     }
     // Tier 2: User
     const userPath = join(CODESQUAD_USER_ROOT, relativePath);
@@ -195,7 +197,9 @@ export function resolveFileWithFallback(relativePath, projectRoot) {
         try {
             return { path: userPath, content: readFileSync(userPath, 'utf-8') };
         }
-        catch { }
+        catch (e) {
+            console.warn(`[paths] Failed to read user file: ${userPath} — ${e.message}`);
+        }
     }
     // Tier 3: CLI/.codesquad (VirtualFS: embedded + disk)
     const aicorePath = join(AICORE_ROOT, relativePath);
@@ -203,7 +207,9 @@ export function resolveFileWithFallback(relativePath, projectRoot) {
         try {
             return { path: aicorePath, content: virtualReadFile(aicorePath, 'utf-8') };
         }
-        catch { }
+        catch (e) {
+            console.warn(`[paths] Failed to read AICore file: ${aicorePath} — ${e.message}`);
+        }
     }
     return null;
 }
@@ -234,7 +240,9 @@ export function resolveDirWithFallback(relativeDir, projectRoot) {
         try {
             addLayer(readdirSync(projectFull));
         }
-        catch { }
+        catch (e) {
+            console.warn(`[paths] Failed to read project dir: ${projectFull} — ${e.message}`);
+        }
     }
     // Tier 2: User
     const userFull = join(CODESQUAD_USER_ROOT, relativeDir);
@@ -242,7 +250,9 @@ export function resolveDirWithFallback(relativeDir, projectRoot) {
         try {
             addLayer(readdirSync(userFull));
         }
-        catch { }
+        catch (e) {
+            console.warn(`[paths] Failed to read user dir: ${userFull} — ${e.message}`);
+        }
     }
     // Tier 3: CLI/.codesquad (VirtualFS)
     const aicoreFull = join(AICORE_ROOT, relativeDir);
@@ -250,7 +260,9 @@ export function resolveDirWithFallback(relativeDir, projectRoot) {
         try {
             addLayer(virtualReadDir(aicoreFull));
         }
-        catch { }
+        catch (e) {
+            console.warn(`[paths] Failed to read AICore dir: ${aicoreFull} — ${e.message}`);
+        }
     }
     return result;
 }

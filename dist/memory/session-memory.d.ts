@@ -57,7 +57,7 @@ export declare function markExtractionStarted(sessionId: string): void;
 /**
  * Mark extraction complete and update token baseline.
  */
-export declare function markExtractionCompleted(sessionId: string, messageCount: number): void;
+export declare function markExtractionCompleted(sessionId: string, messages: Message[]): void;
 /**
  * Write a session memory summary to disk.
  */

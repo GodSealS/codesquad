@@ -14,7 +14,8 @@
  */
 import { existsSync, readFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { codesquadHome } from '../chat/storage.js';
+import { projectDataDir } from '../chat/storage.js';
+import { CODESQUAD_USER_ROOT } from '../core/paths.js';
 // ── Paths ──
 /**
  * Get the memory directory for an agent.
@@ -24,17 +25,18 @@ import { codesquadHome } from '../chat/storage.js';
  */
 export function getAgentMemoryDir(agentType, scope, instanceId) {
     const safeType = sanitizeAgentTypeForPath(agentType);
-    const base = codesquadHome();
     let dir;
     if (scope === 'local') {
-        dir = join(base, 'agent-memory-local', safeType);
+        // local: project-relative, not in version control
+        dir = join(projectDataDir(), 'agent-memory-local', safeType);
     }
     else if (scope === 'project') {
-        dir = join(base, 'agent-memory', safeType);
+        // project: project-relative, shared via version control
+        dir = join(projectDataDir(), 'agent-memory', safeType);
     }
     else {
-        // user scope: stored in home directory (not project-bound)
-        dir = join(base, 'agent-memory-user', safeType);
+        // user scope: always stored in user home directory (cross-project)
+        dir = join(CODESQUAD_USER_ROOT, 'agent-memory-user', safeType);
     }
     if (instanceId) {
         dir = join(dir, sanitizeAgentTypeForPath(instanceId));
@@ -71,7 +73,12 @@ export function loadAgentMemoryPrompt(agentType, scope, instanceId) {
  * Check if a file path belongs to an agent memory directory.
  */
 export function isAgentMemoryPath(absolutePath) {
-    return absolutePath.includes('agent-memory') || absolutePath.includes('agent-memory-local');
+    // Bug Fix #13: Match directory boundaries, not arbitrary substrings
+    const sep = absolutePath.includes('\\') ? '\\' : '/';
+    return absolutePath.includes(`${sep}agent-memory${sep}`)
+        || absolutePath.includes(`${sep}agent-memory-local${sep}`)
+        || absolutePath.endsWith(`${sep}agent-memory`)
+        || absolutePath.endsWith(`${sep}agent-memory-local`);
 }
 /**
  * Sanitize agent type for filesystem path (remove colons and other illegal chars).

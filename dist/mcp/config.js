@@ -13,7 +13,7 @@ export const DEFAULT_MCP_CONFIG = {
     server: {
         transport: 'stdio',
         http_port: 9090,
-        auth_token: '${MCP_AUTH_TOKEN}',
+        auth_token: '',
         bind: '127.0.0.1',
     },
     provider: {

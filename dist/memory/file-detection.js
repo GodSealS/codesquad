@@ -17,7 +17,8 @@ const MEMORY_DIRECTORIES = [
     '.codesquad/session-memory',
 ];
 const MEMORY_FILE_PATTERNS = [
-    /\/MEMORY\.md$/,
+    // Bug Fix #10: Require /memory/ in path to avoid matching MEMORY.md in arbitrary dirs
+    /\/memory\/MEMORY\.md$/,
     /\/\d{4}-\d{2}-\d{2}\.md$/,
     /\/session-memory\.md$/,
 ];
@@ -33,9 +34,10 @@ const NON_MEMORY_FILES = [
  * Excludes: CLAUDE.md, CODEBUDDY.md, .codesquad/rules/*.md (user-managed).
  */
 export function isAutoManagedMemoryFile(filePath) {
-    // Check if path is inside a known memory directory
+    // Check if path is inside a known memory directory using path-aware matching
+    const normalizedPath = filePath.replace(/\\/g, '/');
     for (const dir of MEMORY_DIRECTORIES) {
-        if (filePath.includes(dir))
+        if (normalizedPath.includes('/' + dir + '/') || normalizedPath.endsWith('/' + dir))
             return true;
     }
     // Check if filename matches known memory patterns

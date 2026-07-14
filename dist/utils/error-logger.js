@@ -149,13 +149,15 @@ function sendEmailFallback(config, subject, body) {
         const isWin = process.platform === 'win32';
         if (isWin) {
             // PowerShell Send-MailMessage (deprecated but widely available)
+            // Escape all user-supplied values to prevent PowerShell injection.
+            const esc = (s) => s.replace(/"/g, '\\"').replace(/\$/g, '`$');
             const psScript = `
-        $smtpServer = "${config.smtp.host}"
+        $smtpServer = "${esc(config.smtp.host)}"
         $smtpPort = ${config.smtp.port}
-        $username = "${config.smtp.user}"
-        $password = "${config.smtp.pass}"
-        $to = "${config.to}"
-        $subject = "${subject.replace(/"/g, '\\"')}"
+        $username = "${esc(config.smtp.user)}"
+        $password = "${esc(config.smtp.pass)}"
+        $to = "${esc(config.to)}"
+        $subject = "${esc(subject)}"
         $body = @"\n${body}\n"@
         $secpasswd = ConvertTo-SecureString $password -AsPlainText -Force
         $cred = New-Object System.Management.Automation.PSCredential($username, $secpasswd)

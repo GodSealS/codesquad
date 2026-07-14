@@ -49,6 +49,14 @@ import { getContextWindow } from '../context/auto-compact.js';
 import { initSessionMemory, shouldExtractMemory, recordToolCall, markExtractionStarted, extractSessionMemoryViaMode, resolveSideQueryConfig, } from '../memory/session-memory.js';
 // Agent Memory integration (M7)
 import { loadAgentMemoryPrompt, } from '../memory/agent-memory.js';
+// Memory relevance retrieval (M7)
+import { findRelevantMemories, advanceMemoryTurn } from '../memory/memory-relevance.js';
+// Memory compact integration (M7)
+import { shouldMemoryCompact, buildMemoryCompactContext } from '../memory/memory-compact.js';
+// Persistent memory extraction (M7)
+import { initExtractMemories, extractMemories, shouldExtractMemories } from '../memory/extract-memories.js';
+// Memory Manager (singleton, scope-aware)
+import { getMemoryManager } from '../memory/manager.js';
 // ── Fork Skill Execution ──
 /**
  * Execute a fork skill in an isolated ephemeral session.
@@ -206,7 +214,7 @@ async function executeForkSkill(pending, config, rc, messages, parentSession, on
             retryCount++;
             const isRetryable = isForkErrorRetryable(err);
             if (isRetryable && retryCount < FORK_MAX_RETRIES) {
-                onError?.(`Fork "${pending.skillName}" failed (retryable), attempt ${retryCount}/${FORK_MAX_RETRIES}: ${err.message}`);
+                console.warn(`[AgentRunner] Fork "${pending.skillName}" retryable failure, attempt ${retryCount}/${FORK_MAX_RETRIES}: ${err.message}`);
                 continue;
             }
             onError?.(`Fork skill "${pending.skillName}" failed: ${err.message}`);
@@ -241,8 +249,18 @@ export async function runAgent(config) {
     const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, stream = false, skillThinkingLevel, onToken, onTurn, onToolUse, onToolProgress, onError, } = config;
     // ── Session Memory setup (M7) ──
     const querySource = config.querySource ?? 'repl_main_thread';
-    const autoCompactEnabled = true; // always enabled for now
+    const settings = loadSettings();
+    const autoCompactEnabled = settings.autoCompactEnabled ?? true;
     initSessionMemory(session.id);
+    // Bug Fix #4: Wire up persistent memory extraction hooks
+    initExtractMemories();
+    // ── Global memory guidance (user preferences) ──
+    const memoryManager = getMemoryManager();
+    let globalMemoryGuidance = '';
+    try {
+        globalMemoryGuidance = await memoryManager.getGlobalMemoryGuidance();
+    }
+    catch { /* non-critical */ }
     // ── Load agent path and content ──
     const agentPath = join(aicoreDir, 'agents', `${agentName}.md`);
     let rawAgent;
@@ -254,6 +272,7 @@ export async function runAgent(config) {
     }
     // ── Agent Memory injection (M7) ──
     let agentMemoryPrompt = '';
+    let isProjectMemoryAgent = false; // leader agent that participates in project memory
     try {
         // Check if agent frontmatter has memory field
         const memMatch = rawAgent.match(/^memory\s*:\s*(.+)$/m);
@@ -267,6 +286,11 @@ export async function runAgent(config) {
                 const instanceId = instanceMatch?.[1]?.trim();
                 agentMemoryPrompt = loadAgentMemoryPrompt(agentName, memScope, instanceId);
             }
+        }
+        // Check for projectMemory flag (leader agents store execution results as project memory)
+        const pmMatch = rawAgent.match(/^projectMemory\s*:\s*true$/m);
+        if (pmMatch) {
+            isProjectMemoryAgent = true;
         }
     }
     catch {
@@ -365,10 +389,11 @@ export async function runAgent(config) {
             return { count, rate };
         }
         // P0 guard: warn if context is suspiciously large before first API call
-        const msgCount = req.messages?.length ?? 0;
-        const sysBlocksTotalChars = req.systemContentBlocks
+        const reqTyped = req;
+        const msgCount = reqTyped.messages?.length ?? 0;
+        const sysBlocksTotalChars = reqTyped.systemContentBlocks
             ?.reduce((sum, b) => sum + (b.text?.length ?? 0), 0) ?? 0;
-        const toolsCount = req.tools?.length ?? 0;
+        const toolsCount = reqTyped.tools?.length ?? 0;
         // Estimate total request body size (chars ≈ bytes for UTF-8 text)
         const estBodySize = sysBlocksTotalChars + msgCount * 2000; // ~500 tokens/msg avg
         if (estBodySize > 200_000 || msgCount > 50) {
@@ -520,7 +545,7 @@ export async function runAgent(config) {
                     // ── 429 / 503: standard exponential backoff ──
                     if (attempt < maxRetries) {
                         const delayMs = Math.min(BASE_RETRY_DELAY_MS * Math.pow(2, attempt), 30_000);
-                        logDiagnostic('WARN', 'agent-runner', `LLM retry ${attempt + 1}/${maxRetries} after ${delayMs}ms (status ${err.status})`, {
+                        logDiagnostic('WARN', 'agent-runner', `LLM retry ${attempt + 1}/${maxRetries} after ${delayMs}ms (status ${err instanceof LlmError ? err.status : 'unknown'})`, {
                             sessionId: session.id, turn,
                         });
                         await new Promise(r => setTimeout(r, delayMs));
@@ -575,8 +600,7 @@ export async function runAgent(config) {
     }
     try {
         let compactFailed = false;
-        // 🔧 Bug Fix: loadSettings() 移到循环外，避免每轮重复磁盘 I/O
-        const settings = loadSettings();
+        // Reuse settings from above (line ~385); avoid duplicate loadSettings() I/O.
         const sc = settings.semanticContext;
         // Token 预算：模型最大上下文 × maxGenerationPercent（通用设置，非语义特有）
         const contextWindow = getContextWindow(modelId);
@@ -597,13 +621,13 @@ export async function runAgent(config) {
                         const resp = await fallbackLLMCall(input);
                         return resp.content;
                     };
-                    onError?.(`Auto-compacting conversation (token usage at ${check.percentUsed.toFixed(0)}%)...`);
+                    console.warn(`[AgentRunner] Auto-compacting conversation (token usage at ${check.percentUsed.toFixed(0)}%)...`);
                     await autoCompact(session.messages, session, modelId, callLlmFn).catch((err) => {
                         compactFailed = true;
                         const msg = err.message?.includes('TIMEOUT')
                             ? '对话压缩超时，后续将跳过压缩。建议开启新对话。'
                             : `对话压缩失败，后续将跳过压缩。建议开启新对话。`;
-                        onError?.(msg);
+                        console.warn(`[AgentRunner] ${msg}`);
                     });
                 }
             }
@@ -653,6 +677,14 @@ export async function runAgent(config) {
                     continue;
                 systemContentBlocks.push({ type: 'text', text: dp });
             }
+            // ── Agent Memory injection (M7 Bug Fix #1) ──
+            if (agentMemoryPrompt) {
+                systemContentBlocks.push({ type: 'text', text: agentMemoryPrompt });
+            }
+            // ── Global memory guidance (user preferences, decision patterns) ──
+            if (globalMemoryGuidance) {
+                systemContentBlocks.push({ type: 'text', text: globalMemoryGuidance });
+            }
             // Cap systemContentBlocks: merge excessive blocks into a single block
             // to avoid bloating the request body with 20+ independent cache_control blocks.
             // TokenHub proxy struggles with large system arrays.
@@ -693,6 +725,28 @@ export async function runAgent(config) {
                 const safeContent = expandAicoreRefs(sanitizeAicorePaths(session.context.injectedContent));
                 messages.push({
                     role: 'user', content: `[上下文文件]\n${safeContent.slice(0, 50000)}`,
+                    timestamp: new Date().toISOString(),
+                });
+            }
+            // ── Memory Relevance injection (M7 Bug Fix #2) ──
+            // Semantic retrieval: only inject memories that genuinely match the current query.
+            // Uses embedding-based cosine similarity when available, keyword threshold fallback.
+            advanceMemoryTurn();
+            const memoryDir = join(projectRoot, '.codesquad', 'memory');
+            let memProvider = null;
+            try {
+                memProvider = await getEmbeddingProvider(sc.embeddingModel);
+            }
+            catch { /* non-critical, falls back to keyword */ }
+            const relevantMemories = await findRelevantMemories(userInput, memoryDir, undefined, undefined, undefined, memProvider);
+            if (relevantMemories.length > 0) {
+                const memBlock = [
+                    '<relevant_memories>',
+                    ...relevantMemories.map((m) => `### ${m.name}\n${m.description}\n${m.content}${m.stalenessNote ? '\n' + m.stalenessNote : ''}`),
+                    '</relevant_memories>',
+                ].join('\n\n');
+                messages.push({
+                    role: 'user', content: memBlock,
                     timestamp: new Date().toISOString(),
                 });
             }
@@ -769,12 +823,25 @@ export async function runAgent(config) {
             }
             // Compact old tool results to save tokens (S09: tool-type filtering + time trigger)
             microCompactWithSession(historyMsgs, session);
+            // ── Memory-driven compact (M7 Bug Fix #5) ──
+            // Bug Fix #1-#3: Use historyMsgs token count for trigger (was counting only
+            // injectedContent+relevantMemories). Replace historyMsgs with compacted version
+            // instead of clearing messages[] then adding both (which doubled token usage).
+            const historyTokens = historyMsgs.reduce((sum, hm) => sum + countTokens(modelId, hm.content), 0);
+            if (shouldMemoryCompact(historyTokens)) {
+                const compacted = buildMemoryCompactContext(session.messages.filter((m) => m.role !== 'system'), session.id, projectRoot);
+                // Replace historyMsgs with compacted version (summary + recent N)
+                historyMsgs.length = 0;
+                for (const cm of compacted) {
+                    historyMsgs.push(cm);
+                }
+            }
             for (const hm of historyMsgs) {
                 messages.push(hm);
             }
             // Feature 3.5 (P4): Team mailbox polling — check for messages from teammates
             // Mirrors Claude Code: getTeammateMailboxAttachments() injects unread messages as user context
-            const teamName = session.teamName || config.teamName;
+            const teamName = session.teamName;
             if (teamName) {
                 const unread = getUnreadMessages(teamName, agentName);
                 if (unread.length > 0) {
@@ -897,7 +964,7 @@ export async function runAgent(config) {
             // P0 fix: Detect empty tool_calls (LLM returned [] array) vs no tool calls.
             // B6 fix: use a local tracking variable to avoid state leakage across config reuse.
             if (response.toolCalls && response.toolCalls.length === 0 && toolCalls.length === 0) {
-                _emptyToolCallCount = (_emptyToolCallCount ?? 0) + 1;
+                _emptyToolCallCount += 1;
                 if (_emptyToolCallCount >= 3) {
                     return {
                         finalResponse: '连续 3 轮返回空工具调用，已终止。请重新描述你的需求。',
@@ -1006,8 +1073,7 @@ export async function runAgent(config) {
                 if (turn % 5 === 0) {
                     saveCheckpoint(session, turn);
                 }
-                // S05: update per-session turn counter
-                session.turnCount = turn;
+                // S05: turnCount already incremented by incrementTurn() at start of loop iteration
                 // S09: track last assistant timestamp
                 session.lastAssistantTimestamp = new Date().toISOString();
                 continue; // Next turn
@@ -1045,7 +1111,7 @@ export async function runAgent(config) {
                     addMessage(session, 'user', escalateMsg);
                     session.lastAssistantTimestamp = new Date().toISOString();
                     onTurn?.(turn, content, undefined);
-                    onError?.(`Output truncated at ${completionTokens} tokens, escalating maxTokens (${prevMax} → ${MAX_OUTPUT_ESCALATED})...`);
+                    console.warn(`[AgentRunner] Output truncated at ${completionTokens} tokens, escalating maxTokens (${prevMax} → ${MAX_OUTPUT_ESCALATED})...`);
                     continue;
                 }
                 // S06: subsequent truncations or short-abrupt → nudge to continue
@@ -1056,7 +1122,7 @@ export async function runAgent(config) {
                 addMessage(session, 'user', nudge);
                 session.lastAssistantTimestamp = new Date().toISOString();
                 onTurn?.(turn, content, undefined);
-                onError?.(`Output truncated${shortAndAbrupt ? ' (short, no token limit hit)' : ` at ${completionTokens} tokens`}, auto-continuing (${consecutiveTruncations}/5)...`);
+                console.warn(`[AgentRunner] Output truncated${shortAndAbrupt ? ' (short, no token limit hit)' : ` at ${completionTokens} tokens`}, auto-continuing (${consecutiveTruncations}/5)...`);
                 // S02: checkpoint on truncation continue
                 if (consecutiveTruncations % 2 === 0) {
                     saveCheckpoint(session, turn);
@@ -1122,6 +1188,42 @@ export async function runAgent(config) {
     }
     catch (err) {
         console.warn(`[AgentRunner] Session save failed: ${err.message}`);
+    }
+    // ── Project memory storage (leader agents only) ──
+    if (isProjectMemoryAgent && finalResponse) {
+        try {
+            await memoryManager.store({
+                name: `${agentName}-${new Date().toISOString().slice(0, 16).replace('T', '-')}`,
+                description: `Execution result from agent ${agentName}: ${finalResponse.slice(0, 200)}`,
+                type: 'project',
+                content: `## Agent ${agentName} Execution\n\nInput: ${userInput.slice(0, 500)}\n\nResult: ${finalResponse.slice(0, 5000)}`,
+                source: agentName,
+                tags: ['agent-execution', agentName],
+            }, 'project');
+        }
+        catch (memErr) {
+            console.warn(`[AgentRunner] Failed to store agent memory: ${memErr.message}`);
+        }
+    }
+    // ── Store extracted conversation memories as project memory ──
+    // Bug Fix #4: Check shouldExtractMemories before extracting (dedup via session-memory digest)
+    // Bug Fix #11: Skip if isProjectMemoryAgent already stored (avoid double storage)
+    if (finalResponse && querySource === 'repl_main_thread' && !isProjectMemoryAgent
+        && shouldExtractMemories(session.id, projectRoot)) {
+        try {
+            const transcript = `User: ${userInput}\n\nAssistant: ${finalResponse}`;
+            const memories = extractMemories(transcript, session.id, projectRoot);
+            for (const mem of memories.slice(0, 5)) {
+                await memoryManager.store({
+                    name: mem.name,
+                    description: mem.description,
+                    type: mem.type,
+                    content: mem.content,
+                    source: 'conversation',
+                }, 'project');
+            }
+        }
+        catch { /* non-critical */ }
     }
     logDiagnostic('INFO', 'agent-runner', 'runAgent returning finalResponse', {
         finalResponseLen: finalResponse?.length ?? 0,

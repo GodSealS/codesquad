@@ -22,4 +22,6 @@ export declare const TRUSTING_RECALL_SECTION: string;
 export declare const MEMORY_FRONTMATTER_EXAMPLE: string;
 /** Memory drift caveat — warns about stale memories. */
 export declare const MEMORY_DRIFT_CAVEAT: string;
+/** Memory system capabilities — explains runtime memory features to the agent. */
+export declare const MEMORY_SYSTEM_CAPABILITIES: string;
 //# sourceMappingURL=memory-types.d.ts.map

@@ -12,6 +12,10 @@
  *
  * Phase 5.2
  */
+/** project = 项目目录/.codesquad/memory/, global = ~/.codesquad/memory/ */
+export type MemoryScope = 'project' | 'global';
+/** Resolve memory directory by scope. */
+export declare function getMemoryDirForScope(scope: MemoryScope): string;
 /**
  * Read the MEMORY.md index.
  * Returns an array of { title, file, description } entries.
@@ -66,6 +70,26 @@ export declare function truncateEntrypointContent(content: string): {
  * Ensure memory directory exists (creates if missing).
  */
 export declare function ensureMemoryDirExists(): string;
-/** Get the memory directory path (creates if missing). */
+/** Get the (legacy project) memory directory path (creates if missing). */
 export declare function getMemoryDir(): string;
+/** Get memory directory for a specific scope. */
+export declare function getMemoryDirScoped(scope: MemoryScope): string;
+/** Write content to a memory file in a specific scope. */
+export declare function writeMemoryFileForScope(filename: string, content: string, scope: MemoryScope): string;
+/** Read a memory file from a specific scope. */
+export declare function readMemoryFileForScope(filename: string, scope: MemoryScope): string | null;
+/** List memory files from a specific scope. */
+export declare function listMemoryFilesForScope(scope: MemoryScope): string[];
+/** Read MEMORY.md index from a specific scope. */
+export declare function readMemoryIndexForScope(scope: MemoryScope): Array<{
+    title: string;
+    file: string;
+    description: string;
+}>;
+/** Add an entry to MEMORY.md index in a specific scope. */
+export declare function addMemoryEntryForScope(title: string, file: string, description: string, scope: MemoryScope): void;
+/** Read daily log from a specific scope. */
+export declare function readDailyLogForScope(date: string | undefined, scope: MemoryScope): string;
+/** Append to daily log in a specific scope. */
+export declare function appendDailyLogForScope(content: string, scope: MemoryScope, date?: string): void;
 //# sourceMappingURL=workspace-memory.d.ts.map

@@ -24,7 +24,7 @@ export function memoryAge(mtimeMs) {
 }
 /** Returns staleness warning text when memory is older than 1 day. */
 export function memoryFreshnessText(mtimeMs) {
-    const days = Math.round(memoryAgeDays(mtimeMs));
+    const days = Math.floor(memoryAgeDays(mtimeMs));
     if (days <= 1)
         return '';
     return (`This memory is ${days} days old. Memories are point-in-time observations ` +

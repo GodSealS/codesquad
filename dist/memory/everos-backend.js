@@ -5,7 +5,7 @@
  * MCP tool calls (mcp__evermemos__remember, recall, briefing, forget)
  * behind the standard MemoryBackend interface.
  *
- * Falls back to LocalMemoryBackend when MCP tools are unavailable.
+ * Returns empty/undefined when MCP tools are unavailable (no fallback to LocalMemoryBackend).
  *
  * Type mapping:
  *   CodeSquad → EverOS/evermemos
@@ -37,11 +37,38 @@ export class EverOSMemoryBackend {
     mcpCall;
     space;
     available = true;
+    consecutiveFailures = 0;
+    lastRetryTime = 0;
+    static MAX_CONSECUTIVE_FAILURES = 3;
+    static RETRY_COOLDOWN_MS = 60_000; // 1 minute cooldown
     constructor(mcpCall, space = 'coding:default') {
         this.mcpCall = mcpCall;
         this.space = space;
     }
+    /** Mark a failure and check if we should disable. */
+    markFailure() {
+        this.consecutiveFailures++;
+        this.lastRetryTime = Date.now();
+        if (this.consecutiveFailures >= EverOSMemoryBackend.MAX_CONSECUTIVE_FAILURES) {
+            this.available = false;
+        }
+    }
+    /** Attempt to re-enable after cooldown period. */
+    tryReEnable() {
+        if (!this.available && Date.now() - this.lastRetryTime > EverOSMemoryBackend.RETRY_COOLDOWN_MS) {
+            this.available = true;
+            this.consecutiveFailures = 0;
+        }
+    }
+    /** Check if a transient failure was recovered. */
+    markSuccess() {
+        if (!this.available && Date.now() - this.lastRetryTime > EverOSMemoryBackend.RETRY_COOLDOWN_MS) {
+            this.available = true;
+        }
+        this.consecutiveFailures = 0;
+    }
     async store(entry) {
+        this.tryReEnable();
         if (!this.available)
             return;
         try {
@@ -53,12 +80,14 @@ export class EverOSMemoryBackend {
                 description: entry.description,
                 tags: entry.tags ?? [],
             });
+            this.markSuccess();
         }
         catch {
-            this.available = false;
+            this.markFailure();
         }
     }
     async retrieve(query) {
+        this.tryReEnable();
         if (!this.available)
             return [];
         try {
@@ -69,6 +98,7 @@ export class EverOSMemoryBackend {
                 limit: query.limit ?? 5,
                 strategy: 'semantic',
             }));
+            this.markSuccess();
             return (result.memories ?? []).map((m) => ({
                 entry: {
                     name: m.title ?? 'Untitled',
@@ -80,11 +110,12 @@ export class EverOSMemoryBackend {
             }));
         }
         catch {
-            this.available = false;
+            this.markFailure();
             return [];
         }
     }
     async list(filter) {
+        this.tryReEnable();
         if (!this.available)
             return [];
         try {
@@ -93,6 +124,7 @@ export class EverOSMemoryBackend {
                 type: filter?.type ? mapTypeToEverOS(filter.type) : undefined,
                 limit: filter?.limit ?? 20,
             }));
+            this.markSuccess();
             return (result.entries ?? []).map((e) => ({
                 name: e.title ?? 'Untitled',
                 description: e.content?.slice(0, 200) ?? '',
@@ -101,11 +133,12 @@ export class EverOSMemoryBackend {
             }));
         }
         catch {
-            this.available = false;
+            this.markFailure();
             return [];
         }
     }
     async delete(id) {
+        this.tryReEnable();
         if (!this.available)
             return;
         try {
@@ -113,12 +146,14 @@ export class EverOSMemoryBackend {
                 space: this.space,
                 memory_id: id,
             });
+            this.markSuccess();
         }
         catch {
-            this.available = false;
+            this.markFailure();
         }
     }
     async brief(sessionId) {
+        this.tryReEnable();
         if (!this.available) {
             return {
                 sessionId,
@@ -133,6 +168,7 @@ export class EverOSMemoryBackend {
                 space: this.space,
                 session_id: sessionId,
             }));
+            this.markSuccess();
             return {
                 sessionId,
                 summary: result.summary ?? '',
@@ -142,7 +178,7 @@ export class EverOSMemoryBackend {
             };
         }
         catch {
-            this.available = false;
+            this.markFailure();
             return {
                 sessionId,
                 summary: '',

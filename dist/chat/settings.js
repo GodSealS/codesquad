@@ -33,6 +33,7 @@ const DEFAULTS = {
     maxGenerationPercent: 50,
     semanticContext: DEFAULT_SEMANTIC_CONTEXT,
     memorySummaryMode: 'regex',
+    autoCompactEnabled: true,
 };
 const MIN_MEMORY_LIMIT = 2;
 const MAX_MEMORY_LIMIT = 15;
@@ -60,6 +61,7 @@ export function loadSettings() {
             cliSmartEnhancement: DEFAULTS.cliSmartEnhancement,
             maxGenerationPercent: DEFAULTS.maxGenerationPercent,
             memorySummaryMode: DEFAULTS.memorySummaryMode,
+            autoCompactEnabled: DEFAULTS.autoCompactEnabled,
             semanticContext: {
                 ...DEFAULTS.semanticContext,
                 embeddingModel: { ...DEFAULTS.semanticContext.embeddingModel },
@@ -77,12 +79,27 @@ export function loadSettings() {
             cliSmartEnhancement: parsed.cliSmartEnhancement ?? DEFAULTS.cliSmartEnhancement,
             maxGenerationPercent: clampGenPercent(parsed.maxGenerationPercent ?? DEFAULTS.maxGenerationPercent),
             memorySummaryMode: parsed.memorySummaryMode ?? DEFAULTS.memorySummaryMode,
+            autoCompactEnabled: parsed.autoCompactEnabled ?? DEFAULTS.autoCompactEnabled,
             semanticContext: deepMergeSemanticConfig(parsed.semanticContext),
         };
     }
     catch (err) {
         console.error(`[settings] Failed to parse ~/.codesquad/config.json: ${err.message}, using defaults`);
-        return { ...DEFAULTS };
+        // Bug Fix #9: Deep copy defaults to prevent shared reference mutation
+        return {
+            memoryLimitChats: DEFAULTS.memoryLimitChats,
+            hasCraftConfirmed: DEFAULTS.hasCraftConfirmed,
+            streamingEnabled: DEFAULTS.streamingEnabled,
+            cliSmartEnhancement: DEFAULTS.cliSmartEnhancement,
+            maxGenerationPercent: DEFAULTS.maxGenerationPercent,
+            memorySummaryMode: DEFAULTS.memorySummaryMode,
+            autoCompactEnabled: DEFAULTS.autoCompactEnabled,
+            semanticContext: {
+                ...DEFAULTS.semanticContext,
+                embeddingModel: { ...DEFAULTS.semanticContext.embeddingModel },
+                features: { ...DEFAULTS.semanticContext.features },
+            },
+        };
     }
 }
 /** Save a partial update, validate ranges, and persist to disk.

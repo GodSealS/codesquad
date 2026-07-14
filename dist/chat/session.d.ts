@@ -10,7 +10,7 @@ export interface Message {
     content: string;
     timestamp: string;
     isContext?: boolean;
-    toolCalls?: unknown[];
+    tool_calls?: unknown[];
     /** Per-message token usage (Phase P3.4). */
     usage?: {
         promptTokens: number;

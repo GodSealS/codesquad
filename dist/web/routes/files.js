@@ -2,11 +2,16 @@
  * Files API — project file tree and content reading.
  */
 import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
-import { join, resolve, normalize } from 'path';
+import { join, resolve, normalize, sep } from 'path';
 import { countTokens } from '../../chat/tokenizer.js';
+/**
+ * Check that target resolves within root directory.
+ * Uses trailing separator to prevent prefix-bypass attacks on Windows
+ * (e.g. C:\project-evil\secret starts with C:\project but is NOT in C:\project\).
+ */
 function isSafePath(root, target) {
     const resolved = resolve(root, target);
-    const normalizedRoot = normalize(root);
+    const normalizedRoot = normalize(root) + sep;
     return resolved.startsWith(normalizedRoot);
 }
 function listDir(dir, depth, maxDepth) {

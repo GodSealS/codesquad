@@ -86,4 +86,9 @@ export function initEverOSBackend(mcpCall, space) {
 export function getEverOSBackend() {
     return _everosBackend;
 }
+/** Reset singleton state (for tests). */
+export function resetEverOSBridge() {
+    _everosBackend = null;
+    _everosConfig = null;
+}
 //# sourceMappingURL=everos-bridge.js.map

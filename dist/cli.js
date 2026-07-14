@@ -36,8 +36,13 @@ async function main() {
     // --version
     if (flags.version) {
         const pkgPath = join(__dirname, '..', 'package.json');
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-        console.log(`CodeSquad v${pkg.version}`);
+        try {
+            const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+            console.log(`CodeSquad v${pkg.version}`);
+        }
+        catch {
+            console.log('CodeSquad (version unknown)');
+        }
         process.exit(0);
     }
     // --help

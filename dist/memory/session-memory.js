@@ -88,10 +88,13 @@ export async function resolveSideQueryConfig(mode, defaultProvider) {
 }
 // ── Regex Template Extraction (Scheme B) ──
 const KEY_PATTERNS = [
-    { label: 'Decision', pattern: /决定[：:]\s*(.+)$|采用\s*(.+)$|选定\s*(.+)$/im },
-    { label: 'Fact', pattern: /确认[：:]\s*(.+)$|明确[：:]\s*(.+)$/im },
-    { label: 'Constraint', pattern: /限制[：:]\s*(.+)$|不能\s*(.+)$|禁止\s*(.+)$/im },
-    { label: 'Action', pattern: /TODO[：:]\s*(.+)$|待办[：:]\s*(.+)$|下一步[：:]\s*(.+)$/im },
+    // ── Problem-solving insights (reusable experience) ──
+    { label: 'RootCause', compiledRe: /根因[是为：:]\s*(.+)$|root\s*cause[：:]*\s*(.+)$|(.+)是根[本]?原因$/gim },
+    { label: 'DesignRationale', compiledRe: /设计思路[：:]\s*(.+)$|design\s*rationale[：:]*\s*(.+)$|选择(.+)因为(.+)$/gim },
+    { label: 'FixTechnique', compiledRe: /修复方式[：:]\s*(.+)$|解决方案[：:]\s*(.+)$|workaround[：:]*\s*(.+)$|绕过(.+?)限制$/gim },
+    { label: 'Lesson', compiledRe: /教训[：:]\s*(.+)$|lesson\s*learned[：:]*\s*(.+)$|下次[应要不该](.+)$/gim },
+    { label: 'Constraint', compiledRe: /关键限制[：:]\s*(.+)$|hard\s*requirement[：:]*\s*(.+)$|不能改动(.+)$/gim },
+    { label: 'Preference', compiledRe: /偏好[：:]\s*(.+)$|习惯用(.+)$|prefer(?:ence)?[：:]*\s*(.+)$/gim },
 ];
 /**
  * Extract structured key points from conversation using regex patterns.
@@ -103,13 +106,18 @@ export function extractViaRegex(messages) {
     for (const msg of messages) {
         const content = msg.content ?? '';
         for (const pat of KEY_PATTERNS) {
-            const match = content.match(pat.pattern);
-            if (match) {
-                const value = (match[1] ?? match[2] ?? match[3] ?? '').trim();
-                if (value.length > 0) {
-                    lines.push(`- [${pat.label}] ${value}`);
-                    hasContent = true;
-                }
+            // Bug Fix #12: Use matchAll (pre-compiled with 'g' flag) to capture all occurrences
+            pat.compiledRe.lastIndex = 0;
+            const matches = content.matchAll(pat.compiledRe);
+            for (const match of matches) {
+                const value = (match[1] ?? match[2] ?? match[3] ?? match[4] ?? '').trim();
+                // Quality gate: reject noise matches
+                if (value.length < 10)
+                    continue;
+                if (/^(?:好[的]?|嗯|ok|yes|no|对|了解|明白|收到)[!！。.]?$/i.test(value))
+                    continue;
+                lines.push(`- [${pat.label}] ${value}`);
+                hasContent = true;
             }
         }
     }
@@ -164,10 +172,12 @@ export function shouldExtractMemory(sessionId, messages, querySource, autoCompac
         }
         return false;
     }
-    // Subsequent extractions: token growth + tool calls
+    // Subsequent extractions: token growth + (tool calls OR last assistant turn had no tool calls)
     const tokenGrowth = currentTokens - state.lastExtractionTokens;
+    const lastAssistantMsg = [...messages].reverse().find((m) => m.role === 'assistant');
+    const lastAssistantHadNoTools = lastAssistantMsg ? !lastAssistantMsg.tool_calls || lastAssistantMsg.tool_calls?.length === 0 : false;
     if (tokenGrowth >= config.minimumTokensBetweenUpdate &&
-        state.toolCallCount >= config.toolCallsBetweenUpdates) {
+        (state.toolCallCount >= config.toolCallsBetweenUpdates || lastAssistantHadNoTools)) {
         return true;
     }
     return false;
@@ -191,13 +201,13 @@ export function markExtractionStarted(sessionId) {
 /**
  * Mark extraction complete and update token baseline.
  */
-export function markExtractionCompleted(sessionId, messageCount) {
+export function markExtractionCompleted(sessionId, messages) {
     const state = _state.get(sessionId);
     if (!state)
         return;
     state.extracting = false;
     state.extracted = true;
-    state.lastExtractionTokens = messageCount * 50; // rough estimate
+    state.lastExtractionTokens = estimateTokens(messages); // Bug Fix #12: use consistent token estimation
     state.toolCallCount = 0;
 }
 /**
@@ -249,7 +259,7 @@ export async function extractSessionMemoryViaMode(messages, sessionId, projectRo
     if (!config) {
         const summary = extractViaRegex(messages);
         writeSessionMemory(sessionId, projectRoot, summary);
-        markExtractionCompleted(sessionId, messages.length);
+        markExtractionCompleted(sessionId, messages);
         return;
     }
     // LLM mode
@@ -288,6 +298,6 @@ export async function extractSessionMemoryViaMode(messages, sessionId, projectRo
         const fallback = extractViaRegex(messages);
         writeSessionMemory(sessionId, projectRoot, fallback);
     }
-    markExtractionCompleted(sessionId, messages.length);
+    markExtractionCompleted(sessionId, messages);
 }
 //# sourceMappingURL=session-memory.js.map

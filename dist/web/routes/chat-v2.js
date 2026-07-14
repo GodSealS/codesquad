@@ -134,19 +134,20 @@ function loadFullModelsConfig() {
     try {
         const raw = readModelsConfigRaw();
         if (!raw)
-            return { version: 1 };
+            return { version: 1, api: { sources: {} } };
         const config = parseYaml(raw);
         return {
             version: config.version ?? 1,
-            agents: config.agents ?? undefined,
-            skills: config.skills ?? undefined,
-            batch: config.batch ?? undefined,
-            default: config.default,
+            agents: config.agents ?? {},
+            skills: config.skills ?? {},
+            batch: config.batch ?? {},
+            default: config.default ?? null,
+            api: { sources: {} }, // api.sources loaded separately via loadApiSources()
         };
     }
     catch (err) {
         console.warn(`[chat-v2] Failed to parse full models config: ${err.message}`);
-        return { version: 1 };
+        return { version: 1, api: { sources: {} } };
     }
 }
 /** Map model name to API source key (e.g. "Deepseek-V4-Pro" → "deepseek-v4-pro") */

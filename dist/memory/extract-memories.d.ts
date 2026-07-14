@@ -29,7 +29,7 @@ export declare function shouldExtractMemories(sessionId: string, projectRoot: st
  * @param transcript - Full conversation transcript
  * @returns Array of { name, description, type, content } entries
  */
-export declare function extractMemories(transcript: string): Array<{
+export declare function extractMemories(transcript: string, sessionId?: string, projectRoot?: string): Array<{
     name: string;
     description: string;
     type: 'user' | 'feedback' | 'project' | 'reference';

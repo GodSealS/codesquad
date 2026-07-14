@@ -56,6 +56,10 @@ async function fetchWithTimeout(url, init, timeoutMs = FETCH_TIMEOUT_MS) {
         clearTimeout(timer);
     }
 }
+/** Robust HTML tag stripper — safer than inline regex which can fail on malformed HTML. */
+function stripTags(input) {
+    return input.replace(/<[^>]+>/g, '');
+}
 /** Parse HTML for HTTP links — shared across DDG variants. */
 function extractLinksFromHtml(html, maxCount) {
     // Title patterns (DDG regular + Lite)
@@ -67,12 +71,18 @@ function extractLinksFromHtml(html, maxCount) {
     let links = [];
     for (const pattern of titlePatterns) {
         let m;
-        while ((m = pattern.exec(html)) !== null) {
-            const url = m[1];
-            const title = m[m.length - 1].replace(/<[^>]+>/g, '').trim();
-            if (url && url.startsWith('http') && !url.includes('duckduckgo.com')) {
-                links.push({ url, title: title || 'Untitled' });
+        try {
+            while ((m = pattern.exec(html)) !== null) {
+                const url = m[1];
+                const title = stripTags(m[m.length - 1] ?? '').trim();
+                if (url && url.startsWith('http') && !url.includes('duckduckgo.com')) {
+                    links.push({ url, title: title || 'Untitled' });
+                }
             }
+        }
+        catch {
+            // Pattern failed on unexpected HTML structure — try next pattern
+            console.warn(`[WebSearch] Pattern parsing failed, trying next extractor`);
         }
         if (links.length > 0)
             break;
@@ -81,12 +91,17 @@ function extractLinksFromHtml(html, maxCount) {
     if (links.length === 0) {
         const genericRegex = /<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>\s*([\s\S]*?)\s*<\/a>/gi;
         let m;
-        while ((m = genericRegex.exec(html)) !== null) {
-            const url = m[1];
-            const title = m[2].replace(/<[^>]+>/g, '').trim();
-            if (title && !url.includes('duckduckgo.com') && !url.includes('localhost')) {
-                links.push({ url, title });
+        try {
+            while ((m = genericRegex.exec(html)) !== null) {
+                const url = m[1];
+                const title = stripTags(m[2] ?? '').trim();
+                if (title && !url.includes('duckduckgo.com') && !url.includes('localhost')) {
+                    links.push({ url, title });
+                }
             }
+        }
+        catch {
+            console.warn(`[WebSearch] Fallback HTML parsing failed, returning partial results`);
         }
     }
     return links.slice(0, maxCount);

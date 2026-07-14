@@ -110,4 +110,25 @@ export const MEMORY_DRIFT_CAVEAT = `
 This memory is older than 1 day. Memories are point-in-time observations —
 verify its accuracy against the current project state before relying on it.
 `.trim();
+/** Memory system capabilities — explains runtime memory features to the agent. */
+export const MEMORY_SYSTEM_CAPABILITIES = `
+## Memory System Capabilities
+
+In addition to the memory types above, the system provides:
+
+1. **Agent Memory** — Each agent may have a dedicated \`MEMORY.md\` file
+   (scoped as user/project/local). This is injected automatically into
+   your system prompt when present. Use it to persist agent-specific
+   learnings across conversations.
+
+2. **Memory Relevance** — Before each turn, the system scans \`.codesquad/memory/\`
+   for files matching the current query context. The Top-5 most relevant
+   memories are injected via \`<relevant_memories>\` blocks. Pay attention
+   to staleness notes — older memories may be outdated.
+
+3. **Session Memory** — Conversation summaries are auto-extracted into
+   session-memory.md when token usage or tool-call thresholds are met.
+   These summaries are used for context-aware conversation compaction,
+   preserving key decisions and context even after message truncation.
+`.trim();
 //# sourceMappingURL=memory-types.js.map

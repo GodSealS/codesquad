@@ -17,7 +17,7 @@ import type { Message } from '../chat/session.js';
  *
  * Adapts to CodeSquad's text-prefix message format:
  *   tool_use:  <tool-call name="ToolName"> or [Tool: ToolName]
- *   tool_result: [Tool Result: ToolName] or [Tool Error: ToolName]
+ *   tool_result: [Tool Result: ToolName], [Tool Error: ToolName], or [Tool: ToolName]
  *
  * @returns the cleaned message array and the number of fixes applied.
  */

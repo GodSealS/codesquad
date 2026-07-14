@@ -21,7 +21,7 @@ const SYNTHETIC_ERROR = '[Tool result missing — execution was interrupted]';
  *
  * Adapts to CodeSquad's text-prefix message format:
  *   tool_use:  <tool-call name="ToolName"> or [Tool: ToolName]
- *   tool_result: [Tool Result: ToolName] or [Tool Error: ToolName]
+ *   tool_result: [Tool Result: ToolName], [Tool Error: ToolName], or [Tool: ToolName]
  *
  * @returns the cleaned message array and the number of fixes applied.
  */
@@ -42,7 +42,8 @@ export function ensureToolResultPairing(messages, knownToolNames) {
         for (const name of calls) {
             const hasResult = result.slice(i + 1).some((m) => (m.role === 'user' || m.role === 'system') &&
                 (m.content.startsWith(`[Tool Result: ${name}]`) ||
-                    m.content.startsWith(`[Tool Error: ${name}]`)));
+                    m.content.startsWith(`[Tool Error: ${name}]`) ||
+                    m.content.startsWith(`[Tool: ${name}]`)));
             if (!hasResult)
                 unmatched.push(name);
         }
@@ -75,7 +76,8 @@ export function ensureToolResultPairing(messages, knownToolNames) {
         const msg = result[i];
         if (msg.role !== 'user' && msg.role !== 'system')
             continue;
-        const refMatch = msg.content.match(/^\[Tool (?:Result|Error):\s*(\w+)\]/);
+        // Match all 3 tool result prefix formats: [Tool Result: X], [Tool Error: X], [Tool: X]
+        const refMatch = msg.content.match(/^\[Tool (?:Result|Error|):\s*(\w+)\]/);
         if (refMatch && !allToolCalls.has(refMatch[1])) {
             result.splice(i, 1);
             fixesApplied++;

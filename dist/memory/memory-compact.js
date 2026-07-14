@@ -36,7 +36,7 @@ export function buildMemoryCompactContext(messages, sessionId, projectRoot, conf
     if (sessionMem && sessionMem.trim().length > 0) {
         // Build summary prefix as a system message
         const summaryMsg = {
-            role: 'user',
+            role: 'system',
             content: [
                 '<session_memory_summary>',
                 sessionMem.slice(0, config.maxSummaryTokens * 4),

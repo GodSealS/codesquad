@@ -4,7 +4,7 @@
  * GET /api/files/list?dir=/absolute/path → JSON tree
  */
 import { readdirSync, existsSync } from 'fs';
-import { join } from 'path';
+import { join, resolve, normalize, sep } from 'path';
 const MAX_DEPTH = 3;
 const IGNORE_DIRS = new Set(['node_modules', '.git', '.codebuddy', 'dist', 'coverage', 'Intermediate', 'Saved', 'Binaries', 'DerivedDataCache', '.vs', '__pycache__', '.idea']);
 function buildTree(dirPath, depth = 0) {
@@ -42,9 +42,24 @@ function buildTree(dirPath, depth = 0) {
         return [];
     }
 }
+/**
+ * Validate that a directory path is within the project root.
+ * Uses trailing separator to prevent prefix-bypass on Windows.
+ */
+function isSafeDir(root, target) {
+    const resolved = resolve(target);
+    const normalizedRoot = normalize(root) + sep;
+    return resolved.startsWith(normalizedRoot);
+}
 export async function handleFileList(req, res, services) {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const dirParam = url.searchParams.get('dir') || services.projectRoot;
+    // Path traversal guard — refuse to list directories outside project root
+    if (!isSafeDir(services.projectRoot, dirParam)) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Access denied: directory outside project root' }));
+        return;
+    }
     const tree = buildTree(dirParam);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ root: dirParam, tree }));

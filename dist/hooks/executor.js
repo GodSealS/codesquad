@@ -90,12 +90,13 @@ export async function executeHooks(event, toolName, input) {
             if (hookDef.once) {
                 _executedOnceHooks.add(onceKey);
             }
-            // Execute hook
+            // Execute hook — build with type narrowing (cast through unknown for safety)
             const hook = {
                 type: hookDef.type,
-                ...(hookDef.type === 'command' ? { command: hookDef.command, timeout: hookDef.timeout || DEFAULT_HOOK_TIMEOUT.command } : {}),
-                ...(hookDef.type === 'prompt' ? { prompt: hookDef.prompt, timeout: hookDef.timeout || DEFAULT_HOOK_TIMEOUT.prompt } : {}),
-                ...(hookDef.type === 'agent' ? { prompt: hookDef.prompt, timeout: hookDef.timeout || DEFAULT_HOOK_TIMEOUT.agent } : {}),
+                timeout: hookDef.timeout,
+                ...(hookDef.type === 'command' ? { command: hookDef.command, timeout: hookDef.timeout ?? DEFAULT_HOOK_TIMEOUT.command } : {}),
+                ...(hookDef.type === 'prompt' ? { prompt: hookDef.prompt, timeout: hookDef.timeout ?? DEFAULT_HOOK_TIMEOUT.prompt } : {}),
+                ...(hookDef.type === 'agent' ? { prompt: hookDef.prompt, timeout: hookDef.timeout ?? DEFAULT_HOOK_TIMEOUT.agent } : {}),
             };
             try {
                 const result = await executeHook(hook, input);
