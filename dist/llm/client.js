@@ -56,8 +56,12 @@ async function callAnthropic(provider, request) {
             body.system = systemStr;
     }
     // Feature 1: Native tool_use support (P4)
+    // P1: Add cache_control on last tool definition so tool schemas are cached
+    // by Anthropic's prompt cache, saving ~5-15KB of tokens per turn.
     if (request.tools && request.tools.length > 0) {
-        body.tools = request.tools;
+        const tools = request.tools;
+        const lastIdx = tools.length - 1;
+        body.tools = tools.map((t, i) => i === lastIdx ? { ...t, cache_control: { type: 'ephemeral' } } : t);
         body.tool_choice = request.tool_choice || { type: 'auto' };
     }
     // Thinking mode (Anthropic extended thinking)

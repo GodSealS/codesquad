@@ -17,7 +17,7 @@ import { buildAgentSystemPromptSeparated } from '../prompt/builder.js';
 import { getModeSystemPrompt } from '../repl/mode-prompts.js';
 import { buildSkillGuidance, buildCapabilitySkillGuidance } from '../repl/skill-registry.js';
 import { loadSessionRules } from '../rules/loader.js';
-import { findTool, runToolUse, assembleToolPool } from '../tools/registry.js';
+import { runToolUse, assembleToolPool } from '../tools/registry.js';
 import { executeToolBatch, resetToolQueue, onToolProgress as subscribeToolProgress } from '../tools/execution-queue.js';
 import { touchTool } from '../tools/dynamic-registry.js';
 import { getSessionCache } from '../tools/file-state.js';
@@ -50,7 +50,7 @@ import { initSessionMemory, shouldExtractMemory, recordToolCall, markExtractionS
 // Agent Memory integration (M7)
 import { loadAgentMemoryPrompt, } from '../memory/agent-memory.js';
 // Memory relevance retrieval (M7)
-import { findRelevantMemories, advanceMemoryTurn } from '../memory/memory-relevance.js';
+import { findRelevantMemorySummaries, advanceMemoryTurn } from '../memory/memory-relevance.js';
 // Memory compact integration (M7)
 import { shouldMemoryCompact, buildMemoryCompactContext } from '../memory/memory-compact.js';
 // Persistent memory extraction (M7)
@@ -150,10 +150,15 @@ async function executeForkSkill(pending, config, rc, messages, parentSession, on
                 }
                 lastResponse = forkResp.content;
                 // Parse tool calls from fork response.
-                // S04: Filter Agent and TodoWrite from fork skill tool pool to prevent
-                // recursive agent nesting (fork skill → AgentTool → sub-agent → ...).
-                const FORK_DISALLOWED_TOOLS = new Set(['Agent', 'TodoWrite']);
-                const pool = assembleToolPool().filter(t => !FORK_DISALLOWED_TOOLS.has(t.name));
+                // S04: Filter Agent, TodoWrite, and Skill from fork skill tool pool to prevent
+                // recursive nesting (fork skill → AgentTool/Skill → sub-agent/sub-skill → ...).
+                const FORK_DISALLOWED_TOOLS = new Set(['Agent', 'TodoWrite', 'Skill']);
+                let pool = assembleToolPool().filter(t => !FORK_DISALLOWED_TOOLS.has(t.name));
+                // Grill-me Phase 0: also apply skill's allowed-tools whitelist for fork skills
+                if (pending.allowedTools && pending.allowedTools.length > 0) {
+                    const forkAllowed = new Set(pending.allowedTools);
+                    pool = pool.filter(t => forkAllowed.has(t.name));
+                }
                 const toolCalls = parseToolCalls(null, forkResp.content, new Set(pool.map(t => t.name)));
                 if (toolCalls.length > 0) {
                     forkMessages.push({ role: 'assistant', content: forkResp.content });
@@ -246,7 +251,7 @@ function isForkErrorRetryable(err) {
 // ── Core Runner ──
 export async function runAgent(config) {
     const startTime = Date.now();
-    const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, stream = false, skillThinkingLevel, onToken, onTurn, onToolUse, onToolProgress, onError, } = config;
+    const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, stream = false, allowedTools, skillThinkingLevel, onToken, onTurn, onToolUse, onToolProgress, onError, } = config;
     // ── Session Memory setup (M7) ──
     const querySource = config.querySource ?? 'repl_main_thread';
     const settings = loadSettings();
@@ -342,9 +347,12 @@ export async function runAgent(config) {
         readFileState: getSessionCache(),
         headless: true,
     };
-    // Fix: reset per-session turn counter at the start of each runAgent call
-    // to prevent conflict between incrementTurn() and session.turnCount = turn
-    session.turnCount = 0;
+    // Fix: reset per-session turn counter only for fresh sessions.
+    // Resumed sessions (loaded from disk) keep their existing turnCount,
+    // preserving compaction/monitoring state across multi-request flows.
+    if (session.turnCount === undefined || session.turnCount === 0) {
+        session.turnCount = 0;
+    }
     let turn = 0;
     let toolCallsMade = 0;
     let consecutiveTruncations = 0;
@@ -600,19 +608,29 @@ export async function runAgent(config) {
     }
     try {
         let compactFailed = false;
-        // Reuse settings from above (line ~385); avoid duplicate loadSettings() I/O.
         const sc = settings.semanticContext;
-        // Token 预算：模型最大上下文 × maxGenerationPercent（通用设置，非语义特有）
+        // ── Token budget: cross-session injected blocks must yield to current-session messages ──
+        // Total context window × generation percent = total available tokens
         const contextWindow = getContextWindow(modelId);
         const maxContextTokens = Math.floor(contextWindow * settings.maxGenerationPercent / 100);
-        // 纯时间窗口预算：取 maxContextTokens 的 80%（给语义匹配留空间）
-        const timeWindowTokens = Math.floor(maxContextTokens * 0.8);
+        // Cross-session injected blocks are capped as a percentage of the total budget.
+        // When budget is tight, these caps ensure the current conversation's history
+        // is truncated LAST (cross-session content goes first).
+        const INJECTED_MAX_TOKENS = Math.floor(maxContextTokens * 0.15); // 15% max for injectedContent
+        const MEMORY_MAX_TOKENS = Math.floor(maxContextTokens * 0.10); // 10% max for memory relevance
+        // History budget: what remains after system prompt + injected blocks.
+        // Use 80% of remaining (not total) as the time-window budget, so injected
+        // blocks don't silently steal tokens from the current conversation.
+        const timeWindowTokens = Math.floor((maxContextTokens - INJECTED_MAX_TOKENS - MEMORY_MAX_TOKENS) * 0.8);
         let shutdownRequested = false;
         while (turn < maxTurns) {
             if (shutdownRequested)
                 break;
             turn++;
             incrementTurn(session);
+            // Cache tool pool once per turn (fork path also calls assembleToolPool,
+            // but that runs before the while loop via executeForkSkill → created outside)
+            const _cachedPool = assembleToolPool();
             // Phase 6.1: Auto-compact check at the start of each turn
             if (!compactFailed && turn > 1 && session.messages.length >= 10) {
                 const check = shouldAutoCompact(session.messages, modelId, session);
@@ -646,6 +664,7 @@ export async function runAgent(config) {
                 projectRoot,
                 sessionId: session.id,
                 lang,
+                messageCount: session.messages.length,
             }, [
                 getModeSystemPrompt(mode),
                 buildSkillGuidance(8, lang) || '',
@@ -690,6 +709,11 @@ export async function runAgent(config) {
             // TokenHub proxy struggles with large system arrays.
             const MAX_SYS_BLOCKS = 8;
             if (systemContentBlocks.length > MAX_SYS_BLOCKS) {
+                // P0 fix: record cache_control position before merge so we can restore it.
+                // Without this, the cache_control on the last static block is lost when
+                // .map(b => b.text) strips the property, disabling all prompt caching.
+                const cacheBlockIdx = systemContentBlocks.findIndex(b => b.cache_control?.type === 'ephemeral');
+                const totalBeforeMerge = systemContentBlocks.length;
                 // Keep first 4 (lang instruction + agent core) and last 4 (dynamic/context rules)
                 const head = systemContentBlocks.slice(0, 4);
                 const tail = systemContentBlocks.slice(-4);
@@ -701,7 +725,13 @@ export async function runAgent(config) {
                 if (middleText) {
                     systemContentBlocks.length = 0;
                     systemContentBlocks.push(...head);
-                    systemContentBlocks.push({ type: 'text', text: middleText });
+                    // If original cache breakpoint was in the merged middle, restore it
+                    const cacheWasInMiddle = cacheBlockIdx >= 4 && cacheBlockIdx < totalBeforeMerge - 4;
+                    systemContentBlocks.push({
+                        type: 'text',
+                        text: middleText,
+                        ...(cacheWasInMiddle ? { cache_control: { type: 'ephemeral' } } : {}),
+                    });
                     systemContentBlocks.push(...tail);
                 }
             }
@@ -714,23 +744,30 @@ export async function runAgent(config) {
             if (pendingFork) {
                 const forkSummary = await executeForkSkill(pendingFork, config, rc, messages, session, onError);
                 if (forkSummary) {
-                    // Replace injectedContent with the fork execution summary
-                    // so the parent LLM sees only the condensed result
-                    session.context.injectedContent = forkSummary;
+                    // Preserve existing injectedContent, prepend fork summary so the
+                    // parent LLM sees both the fork result and any prior context.
+                    session.context.injectedContent = forkSummary
+                        + (session.context.injectedContent ? '\n\n---\n\n' + session.context.injectedContent : '');
                 }
             }
-            // Context files
+            // Context files — capped to prevent cross-session bloat from starving history
             if (session.context.injectedContent) {
                 const { sanitizeAicorePaths, expandAicoreRefs } = await import('../embedded/virtual-fs.js');
                 const safeContent = expandAicoreRefs(sanitizeAicorePaths(session.context.injectedContent));
+                // Rough char→token estimate (~4 chars/token for CJK, ~3 for English).
+                // Cap at INJECTED_MAX_TOKENS to ensure cross-session content yields to current messages.
+                const injectedCharLimit = INJECTED_MAX_TOKENS * 3;
+                const trimmed = safeContent.length > injectedCharLimit
+                    ? safeContent.slice(0, injectedCharLimit) + `\n\n[... ${safeContent.length - injectedCharLimit} chars of injected context truncated — current conversation takes priority]`
+                    : safeContent;
                 messages.push({
-                    role: 'user', content: `[上下文文件]\n${safeContent.slice(0, 50000)}`,
+                    role: 'user', content: `[上下文文件]\n${trimmed}`,
                     timestamp: new Date().toISOString(),
                 });
             }
-            // ── Memory Relevance injection (M7 Bug Fix #2) ──
-            // Semantic retrieval: only inject memories that genuinely match the current query.
-            // Uses embedding-based cosine similarity when available, keyword threshold fallback.
+            // ── Memory Relevance: compressed summaries with tag matching ──
+            // Only inject tag + name + description (not full content). Full content is
+            // retrieved on-demand when the user/agent finds a summary useful.
             advanceMemoryTurn();
             const memoryDir = join(projectRoot, '.codesquad', 'memory');
             let memProvider = null;
@@ -738,15 +775,14 @@ export async function runAgent(config) {
                 memProvider = await getEmbeddingProvider(sc.embeddingModel);
             }
             catch { /* non-critical, falls back to keyword */ }
-            const relevantMemories = await findRelevantMemories(userInput, memoryDir, undefined, undefined, undefined, memProvider);
-            if (relevantMemories.length > 0) {
-                const memBlock = [
-                    '<relevant_memories>',
-                    ...relevantMemories.map((m) => `### ${m.name}\n${m.description}\n${m.content}${m.stalenessNote ? '\n' + m.stalenessNote : ''}`),
-                    '</relevant_memories>',
-                ].join('\n\n');
+            const { block: memBlock } = await findRelevantMemorySummaries(userInput, memoryDir, agentName, undefined, memProvider);
+            if (memBlock) {
+                const memCharLimit = MEMORY_MAX_TOKENS * 3;
+                const trimmed = memBlock.length > memCharLimit
+                    ? memBlock.slice(0, memCharLimit) + '\n... (使用 "查询记忆 XXX" 获取完整内容)'
+                    : memBlock;
                 messages.push({
-                    role: 'user', content: memBlock,
+                    role: 'user', content: trimmed,
                     timestamp: new Date().toISOString(),
                 });
             }
@@ -877,7 +913,12 @@ export async function runAgent(config) {
             // Feature 1 (P4): Pass native tools to the API
             // Feature 4 (P4): Pass systemContentBlocks with cache_control for prompt caching
             // Feature 8 (P4): Use assembleToolPool to dedup MCP tools (mirrors Claude Code src/tools.ts)
-            const pool = assembleToolPool();
+            let pool = _cachedPool;
+            // Grill-me Phase 0: filter tools by skill's allowed-tools whitelist
+            if (allowedTools && allowedTools.length > 0) {
+                const allowed = new Set(allowedTools);
+                pool = pool.filter(t => allowed.has(t.name));
+            }
             // S07: ensure tool_use/tool_result pairing before API call
             const { messages: safeMessages, fixesApplied } = ensureToolResultPairing(messages, new Set(pool.map(t => t.name)));
             if (fixesApplied > 0) {
@@ -957,10 +998,14 @@ export async function runAgent(config) {
                 accumulatedResponseText += (accumulatedResponseText ? '\n\n' : '') + response.content;
                 onToken(accumulatedResponseText);
             }
-            // Feature 1 (P4): Prefer native tool_use blocks, fallback to XML parsing
+            // Feature 1 (P4): Prefer native tool_use blocks, fallback to XML parsing.
+            // IMPORTANT: Filter by the LOCAL tool pool (not global findTool) to respect
+            // allowedTools filtering. Deepseek may output tool calls by name from training
+            // data even when the tool was excluded from function definitions.
+            const poolNames = new Set(pool.map((t) => t.name));
             const toolCalls = response.toolCalls && response.toolCalls.length > 0
-                ? response.toolCalls.filter((tc) => findTool(tc.name) !== undefined)
-                : parseToolCalls(null, response.content, new Set(pool.map((t) => t.name)));
+                ? response.toolCalls.filter((tc) => poolNames.has(tc.name))
+                : parseToolCalls(null, response.content, poolNames);
             // P0 fix: Detect empty tool_calls (LLM returned [] array) vs no tool calls.
             // B6 fix: use a local tracking variable to avoid state leakage across config reuse.
             if (response.toolCalls && response.toolCalls.length === 0 && toolCalls.length === 0) {
@@ -1062,7 +1107,9 @@ export async function runAgent(config) {
                 if (firstApproval) {
                     clearAgentLLMBridge();
                     return {
-                        finalResponse: `Awaiting permission approval for ${firstApproval.toolName}`,
+                        finalResponse: lang === 'zh'
+                            ? `等待用户批准工具操作: ${firstApproval.toolName}`
+                            : `Awaiting permission approval for ${firstApproval.toolName}`,
                         turnsUsed: turn,
                         toolCallsMade,
                         durationMs: Date.now() - startTime,
@@ -1093,8 +1140,12 @@ export async function runAgent(config) {
             const isDiminishing = consecutiveTruncations >= 3 &&
                 deltaSinceLast < 500 &&
                 lastCompletionTokens > 0;
-            // Cap short-abrupt continues at 3 (not 5) — if model keeps giving tiny answers, stop
-            const shortAbruptExhausted = shortAndAbrupt && !truncatedByTokenLimit && consecutiveTruncations >= 3;
+            // Short-abrupt cap: 5 for document-generation (maxTokens > 4096), 3 otherwise.
+            // Deepseek models without thinking tend to output short, tool-heavy responses
+            // and need more rounds to complete long documents.
+            const isDocumentMode = outputMaxTokens > 4096;
+            const shortAbruptMax = isDocumentMode ? 5 : 3;
+            const shortAbruptExhausted = shortAndAbrupt && !truncatedByTokenLimit && consecutiveTruncations >= shortAbruptMax;
             if ((truncatedByTokenLimit || shortAndAbrupt) &&
                 endsAbruptly &&
                 !isDiminishing &&
@@ -1114,10 +1165,18 @@ export async function runAgent(config) {
                     console.warn(`[AgentRunner] Output truncated at ${completionTokens} tokens, escalating maxTokens (${prevMax} → ${MAX_OUTPUT_ESCALATED})...`);
                     continue;
                 }
-                // S06: subsequent truncations or short-abrupt → nudge to continue
-                const nudge = truncatedByTokenLimit
-                    ? `Stopped at ${pct}% of token limit (${completionTokens.toLocaleString()} / ${outputMaxTokens.toLocaleString()}). Keep working — do not summarize.`
-                    : `Your response appears truncated. Continue from where you left off.`;
+                // S06: subsequent truncations or short-abrupt → nudge to continue.
+                // Document mode (3+ continues): tell LLM to use Write tool instead of outputting inline.
+                let nudge;
+                if (truncatedByTokenLimit) {
+                    nudge = `Stopped at ${pct}% of token limit (${completionTokens.toLocaleString()} / ${outputMaxTokens.toLocaleString()}). Keep working — do not summarize.`;
+                }
+                else if (isDocumentMode && consecutiveTruncations >= 3) {
+                    nudge = `Your responses keep getting cut short. Write the COMPLETE document to the target file using the Write tool. After writing, output only a 1-line summary. Do NOT output the document as conversation text.`;
+                }
+                else {
+                    nudge = `Your response appears truncated. Continue from where you left off.`;
+                }
                 addMessage(session, 'assistant', content);
                 addMessage(session, 'user', nudge);
                 session.lastAssistantTimestamp = new Date().toISOString();

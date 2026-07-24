@@ -48,6 +48,15 @@ export interface SkillFrontmatter {
     subFiles: SkillSubFile[];
     /** Execution context: 'fork' means run in isolated context, return only summary. */
     context?: string;
+    /** Explicit complexity override for the execution classifier.
+     *  - 'simple': sequential execution, no routing, no popup
+     *  - 'complex': AI auto-matches to agent(s), may create team
+     *  - 'important': popup for human decision (affects project structure/direction)
+     *  When omitted, the system auto-classifies via heuristic rules. */
+    complexity?: 'simple' | 'complex' | 'important';
+    /** Areas impacted by this skill (architecture, direction, production, etc.).
+     *  Used by the classifier to decide between 'complex' and 'important'. */
+    impactArea?: string[];
     /** Raw SKILL.md body (everything after frontmatter). */
     body: string;
 }

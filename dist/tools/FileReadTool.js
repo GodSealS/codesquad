@@ -117,8 +117,9 @@ export const FileReadTool = buildTool({
                 errorCode: 'PATH_OUTSIDE_PROJECT',
             };
         }
-        // Block reads from protected .codesquad subdirectories (agents/, skills/)
-        if (context.aicoreDir && isProtectedAicorePath(filePath, context.aicoreDir)) {
+        // Block reads from AICore-built-in .codesquad/agents/ and .codesquad/skills/
+        // (NOT from project-level or user-level .codesquad/ — those are user-authored)
+        if (context.aicoreDir && isProtectedAicorePath(filePath, context.aicoreDir, context.projectRoot)) {
             return {
                 valid: false,
                 message: 'Reading files from this directory is not permitted.',

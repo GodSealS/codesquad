@@ -29,6 +29,8 @@ const DEFAULTS = {
     thinkingLevel: undefined,
     subFiles: [],
     context: undefined,
+    complexity: undefined,
+    impactArea: undefined,
 };
 // ── Parse ──
 /**
@@ -78,6 +80,13 @@ export function parseSkillFrontmatter(raw, dirPath) {
     const bindTo = parseStringList(fm['bind-to']);
     // Auto-discover sub-files from the skill directory
     const subFiles = dirPath ? discoverSubFiles(dirPath, body) : [];
+    // Parse complexity override
+    const complexityRaw = fm['complexity'];
+    const complexity = (complexityRaw === 'simple' || complexityRaw === 'complex' || complexityRaw === 'important')
+        ? complexityRaw
+        : undefined;
+    // Parse impact-area: comma-separated list
+    const impactArea = parseStringList(fm['impact-area']);
     return {
         name: fm['name'] ?? DEFAULTS.name,
         description: fm['description'] ?? DEFAULTS.description,
@@ -93,6 +102,8 @@ export function parseSkillFrontmatter(raw, dirPath) {
         thinkingLevel: ['fast', 'think', 'deep'].includes(fm['thinking-level']) ? fm['thinking-level'] : undefined,
         subFiles,
         context: fm['context'] || undefined,
+        complexity,
+        impactArea: impactArea.length > 0 ? impactArea : undefined,
         body,
     };
 }

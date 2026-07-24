@@ -26,6 +26,8 @@ export interface PromptSectionContext {
     sessionId?: string;
     /** UI language: "zh" | "en". Used to determine response language. */
     lang?: string;
+    /** Current session message count. Cross-session sections should yield when this is high. */
+    messageCount?: number;
 }
 /**
  * Create a cached section — computed once per session.

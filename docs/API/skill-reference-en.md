@@ -492,6 +492,14 @@
   - Export interactive architecture diagrams
 - **Example**: `/graphify-reader build .`
 
+### grill-me
+- **Description**: Run a stress test for a plan, design, or decision before commitment. Interactive Q&A with severity-ranked vulnerabilities.
+- **Usage**:
+  - Stress-test irreversible or high-risk decisions
+  - Validate assumptions lacking evidence
+  - Risk assessment after major pivots
+- **Example**: `/grill-me "our ECS architecture migration plan"`
+
 ### handoff
 - **Description**: Compact current conversation into a handoff document so another agent (or future session) can pick up work without re-reading the full history.
 - **Usage**:

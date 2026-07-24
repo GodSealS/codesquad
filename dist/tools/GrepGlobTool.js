@@ -87,8 +87,8 @@ export const GrepTool = buildTool({
             if (!fileExists(searchPath)) {
                 return { valid: false, message: `Path not found: ${input.path}`, errorCode: 'ENOENT' };
             }
-            // Block searches in protected .codesquad subdirectories
-            if (context.aicoreDir && isProtectedAicorePath(searchPath, context.aicoreDir)) {
+            // Block searches in AICore-built-in .codesquad subdirectories (not project/user level)
+            if (context.aicoreDir && isProtectedAicorePath(searchPath, context.aicoreDir, context.projectRoot)) {
                 return { valid: false, message: 'Searching in this directory is not permitted.', errorCode: 'PROTECTED_PATH' };
             }
         }
@@ -284,8 +284,8 @@ export const GlobTool = buildTool({
             if (!fileExists(base)) {
                 return { valid: false, message: `Path not found: ${input.path}`, errorCode: 'ENOENT' };
             }
-            // Block glob in protected .codesquad subdirectories
-            if (context.aicoreDir && isProtectedAicorePath(base, context.aicoreDir)) {
+            // Block glob in AICore-built-in .codesquad subdirectories (not project/user level)
+            if (context.aicoreDir && isProtectedAicorePath(base, context.aicoreDir, context.projectRoot)) {
                 return { valid: false, message: 'Listing files in this directory is not permitted.', errorCode: 'PROTECTED_PATH' };
             }
         }

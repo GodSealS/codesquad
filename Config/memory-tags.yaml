@@ -1,0 +1,288 @@
+# Memory Tag Classification
+# ========================
+# Domain tags for classifying and matching memories.
+# Each tag has a display name and keyword list for context matching.
+#
+# Loaded by: src/memory/memory-tags.ts
+# Format: tag_key: { name: "显示名", keywords: [关键词列表] }
+# Keywords support both Chinese and English terms.
+#
+# To add a new domain:
+#   1. Add a new entry under `tags:` with a unique key
+#   2. Set the display `name` and `keywords`
+#   3. When storing memories, use the key or name in the `tags` frontmatter field
+
+version: 1
+
+tags:
+  # ── Engineering ──
+  programming:
+    name: 编程
+    keywords:
+      - 代码
+      - 编程
+      - 程序
+      - 实现
+      - 逻辑
+      - 重构
+      - debug
+      - bug
+      - 算法
+      - 数据结构
+      - API
+      - 接口
+      - 模块
+
+  architecture:
+    name: 架构
+    keywords:
+      - 架构
+      - 设计模式
+      - 模块设计
+      - 系统设计
+      - 分层
+      - 依赖
+      - 解耦
+      - ECS
+      - MVC
+      - MVVM
+
+  codingStandard:
+    name: 编码规范
+    keywords:
+      - 命名
+      - 规范
+      - convention
+      - style
+      - lint
+      - 格式化
+      - 缩进
+      - 注释
+
+  networking:
+    name: 服务器
+    keywords:
+      - 服务器
+      - 网络
+      - 后端
+      - server
+      - API
+      - HTTP
+      - REST
+      - 数据库
+      - database
+      - 同步
+      - 多人
+      - multiplayer
+      - AWS
+      - Lambda
+      - DynamoDB
+
+  performance:
+    name: 性能优化
+    keywords:
+      - 性能
+      - 优化
+      - 帧率
+      - FPS
+      - 内存
+      - memory
+      - profile
+      - profiling
+      - drawcall
+      - batch
+      - LOD
+      - culling
+
+  # ── Design ──
+  design:
+    name: 设计
+    keywords:
+      - 设计
+      - 玩法
+      - 机制
+      - 系统设计
+      - 关卡
+      - 数值
+      - 平衡
+      - 难度
+      - gameplay
+      - mechanic
+
+  levelDesign:
+    name: 关卡设计
+    keywords:
+      - 关卡
+      - level
+      - 地图
+      - 场景
+      - 布局
+      - platforming
+      - puzzle
+      - flow
+
+  economy:
+    name: 经济系统
+    keywords:
+      - 经济
+      - 货币
+      - economy
+      - 金币
+      - 钻石
+      - 商店
+      - 交易
+      - 充值
+
+  narrative:
+    name: 叙事
+    keywords:
+      - 叙事
+      - 剧情
+      - 故事
+      - 对话
+      - 世界观
+      - lore
+      - quest
+      - 任务
+      - 角色
+      - character
+      - narrative
+
+  # ── Art ──
+  art:
+    name: 美术
+    keywords:
+      - 美术
+      - 模型
+      - 贴图
+      - 纹理
+      - 材质
+      - shader
+      - 渲染
+      - 动画
+      - 骨骼
+      - rig
+      - skin
+      - sprite
+      - "2D"
+      - "3D"
+
+  vfx:
+    name: 特效
+    keywords:
+      - 特效
+      - 粒子
+      - particle
+      - VFX
+      - 爆炸
+      - trail
+      - 光效
+
+  uiux:
+    name: UI/UX
+    keywords:
+      - UI
+      - UX
+      - 界面
+      - 交互
+      - 按钮
+      - 菜单
+      - HUD
+      - widget
+      - panel
+
+  # ── Audio ──
+  audio:
+    name: 音频
+    keywords:
+      - 音频
+      - 音效
+      - 音乐
+      - sound
+      - music
+      - BGM
+      - SFX
+      - 混音
+      - FMOD
+      - Wwise
+
+  # ── Engine-specific ──
+  unity:
+    name: Unity
+    keywords:
+      - Unity
+      - unity
+      - "C#"
+      - MonoBehaviour
+      - GameObject
+      - Prefab
+      - AssetBundle
+      - Addressable
+
+  godot:
+    name: Godot
+    keywords:
+      - Godot
+      - godot
+      - GDScript
+      - Node
+      - scene
+      - resource
+
+  unreal:
+    name: Unreal
+    keywords:
+      - Unreal
+      - UE
+      - Blueprint
+      - Actor
+      - Component
+      - "C++"
+
+  cocos:
+    name: Cocos
+    keywords:
+      - Cocos
+      - cocos
+      - TypeScript
+      - 组件
+      - 预制体
+
+  # ── Production ──
+  production:
+    name: 制作
+    keywords:
+      - 制作
+      - 排期
+      - sprint
+      - 里程碑
+      - milestone
+      - 发布
+      - release
+      - 版本
+      - 进度
+      - 规划
+      - 风险
+
+  testing:
+    name: 测试
+    keywords:
+      - 测试
+      - QA
+      - test
+      - 单元测试
+      - 集成
+      - bug
+      - 回归
+      - 验收
+
+  tooling:
+    name: 工具
+    keywords:
+      - 工具
+      - pipeline
+      - "CI/CD"
+      - build
+      - automation
+      - 编辑器
+      - 脚本

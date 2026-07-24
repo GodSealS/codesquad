@@ -13,6 +13,7 @@
  *   Idea/tutrue/memory-system-design.md §2.3.4
  */
 import type { EmbeddingProvider } from '../embedding/types.js';
+import { type DomainTag } from './memory-tags.js';
 export interface RelevantMemory {
     /** Relative filename of the memory file. */
     filename: string;
@@ -24,12 +25,26 @@ export interface RelevantMemory {
     description: string;
     /** Memory type. */
     type?: string;
-    /** Formatted content for context injection. */
+    /** Domain tags from frontmatter. */
+    tags?: string[];
+    /** Resolved domain tag keys. */
+    tagKeys?: DomainTag[];
+    /** Formatted content for context injection (full content). */
     content: string;
     /** Staleness note (if applicable). */
     stalenessNote: string;
     /** Relevance score from keyword matching (un-normalized; can exceed 1). */
     score?: number;
+}
+/** Lightweight memory summary — tag + name + description only, no full content. */
+export interface MemorySummary {
+    name: string;
+    description: string;
+    type?: string;
+    tags?: string[];
+    tagKeys?: DomainTag[];
+    /** Compressed one-line representation for injection. */
+    line: string;
 }
 /** Advance the turn counter (called at the start of each conversation turn). */
 export declare function advanceMemoryTurn(): void;
@@ -50,4 +65,17 @@ export declare function clearTurnCache(): void;
  * @param provider - Optional EmbeddingProvider for semantic matching
  */
 export declare function findRelevantMemories(query: string, memoryDir: string, _signal?: AbortSignal, _recentTools?: string[], alreadySurfaced?: Set<string>, provider?: EmbeddingProvider | null): Promise<RelevantMemory[]>;
+/**
+ * Find relevant memory SUMMARIES (tag + name + description only, no full content).
+ * This is the preferred path for context injection — compressed, tag-aware, and
+ * budget-friendly. Full content should be fetched on-demand when the user/agent
+ * finds a summary useful.
+ *
+ * Returns a compressed block string ready for injection, and the tag-matched summaries.
+ */
+export declare function findRelevantMemorySummaries(query: string, memoryDir: string, agentName?: string, recentTools?: string[], provider?: EmbeddingProvider | null): Promise<{
+    block: string;
+    summaries: MemorySummary[];
+    matchedTags: string[];
+}>;
 //# sourceMappingURL=memory-relevance.d.ts.map

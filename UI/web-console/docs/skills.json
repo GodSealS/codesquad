@@ -139,6 +139,11 @@
     "name_cn": "graphify-reader 知识图谱",
     "description_cn": "控制graphify知识图谱工具——构建项目知识图谱、查询代码结构和分析模块关系。\n- `[build|query|update|path|explain|cluster-only|export]` — 文件或目录路径"
   },
+  "grill-me": {
+    "description": "Run a stress test for a plan, design, or decision before commitment. Interactive Q&A with severity-ranked vulnerabilities.\n\n**Parameters:**\n- `[plan, design, or decision to grill]` — Plan or file path",
+    "name_cn": "grill-me 决策压力测试",
+    "description_cn": "在承诺前对计划、设计或决策运行压力测试。交互式问答，输出严重度分级的漏洞清单。\n- `[plan, design, or decision to grill]` — 计划或文件路径"
+  },
   "handoff": {
     "description": "Compact the current conversation into a handoff document so another agent (or a future session) can pick up the work without re-reading the full history.\n\n**Parameters:**\n- `What will the next session be used for?` — Command option",
     "name_cn": "handoff 工作交接",

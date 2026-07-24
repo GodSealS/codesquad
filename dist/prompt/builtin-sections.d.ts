@@ -22,7 +22,7 @@ export declare function getSystemBehaviorSection(): SystemPromptSection;
 export declare function getDoingTasksSection(): SystemPromptSection;
 /**
  * Tone and style.
- * Uncached because the language depends on ctx.lang, which varies per request.
+ * Now cached (P2 fix): ctx.lang is session-level and doesn't change per turn.
  */
 export declare function getToneAndStyleSection(): SystemPromptSection;
 /**
@@ -31,7 +31,7 @@ export declare function getToneAndStyleSection(): SystemPromptSection;
 export declare function getEnvInfoSection(): SystemPromptSection;
 /**
  * Language preference.
- * Uncached because the language depends on ctx.lang, which varies per request.
+ * Now cached (P2 fix): ctx.lang is session-level and doesn't change per turn.
  */
 export declare function getLanguageSection(): SystemPromptSection;
 /**
@@ -41,6 +41,7 @@ export declare function getProjectGuidanceSection(): SystemPromptSection;
 export declare function setGlobalGuidanceFlags(extraDirs?: string[], bare?: boolean): void;
 /**
  * Cross-chat memory — summaries from recent sessions.
+ * Yields to current-session context when the conversation is already deep (>20 messages).
  */
 export declare function getCrossChatMemorySection(): SystemPromptSection;
 /**
@@ -58,7 +59,8 @@ export declare function getAvailableAgentsSection(): SystemPromptSection;
 /**
  * Conditional rules — inject rules that match the current session context.
  * Uses path-based matching when files are being edited (via FileWrite/Edit contexts).
- * Uncached because the set of active files changes per turn.
+ * Now cached per session (P2 fix): rules rarely change mid-session.
+ * Users should /clear or /compact to pick up rule changes.
  */
 export declare function getConditionalRulesSection(): SystemPromptSection;
 /**

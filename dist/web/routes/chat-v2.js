@@ -22,7 +22,7 @@ import { createSession, addMessage, load as loadSession } from '../../chat/sessi
 import { setProjectRoot, saveSession as persistSession } from '../../chat/storage.js';
 import { resolveModel } from '../../generators/model-resolver.js';
 import { resolveEnvValue } from '../../utils/env-resolver.js';
-import { virtualExists, virtualReadFile, sanitizeAicorePaths, expandAicoreRefs, AICORE_ROOT, PKG_ROOT as VFS_PKG_ROOT } from '../../embedded/virtual-fs.js';
+import { virtualExists, virtualReadFile, AICORE_ROOT, PKG_ROOT as VFS_PKG_ROOT } from '../../embedded/virtual-fs.js';
 import { readEmbeddedFile, isBunCompiled } from '../../embedded/runtime.js';
 import { notifyError, logDiagnostic } from '../../utils/error-logger.js';
 let PKG_ROOT;
@@ -130,13 +130,21 @@ function loadApiSources() {
  * This function only provides model-name mapping (batch globs + default model)
  * used by `resolveBatchModel()` during API source resolution.
  */
+/** Module-level cache for loadFullModelsConfig() — avoids 3+ filesystem reads per request. */
+let _fullModelsConfigCache = null;
+let _fullModelsConfigCacheTime = 0;
+const MODELS_CONFIG_CACHE_TTL_MS = 30_000; // 30s TTL
 function loadFullModelsConfig() {
+    const now = Date.now();
+    if (_fullModelsConfigCache && (now - _fullModelsConfigCacheTime) < MODELS_CONFIG_CACHE_TTL_MS) {
+        return _fullModelsConfigCache;
+    }
     try {
         const raw = readModelsConfigRaw();
         if (!raw)
             return { version: 1, api: { sources: {} } };
         const config = parseYaml(raw);
-        return {
+        _fullModelsConfigCache = {
             version: config.version ?? 1,
             agents: config.agents ?? {},
             skills: config.skills ?? {},
@@ -144,6 +152,8 @@ function loadFullModelsConfig() {
             default: config.default ?? null,
             api: { sources: {} }, // api.sources loaded separately via loadApiSources()
         };
+        _fullModelsConfigCacheTime = now;
+        return _fullModelsConfigCache;
     }
     catch (err) {
         console.warn(`[chat-v2] Failed to parse full models config: ${err.message}`);
@@ -157,6 +167,10 @@ function modelToSourceKey(modelName) {
 }
 /** Load agent system prompt from .codesquad (virtual-fs for embedded support) */
 function loadAgentPrompt(name) {
+    if (!isValidAgentOrSkillName(name)) {
+        console.warn(`[chat-v2] Rejected unsafe agent name: "${name}"`);
+        return null;
+    }
     const p = join(AICORE_DIR, 'agents', `${name}.md`);
     try {
         return virtualExists(p) ? virtualReadFile(p, 'utf-8') : null;
@@ -168,6 +182,10 @@ function loadAgentPrompt(name) {
 }
 /** Load skill prompt from .codesquad (virtual-fs for embedded support) */
 function loadSkillPrompt(name) {
+    if (!isValidAgentOrSkillName(name)) {
+        console.warn(`[chat-v2] Rejected unsafe skill name: "${name}"`);
+        return null;
+    }
     const p = join(AICORE_DIR, 'skills', name, 'SKILL.md');
     try {
         return virtualExists(p) ? virtualReadFile(p, 'utf-8') : null;
@@ -272,6 +290,11 @@ function buildRuntimeProviderConfig(apiConfig) {
  *   - Token budget + auto-compact
  *   - Consistent behavior with the streaming endpoint
  */
+/** Validate agent/skill names — blocks path traversal and injection. */
+const SAFE_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
+function isValidAgentOrSkillName(name) {
+    return SAFE_NAME_RE.test(name) && !name.includes('..');
+}
 export async function handleChatV2(req, res) {
     let body;
     try {
@@ -349,30 +372,50 @@ export async function handleChatV2(req, res) {
             }
         }
     }
-    // Inject skill guidance if skillId provided
+    // Inject skill guidance if skillId provided (shared classification + filtering)
+    let skillAllowedTools;
     if (skillId) {
         try {
             const { setAicodeRoot, loadSkill } = await import('../../repl/skill-registry.js');
+            const { loadAllAgentsLayered } = await import('../../agents/definition.js');
+            const { classifySkill } = await import('../../repl/skill-classifier.js');
+            const { prepareSimpleSkill } = await import('../../repl/skill-executor.js');
+            const { hasForkSkill, markForkSkill } = await import('../../context/fork-executor.js');
             setAicodeRoot(AICORE_DIR);
             const skill = loadSkill(skillId);
-            if (skill) {
-                const skillMdPath = join(AICORE_DIR, 'skills', skillId, 'SKILL.md');
-                if (virtualExists(skillMdPath)) {
-                    const skillContent = virtualReadFile(skillMdPath, 'utf-8');
-                    const sanitized = expandAicoreRefs(sanitizeAicorePaths(skillContent));
-                    if (skill.context === 'fork') {
-                        const { markForkSkill } = await import('../../context/fork-executor.js');
-                        markForkSkill(session, { skillName: skillId, content: sanitized, model: skill.model });
-                    }
-                    else {
-                        session.context.injectedContent = `## Activated Skill: ${skillId}\n${sanitized}\n`;
-                    }
+            if (!skill)
+                return;
+            const agents = loadAllAgentsLayered(AICORE_DIR);
+            const classification = classifySkill(skill, prompt || '', agents);
+            // IMPORTANT → return confirmation JSON
+            if (classification.mode === 'important') {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    type: 'important_skill', skillId,
+                    reason: classification.reason,
+                    message: '此操作可能影响项目结构或方向，请确认是否继续。',
+                    requiresConfirmation: true,
+                }));
+                return;
+            }
+            // Use prepared skill for SIMPLE, raw otherwise
+            const effectiveSkill = classification.mode === 'simple' ? prepareSimpleSkill(skill) : skill;
+            skillAllowedTools = effectiveSkill.allowedTools;
+            // Inject skill body (dedup guard)
+            const currentInjected = session.context.injectedContent || '';
+            const alreadyInjected = currentInjected.includes(`Skill: ${skillId}`) || hasForkSkill(session);
+            if (!alreadyInjected) {
+                session.context.injectedContent = '';
+                const body = effectiveSkill.body;
+                if (effectiveSkill.context === 'fork') {
+                    markForkSkill(session, { skillName: skillId, content: body, model: effectiveSkill.model, allowedTools: effectiveSkill.allowedTools });
+                }
+                else {
+                    session.context.injectedContent = `## Activated Skill: ${skillId}\n${body}\n`;
                 }
             }
         }
-        catch {
-            // Non-critical — agent still works without skill injection
-        }
+        catch { /* non-critical */ }
     }
     // P1 fix: delegate to shared runAgent() execution engine
     try {
@@ -387,6 +430,7 @@ export async function handleChatV2(req, res) {
             mode: chatMode,
             maxTurns: 20,
             lang: lang || 'zh',
+            allowedTools: skillAllowedTools,
             memorySummaryMode,
             runtimeConfig,
             stream: false,
@@ -479,9 +523,15 @@ export async function handleChatStream(req, res) {
         return;
     }
     const { prompt, history, modelName, agentId, skillId, mode, lang, thinkingMode, searchProvider, memorySummaryMode, customSources, generationConfig } = body;
-    // Apply search provider preference
+    // Apply search provider preference (allowlist validated)
     if (searchProvider) {
-        process.env.SEARCH_PROVIDER = searchProvider;
+        const VALID_SEARCH_PROVIDERS = new Set(['auto', 'brave', 'duckduckgo', 'bing', 'google']);
+        if (VALID_SEARCH_PROVIDERS.has(searchProvider)) {
+            process.env.SEARCH_PROVIDER = searchProvider;
+        }
+        else {
+            console.warn(`[chat-v2] Ignored invalid searchProvider: "${searchProvider}"`);
+        }
     }
     if (!prompt) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -589,61 +639,85 @@ export async function handleChatStream(req, res) {
         }
     }
     // ── Inject skill guidance if skillId provided ──
-    // IMPORTANT: When switching skills, clear previous skill's injected content to avoid
-    // context pollution (LLM seeing instructions from multiple skills simultaneously).
+    // Shared classification + filtering via skill-executor. Web-specific injection
+    // + runAgent() are handled inline (unlike REPL which uses SkillInstance).
     let skillThinkingLevel;
-    if (skillId) {
+    let skillAllowedTools;
+    // Guard: prevent re-entrant skill injection on SSE reconnect / auto-retry.
+    // Once the skill body is in the session, skip reload + reclassify.
+    const skillAlreadyInjected = (() => {
+        if (!skillId || !session)
+            return true;
+        const injected = session.context.injectedContent || '';
+        return injected.includes(`Skill: ${skillId}`);
+    })();
+    if (skillId && !skillAlreadyInjected) {
+        const { setAicodeRoot, loadSkill } = await import('../../repl/skill-registry.js');
+        const { loadAllAgentsLayered } = await import('../../agents/definition.js');
+        const { classifySkill } = await import('../../repl/skill-classifier.js');
+        const { prepareSimpleSkill } = await import('../../repl/skill-executor.js');
+        const { hasForkSkill, markForkSkill } = await import('../../context/fork-executor.js');
+        setAicodeRoot(AICORE_DIR);
+        const skill = loadSkill(skillId);
+        if (!skill) {
+            console.warn(`[chat-v2] Skill "${skillId}" not found`);
+            return;
+        }
+        skillThinkingLevel = skill.thinkingLevel;
+        skillAllowedTools = skill.allowedTools;
+        if (skill.maxTokens)
+            session.modelConfig.maxTokens = skill.maxTokens;
+        // ── 共享分类（单调用点）──
+        const agents = loadAllAgentsLayered(AICORE_DIR);
+        const classification = classifySkill(skill, prompt || '', agents);
+        // IMPORTANT: SSE 确认请求
+        if (classification.mode === 'important') {
+            console.log(`[chat-v2] Skill "${skillId}" IMPORTANT → confirmation SSE`);
+            sendSSE({ type: 'important_skill', skillId, reason: classification.reason, message: '此操作可能影响项目结构或方向，请确认是否继续。' });
+            return;
+        }
+        // COMPLEX: 记录 agent 匹配（Web 在当前 agent 执行，不切换 session）
+        if (classification.mode === 'complex') {
+            const match = classification.agentMatch;
+            console.log(`[chat-v2] Skill "${skillId}" COMPLEX → ${match?.agents[0]?.agentType ?? 'default'}`);
+        }
+        // ── 注入 skill body ──
+        // Use prepared (SIMPLE-filtered) or raw skill body
+        const effectiveSkill = classification.mode === 'simple' ? prepareSimpleSkill(skill) : skill;
+        skillAllowedTools = effectiveSkill.allowedTools;
         const currentInjected = session.context.injectedContent || '';
-        const alreadyInjected = currentInjected.includes(`Skill: ${skillId}`);
+        const alreadyInjected = currentInjected.includes(`Skill: ${skillId}`) || hasForkSkill(session);
         if (!alreadyInjected) {
-            // Different skill → clear old content, inject only the new skill
             session.context.injectedContent = '';
-            try {
-                const { setAicodeRoot, loadSkill } = await import('../../repl/skill-registry.js');
-                setAicodeRoot(AICORE_DIR);
-                const skill = loadSkill(skillId);
-                skillThinkingLevel = skill?.thinkingLevel;
-                console.log(`[chat-v2] Skill "${skillId}" loaded: context=${skill?.context}, model=${skill?.model}, thinkingLevel=${skillThinkingLevel ?? '(inherit)'}, allowedTools=${skill?.allowedTools?.length ?? 0}`);
-                logDiagnostic('INFO', 'chat-v2', `Skill "${skillId}" loaded`, {
-                    context: skill?.context,
-                    model: skill?.model,
-                    allowedToolsCount: skill?.allowedTools?.length ?? 0,
-                });
-                if (skill) {
-                    const skillMdPath = join(AICORE_DIR, 'skills', skillId, 'SKILL.md');
-                    if (virtualExists(skillMdPath)) {
-                        const skillContent = virtualReadFile(skillMdPath, 'utf-8');
-                        const sanitized = expandAicoreRefs(sanitizeAicorePaths(skillContent));
-                        // Fork context: mark for isolated execution instead of injecting into parent session.
-                        // agent-runner will pick up the marker and execute the skill in an ephemeral session,
-                        // returning only the summary to the parent conversation.
-                        if (skill.context === 'fork') {
-                            const { markForkSkill } = await import('../../context/fork-executor.js');
-                            markForkSkill(session, {
-                                skillName: skillId,
-                                content: sanitized,
-                                model: skill.model,
-                            });
-                        }
-                        else {
-                            session.context.injectedContent =
-                                `## Activated Skill: ${skillId}\n${sanitized}\n`;
-                        }
-                    }
-                }
+            const skillBody = effectiveSkill.body;
+            if (effectiveSkill.context === 'fork') {
+                markForkSkill(session, { skillName: skillId, content: skillBody, model: effectiveSkill.model, allowedTools: effectiveSkill.allowedTools });
             }
-            catch (skillErr) {
-                // Skill guidance failed — notify the frontend via SSE error event
-                // so the user knows why the skill didn't activate as expected.
-                const msg = skillErr instanceof Error ? skillErr.message : 'Unknown skill load error';
-                console.error(`[chat-v2] Skill "${skillId}" load failed:`, msg);
-                logDiagnostic('ERROR', 'chat-v2', `Skill "${skillId}" load failed`, { error: msg });
-                sendSSE({
-                    type: 'error',
-                    error: `技能 "${skillId}" 加载失败: ${msg}`,
-                });
+            else {
+                session.context.injectedContent = `## Activated Skill: ${skillId}\n${skillBody}\n`;
             }
         }
+        console.log(`[chat-v2] Skill "${skillId}": ${classification.mode} mode, tools=${skillAllowedTools?.length ?? 0}`);
+    }
+    else if (skillId && skillAlreadyInjected) {
+        // Re-entrant request: skill body already injected in a previous call.
+        // Reload metadata (tools, thinking, model) so runAgent() has correct config.
+        try {
+            const { setAicodeRoot, loadSkill } = await import('../../repl/skill-registry.js');
+            const { classifySkill } = await import('../../repl/skill-classifier.js');
+            const { prepareSimpleSkill } = await import('../../repl/skill-executor.js');
+            setAicodeRoot(AICORE_DIR);
+            const skill = loadSkill(skillId);
+            if (skill) {
+                skillThinkingLevel = skill.thinkingLevel;
+                const c = classifySkill(skill, prompt || '', []);
+                const effective = c.mode === 'simple' ? prepareSimpleSkill(skill) : skill;
+                skillAllowedTools = effective.allowedTools;
+                if (skill.maxTokens)
+                    session.modelConfig.maxTokens = skill.maxTokens;
+            }
+        }
+        catch { /* metadata non-critical for re-entrant calls */ }
     }
     // ── Call runAgent() — the shared execution engine ──
     let result;
@@ -660,6 +734,7 @@ export async function handleChatStream(req, res) {
             maxTurns: 20,
             lang: lang || 'zh',
             thinkingMode: thinkingMode || 'fast',
+            allowedTools: skillAllowedTools,
             skillThinkingLevel,
             memorySummaryMode,
             runtimeConfig,

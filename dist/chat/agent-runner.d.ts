@@ -28,6 +28,12 @@ export interface AgentRunConfig {
     /** Skill-level thinking level override. Takes priority over agent's thinkingLevel. */
     skillThinkingLevel?: 'fast' | 'think' | 'deep';
     /**
+     * Optional: restrict tools available to the agent.
+     * When set, only tools whose names are in this list are available.
+     * Used by skill invocation (allowed-tools frontmatter) and sub-agents.
+     */
+    allowedTools?: string[];
+    /**
      * Query source identifier for Session Memory extraction guard.
      * Only 'repl_main_thread' triggers automatic extraction.
      * Sub-agents and fork sessions use different identifiers to prevent recursion.

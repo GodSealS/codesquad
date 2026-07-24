@@ -95,6 +95,8 @@ export class AnthropicProvider extends BaseLLMProvider {
                 prompt_tokens: data.usage.input_tokens,
                 completion_tokens: data.usage.output_tokens,
             }),
+            cache_creation_input_tokens: data.usage.cache_creation_input_tokens ?? 0,
+            cache_read_input_tokens: data.usage.cache_read_input_tokens ?? 0,
         };
         return {
             content: textContent,

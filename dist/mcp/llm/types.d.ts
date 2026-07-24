@@ -46,6 +46,10 @@ export interface LLMUsage {
     completion_tokens: number;
     total_tokens: number;
     cost_estimate?: number;
+    /** Anthropic prompt caching: tokens written to cache (first request). Feature 4 (P4). */
+    cache_creation_input_tokens?: number;
+    /** Anthropic prompt caching: tokens read from cache (subsequent requests). Feature 4 (P4). */
+    cache_read_input_tokens?: number;
 }
 /** Unified LLM request */
 export interface LLMRequest {

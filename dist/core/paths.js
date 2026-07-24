@@ -280,12 +280,35 @@ const PROTECTED_AICORE_SUBDIRS = ['agents', 'skills'];
  * (agents/ or skills/).  These contain proprietary agent/skill definitions that
  * must never be exposed to the user via tool output.
  *
- * @param absPath  Resolved absolute file path
- * @param aicoreDir  Absolute path to the .codesquad directory (e.g. context.aicoreDir)
+ * EXCEPTION: Project-level and user-level .codesquad/ files are NOT protected —
+ * only the AICore install directory's built-in agents/skills are blocked.
+ *
+ * @param absPath    Resolved absolute file path
+ * @param aicoreDir  Absolute path to the AICore install .codesquad directory
+ * @param projectRoot  Optional project root to exclude project-level .codesquad/
  */
-export function isProtectedAicorePath(absPath, aicoreDir) {
+export function isProtectedAicorePath(absPath, aicoreDir, projectRoot) {
     const normalized = absPath.replace(/\\/g, '/');
     const base = aicoreDir.replace(/\\/g, '/');
+    // Only protect paths under the AICore install directory (not project/user clones)
+    if (!normalized.startsWith(base + '/')) {
+        return false;
+    }
+    // Skip protection for project-level .codesquad/ (user-authored content)
+    if (projectRoot) {
+        const projBase = resolve(projectRoot, '.codesquad').replace(/\\/g, '/');
+        if (normalized.startsWith(projBase + '/')) {
+            return false;
+        }
+    }
+    // Skip protection for user-level ~/.codesquad/ (user-authored content)
+    const homeDir = (process.env.HOME || process.env.USERPROFILE || '').replace(/\\/g, '/');
+    if (homeDir) {
+        const userBase = (homeDir + '/.codesquad');
+        if (normalized.startsWith(userBase + '/')) {
+            return false;
+        }
+    }
     return PROTECTED_AICORE_SUBDIRS.some(sub => normalized.startsWith(base + '/' + sub + '/') || normalized === base + '/' + sub);
 }
 //# sourceMappingURL=paths.js.map

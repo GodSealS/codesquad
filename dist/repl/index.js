@@ -43,38 +43,8 @@ import { recordUsage, getMonthlyUsage, getTotalCost, getBudget } from '../llm/us
 import { storeKey, isKeyringAvailable } from '../llm/keyring.js';
 // Tools (Phase 1)
 import { registerTools as registerToolPool, registerTool, getToolPool, findTool } from '../tools/registry.js';
-import { BashTool } from '../tools/BashTool.js';
-import { FileReadTool } from '../tools/FileReadTool.js';
-import { FileWriteTool } from '../tools/FileWriteTool.js';
-import { FileEditTool } from '../tools/FileEditTool.js';
-import { GrepTool, GlobTool } from '../tools/GrepGlobTool.js';
-import { AgentTool } from '../tools/AgentTool.js';
-import { TodoWriteTool } from '../tools/TodoWriteTool.js';
-// Feature 2 (P4): Task system tools
-import { TaskCreateTool } from '../tools/TaskCreateTool.js';
-import { TaskGetTool } from '../tools/TaskGetTool.js';
-import { TaskListTool } from '../tools/TaskListTool.js';
-import { TaskStopTool } from '../tools/TaskStopTool.js';
-// Feature 3 (P4): Team collaboration tools
-import { TeamCreateTool } from '../tools/TeamCreateTool.js';
-import { TeamDeleteTool } from '../tools/TeamDeleteTool.js';
-import { SendMessageTool } from '../tools/SendMessageTool.js';
-// Feature 1 (P5): Vibe Coding tools
-import { AskUserQuestionTool } from '../tools/AskUserQuestionTool.js';
-// Feature 2 (P5): Web tools
-import { WebSearchTool } from '../tools/WebSearchTool.js';
-import { WebFetchTool } from '../tools/WebFetchTool.js';
-// Feature 5 (P5): Plan mode tools
-import { EnterPlanModeTool } from '../tools/EnterPlanModeTool.js';
-import { ExitPlanModeTool } from '../tools/ExitPlanModeTool.js';
-// Feature 6 (P5): LSP diagnostics
-import { LSPTool } from '../tools/LSPTool.js';
-// Skill & Tool Search (Phase 4 — Chat Feature Gap Fill)
-import { SkillTool } from '../tools/SkillTool.js';
-import { ToolSearchTool } from '../tools/ToolSearchTool.js';
+import { ALL_BUILTIN_TOOLS } from '../tools/shared-tools.js';
 import { clearSessionCache } from '../tools/file-state.js';
-// Skill instance system (P0 — step-by-step execution with pause/resume)
-import { SkillInstance } from '../skills/instance.js';
 import { skillInstances } from '../skills/manager.js';
 import { initHooksFromCodesquad } from '../hooks/config-loader.js';
 import { executeSessionStartHooks, executeStopHooks, resetHookState } from '../hooks/executor.js';
@@ -516,6 +486,10 @@ function resolveAgentModel(agentName) {
 }
 // ── Agent prompt loading ──
 function loadAgentPrompt(agentName) {
+    // Security: block path traversal and injection (matches Web path)
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/.test(agentName) || agentName.includes('..')) {
+        return null;
+    }
     const agentPath = join(AICORE_DIR, 'agents', `${agentName}.md`);
     try {
         return virtualReadFile(agentPath, 'utf-8');
@@ -536,24 +510,8 @@ export async function startRepl() {
     setProjectRoot(PROJECT_ROOT);
     setUsageProjectRoot(PROJECT_ROOT);
     setTaskStoreRoot(PROJECT_ROOT);
-    // ── Register tools (Phase 1) ──
-    registerToolPool([
-        BashTool, FileReadTool, FileWriteTool, FileEditTool, GrepTool, GlobTool, AgentTool, TodoWriteTool,
-        // Feature 2 (P4): Task system
-        TaskCreateTool, TaskGetTool, TaskListTool, TaskStopTool,
-        // Feature 3 (P4): Team collaboration
-        TeamCreateTool, TeamDeleteTool, SendMessageTool,
-        // Feature 1 (P5): Ask user questions
-        AskUserQuestionTool,
-        // Feature 2 (P5): Web search/fetch
-        WebSearchTool, WebFetchTool,
-        // Feature 5 (P5): Plan mode
-        EnterPlanModeTool, ExitPlanModeTool,
-        // Feature 6 (P5): LSP diagnostics
-        LSPTool,
-        // Phase 4: Chat feature gap fill
-        SkillTool, ToolSearchTool,
-    ]);
+    // ── Register tools (Phase 1) — single source: src/tools/shared-tools.ts ──
+    registerToolPool(ALL_BUILTIN_TOOLS);
     // ── Init permissions from .codesquad/settings.json (Phase 2 / 5.5) ──
     const { loadCodesquadConfig } = await import('../config/aicore-config.js');
     loadCodesquadConfig(AICORE_DIR);
@@ -807,6 +765,30 @@ export async function startRepl() {
         }
         await sendToAgent(agentName, userInput);
     }
+    /**
+     * 创建 Team 并将 skill 路由到 lead agent。
+     *
+     * 当分类器判定多个互补 agent 都适合执行此 skill 时，
+     * 创建 team 并让 lead 协调执行。
+     */
+    async function createAndRouteToTeam(teamName, agentNames, leadAgent, userInput) {
+        const { createTeam } = await import('../teams/store.js');
+        try {
+            const members = agentNames.map((name) => ({
+                agentId: name,
+                name,
+                agentType: name,
+                permissionMode: 'default',
+            }));
+            createTeam(teamName, leadAgent, 'Auto-created team for skill dispatch', members);
+            console.log(infoLine(`→ Team "${teamName}" 已创建 (members: ${agentNames.join(', ')})`));
+        }
+        catch (err) {
+            console.log(warnLine(`Team 创建失败 (${err.message})，回退到单独路由`));
+        }
+        // Route to lead agent regardless of team creation result
+        await startOrContinueAgent(leadAgent, userInput);
+    }
     // ── Command file (/.codesquad/commands/*.md) ──
     async function handleCommandFile(cmd) {
         // Check file exists
@@ -846,160 +828,168 @@ export async function startRepl() {
         }
     }
     // ── Skill command ──
-    async function handleSkillCommand(cmd) {
+    async function handleSkillCommand(cmd, forceMode) {
         const skill = loadSkill(cmd.name);
         if (!skill) {
             console.log(errorLine(`未找到 skill: ${chalk.bold(cmd.name)}。输入 /skills 查看可用列表`));
             return;
         }
-        // Enforce user-invocable check (Claude Code alignment)
         if (!skill.userInvocable) {
             console.log(errorLine(`Skill ${chalk.bold(cmd.name)} 不可直接调用。`));
             return;
         }
-        // Show argument hint
         if (skill.argumentHint) {
             console.log(infoLine(`${chalk.bold(cmd.name)} ${chalk.dim(skill.argumentHint)}`));
         }
         else {
             console.log(infoLine(`正在执行 skill: ${chalk.bold(cmd.name)}...`));
         }
-        // v6 (Claude Code alignment): route through agent if skill specifies one
-        if (skill.agent && agentExists(skill.agent)) {
-            console.log(infoLine(`→ 路由到 Agent: ${chalk.green(`@${skill.agent}`)}`));
-            // Set skill's model on the session if specified
-            if (skill.model && state.currentSession) {
-                state.currentSession.modelConfig.model = skill.model;
-            }
-            // Forward to agent with skill context
-            await startOrContinueAgent(skill.agent, `/${cmd.name} ${cmd.args || ''}`);
-            return;
-        }
-        // Use skill's model override if specified, else default
-        const model = skill.model ?? state.modelId ?? DEFAULT_MODEL_CONFIG.model;
-        startSpinner(`${cmd.name} 执行中...`);
-        try {
-            const runtimeConfig = await buildRuntimeConfig(state.providerId);
-            if (!runtimeConfig) {
-                stopSpinner();
-                console.log(errorLine('未配置 Provider — 使用 /model 设置或设置环境变量'));
-                return;
-            }
-            // Build SkillInstance — encapsulates the tool-use loop with pause/resume support
-            let displayedFirstContent = false;
-            let finalInstanceContent = '';
-            const instance = new SkillInstance({
-                skill,
-                skillArgs: cmd.args || '',
-                model,
-                providerId: state.providerId,
-                runtimeConfig,
-                projectRoot: PROJECT_ROOT,
-                cwd: process.cwd(),
-                mode: state.modeState.currentMode,
-                lang: 'zh',
-                onStep(event) {
-                    switch (event.type) {
-                        case 'text': {
-                            // First text after spinner: stop spinner and display content
-                            if (!displayedFirstContent && event.text) {
-                                stopSpinner();
-                                console.log(separator());
-                                console.log(renderFormattedContent(event.text));
-                                displayedFirstContent = true;
+        // ── 共享路由: 分类 + 过滤 + 执行 ──
+        const { routeSkillExecution } = await import('./skill-executor.js');
+        const agents = loadAllAgentsLayered(AICORE_DIR);
+        await routeSkillExecution(skill, cmd.args || '', agents, {
+            // IMPORTANT: 显示终端 y/n 确认
+            onImportant: async (_skillName, reason) => {
+                console.log(separator());
+                console.log(chalk.yellow.bold('⚠ 此操作可能影响项目结构或方向，请确认后继续。'));
+                console.log(chalk.dim(`  原因: ${reason}`));
+                console.log(chalk.dim(`  输入 "y" 继续，或输入任何其他内容取消。`));
+                console.log(separator());
+                state.__pendingClassification = {
+                    skillName: cmd.name,
+                    skillArgs: cmd.args || '',
+                    classification: { mode: 'important', source: 'heuristic', reason },
+                };
+                state.__pendingConfirm = true;
+                rl.setPrompt(chalk.yellow.bold('confirm > '));
+                return false; // Don't proceed now; wait for user input
+            },
+            // COMPLEX: 路由到 Agent
+            onComplex: async (matchedAgent, teamAgents, _skillName, _args) => {
+                const input = `/${cmd.name} ${cmd.args || ''}`;
+                if (skill.model && state.currentSession) {
+                    state.currentSession.modelConfig.model = skill.model;
+                }
+                if (teamAgents && teamAgents.length > 1) {
+                    const teamName = `skill-${cmd.name}`;
+                    console.log(infoLine(`→ 匹配到 ${teamAgents.length} 个 Agent: ${chalk.green(teamAgents.join(', '))}`));
+                    console.log(infoLine(`→ 跨域互补 → 创建 Team: ${chalk.cyan(teamName)}`));
+                    await createAndRouteToTeam(teamName, teamAgents, matchedAgent, input);
+                }
+                else {
+                    console.log(infoLine(`→ 路由到 Agent: ${chalk.green(`@${matchedAgent}`)}`));
+                    await startOrContinueAgent(matchedAgent, input);
+                }
+            },
+            // SIMPLE: 通过 SkillInstance 执行
+            onSimple: async (preparedSkill) => {
+                const model = skill.model ?? state.modelId ?? DEFAULT_MODEL_CONFIG.model;
+                startSpinner(`${cmd.name} 执行中...`);
+                try {
+                    const runtimeConfig = await buildRuntimeConfig(state.providerId);
+                    if (!runtimeConfig) {
+                        stopSpinner();
+                        console.log(errorLine('未配置 Provider'));
+                        return;
+                    }
+                    let displayedFirstContent = false;
+                    let finalInstanceContent = '';
+                    const instance = await skillInstances.create({
+                        skill: preparedSkill,
+                        skillArgs: cmd.args || '',
+                        model,
+                        providerId: state.providerId,
+                        runtimeConfig,
+                        projectRoot: PROJECT_ROOT,
+                        cwd: process.cwd(),
+                        mode: state.modeState.currentMode,
+                        lang: 'zh',
+                        onStep(event) {
+                            switch (event.type) {
+                                case 'text': {
+                                    if (!displayedFirstContent && event.text) {
+                                        stopSpinner();
+                                        console.log(separator());
+                                        console.log(renderFormattedContent(event.text));
+                                        displayedFirstContent = true;
+                                    }
+                                    break;
+                                }
+                                case 'tool_call': {
+                                    startSpinner(`  ${event.toolName} 执行中...`);
+                                    break;
+                                }
+                                case 'tool_result': {
+                                    stopSpinner();
+                                    if (event.toolIsError) {
+                                        console.log(warnLine(`  ${event.toolName}: ${event.toolResult}`));
+                                    }
+                                    else {
+                                        console.log(chalk.dim(`  ${event.toolName}: ✓`));
+                                    }
+                                    break;
+                                }
+                                case 'question': {
+                                    if (event.question) {
+                                        state.__pendingQuestions = event.question;
+                                        state.__pendingSkillResume = { instanceId: event.instanceId, skillName: event.skillName };
+                                        stopSpinner();
+                                        void renderAskUserQuestions(event.question);
+                                    }
+                                    break;
+                                }
+                                case 'done': {
+                                    stopSpinner();
+                                    finalInstanceContent = event.finalContent || '';
+                                    console.log(separator());
+                                    if (finalInstanceContent)
+                                        console.log(renderFormattedContent(finalInstanceContent));
+                                    console.log(separator());
+                                    break;
+                                }
+                                case 'error': {
+                                    stopSpinner();
+                                    if (event.error)
+                                        console.log(errorLine(event.error.message));
+                                    break;
+                                }
                             }
-                            break;
-                        }
-                        case 'tool_call': {
-                            startSpinner(`  ${event.toolName} 执行中...`);
-                            break;
-                        }
-                        case 'tool_result': {
-                            stopSpinner();
-                            if (event.toolIsError) {
-                                console.log(warnLine(`  ${event.toolName}: ${event.toolResult}`));
-                            }
-                            else {
-                                console.log(chalk.dim(`  ${event.toolName}: ✓`));
-                            }
-                            break;
-                        }
-                        case 'question': {
-                            // Skill needs user input — store in state and pause
-                            if (event.question) {
-                                state.__pendingQuestions = event.question;
-                                state.__pendingSkillResume = {
-                                    instanceId: event.instanceId,
-                                    skillName: event.skillName,
-                                };
-                                stopSpinner();
-                                void renderAskUserQuestions(event.question);
-                            }
-                            break;
-                        }
-                        case 'done': {
-                            stopSpinner();
-                            finalInstanceContent = event.finalContent || '';
-                            console.log(separator());
-                            if (finalInstanceContent) {
-                                console.log(renderFormattedContent(finalInstanceContent));
-                            }
-                            console.log(separator());
-                            break;
-                        }
-                        case 'error': {
-                            stopSpinner();
-                            if (event.error) {
-                                console.log(errorLine(event.error.message));
-                            }
-                            break;
+                        },
+                    });
+                    if (instance.status === 'awaiting_user')
+                        return;
+                    if (state.currentSession && finalInstanceContent) {
+                        addMessage(state.currentSession, 'user', `/${cmd.name} ${cmd.args || ''}`);
+                        addMessage(state.currentSession, 'assistant', finalInstanceContent);
+                    }
+                    if (instance.totalPromptTokens > 0 || instance.totalCompletionTokens > 0) {
+                        console.log(renderTokenUsage(instance.totalPromptTokens, instance.totalCompletionTokens, 0, instance.totalCost));
+                        await recordUsage({
+                            timestamp: new Date().toISOString(),
+                            agent: `skill:${cmd.name}#${instance.id.slice(0, 8)}`,
+                            provider: state.providerId, model,
+                            promptTokens: instance.totalPromptTokens,
+                            completionTokens: instance.totalCompletionTokens,
+                            cost: instance.totalCost,
+                        });
+                    }
+                }
+                catch (err) {
+                    stopSpinner();
+                    if (err instanceof LlmError && (err.status === 0 || err.status >= 500)) {
+                        if (await tryOllamaFallback()) {
+                            return handleSkillCommand(cmd);
                         }
                     }
-                },
-            });
-            // Register and execute the instance
-            // Execute blocks on await until done or paused for user input.
-            // If paused (question event), control returns here, and the REPL
-            // line handler will pick up __pendingSkillResume on next input.
-            await instance.execute();
-            // If we get here and there's no pending question, the skill completed
-            if (instance.status === 'awaiting_user') {
-                // The REPL line handler will resume this instance on next user input
-                // (checked via state.__pendingSkillResume)
-                return;
-            }
-            // Skill completed (or failed) — save result to session and record usage
-            if (state.currentSession && finalInstanceContent) {
-                addMessage(state.currentSession, 'user', `/${cmd.name} ${cmd.args || ''}`);
-                addMessage(state.currentSession, 'assistant', finalInstanceContent);
-            }
-            if (instance.totalPromptTokens > 0 || instance.totalCompletionTokens > 0) {
-                console.log(renderTokenUsage(instance.totalPromptTokens, instance.totalCompletionTokens, 0, instance.totalCost));
-                await recordUsage({
-                    timestamp: new Date().toISOString(),
-                    agent: `skill:${cmd.name}#${instance.id.slice(0, 8)}`,
-                    provider: state.providerId,
-                    model,
-                    promptTokens: instance.totalPromptTokens,
-                    completionTokens: instance.totalCompletionTokens,
-                    cost: instance.totalCost,
-                });
-            }
-        }
-        catch (err) {
-            stopSpinner();
-            if (err instanceof LlmError && (err.status === 0 || err.status >= 500)) {
-                if (await tryOllamaFallback()) {
-                    return handleSkillCommand(cmd);
+                    if (err instanceof LlmError) {
+                        console.log(errorLine(err.message));
+                    }
+                    else {
+                        console.log(errorLine(`Skill 执行失败: ${err.message}`));
+                    }
                 }
-            }
-            if (err instanceof LlmError) {
-                console.log(errorLine(err.message));
-            }
-            else {
-                console.log(errorLine(`Skill 执行失败: ${err.message}`));
-            }
-        }
+            },
+        }, forceMode);
     }
     // ── Builtin commands ──
     async function handleBuiltinCommand(cmd) {
@@ -2186,6 +2176,29 @@ export async function startRepl() {
             rl.prompt();
             return;
         }
+        // Execution classifier: IMPORTANT skill pending human confirmation
+        if (state.__pendingConfirm && state.__pendingClassification) {
+            const { skillName, skillArgs } = state.__pendingClassification;
+            const input = line.trim().toLowerCase();
+            if (input === 'y' || input === 'yes' || input === '是') {
+                // Confirmed → execute as SIMPLE (human already decided)
+                state.__pendingConfirm = false;
+                state.__pendingClassification = undefined;
+                console.log(infoLine(`→ 已确认，继续执行: ${chalk.bold(skillName)}`));
+                // Re-dispatch with forceMode='simple' (skip classifier)
+                const skillCmd = { type: 'skill', name: skillName, args: skillArgs };
+                await handleSkillCommand(skillCmd, 'simple');
+            }
+            else {
+                // Cancelled
+                state.__pendingConfirm = false;
+                state.__pendingClassification = undefined;
+                console.log(infoLine(`已取消 skill: ${skillName}`));
+            }
+            updatePrompt();
+            rl.prompt();
+            return;
+        }
         // Skill instance resume — skill is paused awaiting user decision
         if (state.__pendingSkillResume) {
             const { instanceId, skillName } = state.__pendingSkillResume;
@@ -2205,6 +2218,7 @@ export async function startRepl() {
             if (instance) {
                 console.log(infoLine(`→ 继续执行 skill: ${chalk.bold(skillName)}`));
                 startSpinner(`${skillName} 继续处理...`);
+                instance.resume(input);
                 await instance.execute().catch(() => {
                     stopSpinner();
                     console.log(errorLine(`Skill ${skillName} 恢复执行失败`));

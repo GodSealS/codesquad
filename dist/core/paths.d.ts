@@ -113,8 +113,12 @@ export declare function existsAicorePath(relativePath: string): boolean;
  * (agents/ or skills/).  These contain proprietary agent/skill definitions that
  * must never be exposed to the user via tool output.
  *
- * @param absPath  Resolved absolute file path
- * @param aicoreDir  Absolute path to the .codesquad directory (e.g. context.aicoreDir)
+ * EXCEPTION: Project-level and user-level .codesquad/ files are NOT protected —
+ * only the AICore install directory's built-in agents/skills are blocked.
+ *
+ * @param absPath    Resolved absolute file path
+ * @param aicoreDir  Absolute path to the AICore install .codesquad directory
+ * @param projectRoot  Optional project root to exclude project-level .codesquad/
  */
-export declare function isProtectedAicorePath(absPath: string, aicoreDir: string): boolean;
+export declare function isProtectedAicorePath(absPath: string, aicoreDir: string, projectRoot?: string): boolean;
 //# sourceMappingURL=paths.d.ts.map

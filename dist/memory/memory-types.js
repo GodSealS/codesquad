@@ -121,12 +121,21 @@ In addition to the memory types above, the system provides:
    your system prompt when present. Use it to persist agent-specific
    learnings across conversations.
 
-2. **Memory Relevance** — Before each turn, the system scans \`.codesquad/memory/\`
-   for files matching the current query context. The Top-5 most relevant
-   memories are injected via \`<relevant_memories>\` blocks. Pay attention
-   to staleness notes — older memories may be outdated.
+2. **Memory Index (Compressed)** — Each turn, the system scans \`.codesquad/memory/\`
+   and injects a compressed \`<memory_index>\` block with tag-labeled 1-line summaries.
+   Only the name, description, and domain tags are shown — NOT full content.
+   This keeps context lean and lets you decide what's important.
 
-3. **Session Memory** — Conversation summaries are auto-extracted into
+3. **On-Demand Retrieval** — When you find a summary useful, say "查询记忆 <name>"
+   or use the Read tool on \`.codesquad/memory/<filename>\` to load the full content.
+   This avoids wasting tokens on irrelevant memories.
+
+4. **Tag-Aware Matching** — Memories are classified by domain tags
+   (编程/设计/美术/服务器/Unity/Godot/性能优化/UI 等).
+   The system automatically matches your current conversation context to relevant tags
+   and prioritizes memories in those domains.
+
+5. **Session Memory** — Conversation summaries are auto-extracted into
    session-memory.md when token usage or tool-call thresholds are met.
    These summaries are used for context-aware conversation compaction,
    preserving key decisions and context even after message truncation.

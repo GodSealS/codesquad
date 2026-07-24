@@ -17,6 +17,7 @@ import { join } from 'path';
 import { memoryFreshnessNote } from './memory-age.js';
 import { recordHits } from './memory-ranking.js';
 import { cosineSimilarity } from '../embedding/store.js';
+import { matchContextTags, resolveTags, buildCompressedMemoryBlock, getTagName } from './memory-tags.js';
 // ── Thresholds ──
 /** Minimum cosine similarity for embedding-based memory matching. */
 const MIN_COSINE_SIMILARITY = 0.25;
@@ -54,10 +55,16 @@ function parseMemoryFrontmatter(path) {
         const nameMatch = fm.match(/^name\s*:\s*"?(.+?)"?$/m);
         const descMatch = fm.match(/^description\s*:\s*"?(.+?)"?$/m);
         const typeMatch = fm.match(/^type\s*:\s*(\w+)$/m);
+        // Parse tags: supports both YAML array `[a, b]` and CSV `a, b`
+        const tagsMatch = fm.match(/^tags\s*:\s*(.+)$/m);
+        const tags = tagsMatch?.[1]
+            ? tagsMatch[1].replace(/^\[|\]$/g, '').split(',').map((t) => t.trim().replace(/^"|"$/g, '')).filter(Boolean)
+            : undefined;
         return {
             name: nameMatch?.[1]?.trim() ?? 'Unknown',
             description: descMatch?.[1]?.trim() ?? '',
             type: typeMatch?.[1]?.trim(),
+            tags,
         };
     }
     catch {
@@ -152,13 +159,24 @@ export async function findRelevantMemories(query, memoryDir, _signal, _recentToo
     }
     // Phase 1: Keyword pre-filtering
     const candidates = [];
+    // Tag matching for context-aware boosting
+    const contextTags = matchContextTags(query, undefined, _recentTools);
+    const contextTagSet = new Set(contextTags.map((t) => t.tag));
+    const contextTagBoost = new Map(contextTags.map((t) => [t.tag, t.score]));
     for (const file of files) {
         const filePath = join(memoryDir, file);
         const fm = parseMemoryFrontmatter(filePath);
         if (!fm)
             continue;
         const combinedText = `${fm.name} ${fm.description}`;
-        const score = keywordScore(combinedText, query);
+        let score = keywordScore(combinedText, query);
+        // Tag-based boost: memories matching context tags get bonus score
+        const resolvedTags = fm.tags ? resolveTags(fm.tags) : [];
+        const matchedTags = resolvedTags.filter((t) => contextTagSet.has(t));
+        if (matchedTags.length > 0) {
+            const tagBoost = matchedTags.reduce((sum, t) => sum + (contextTagBoost.get(t) ?? 0), 0);
+            score += tagBoost * 0.5; // Tag alignment bonus
+        }
         if (files.length <= 20 || score > 0) {
             candidates.push({
                 filename: file,
@@ -166,6 +184,8 @@ export async function findRelevantMemories(query, memoryDir, _signal, _recentToo
                 name: fm.name,
                 description: fm.description,
                 type: fm.type,
+                tags: fm.tags,
+                tagKeys: resolvedTags.length > 0 ? resolvedTags : undefined,
                 score,
             });
         }
@@ -224,6 +244,8 @@ export async function findRelevantMemories(query, memoryDir, _signal, _recentToo
             name: c.name,
             description: c.description,
             type: c.type,
+            tags: c.tags,
+            tagKeys: c.tagKeys,
             content,
             stalenessNote: memoryFreshnessNote(mtime),
             score: c.score,
@@ -237,5 +259,33 @@ export async function findRelevantMemories(query, memoryDir, _signal, _recentToo
     // Cache for this turn
     _turnCache.set(cacheKey, { turn: _turnCounter, results: final });
     return final;
+}
+// ── Compressed Summary Retrieval ──
+/**
+ * Find relevant memory SUMMARIES (tag + name + description only, no full content).
+ * This is the preferred path for context injection — compressed, tag-aware, and
+ * budget-friendly. Full content should be fetched on-demand when the user/agent
+ * finds a summary useful.
+ *
+ * Returns a compressed block string ready for injection, and the tag-matched summaries.
+ */
+export async function findRelevantMemorySummaries(query, memoryDir, agentName, recentTools, provider) {
+    // First, match context tags
+    const contextTags = matchContextTags(query, agentName, recentTools);
+    const matchedTags = contextTags.slice(0, 5).map((t) => t.name);
+    // Then find relevant memories (full pipeline but we only use the metadata)
+    const fullMemories = await findRelevantMemories(query, memoryDir, undefined, recentTools, undefined, provider);
+    // Convert to compressed summaries
+    const summaries = fullMemories.map((m) => ({
+        name: m.name,
+        description: m.description,
+        type: m.type,
+        tags: m.tags,
+        tagKeys: m.tagKeys,
+        line: `[${(m.tagKeys ?? []).slice(0, 2).map(getTagName).join('/') || '通用'}] ${m.name} — ${m.description.slice(0, 120)}`,
+    }));
+    // Build the compressed block
+    const block = buildCompressedMemoryBlock(summaries);
+    return { block, summaries, matchedTags };
 }
 //# sourceMappingURL=memory-relevance.js.map

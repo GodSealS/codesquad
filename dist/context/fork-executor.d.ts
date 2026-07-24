@@ -20,6 +20,8 @@ export interface PendingForkSkill {
     args?: string;
     /** The skill's declared model override (from frontmatter). */
     model?: string;
+    /** Allowed tools for the fork skill (from frontmatter). */
+    allowedTools?: string[];
 }
 /** Fork execution result — summary to inject into parent context. */
 export interface ForkExecutionResult {

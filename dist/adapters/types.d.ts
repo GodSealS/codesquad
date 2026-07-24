@@ -50,14 +50,26 @@ export interface SkillDef {
     name: string;
     /** Human-readable description of what the skill does */
     description: string;
+    /** Chinese description (used when lang !== 'en') */
+    descriptionCn?: string;
     /** Argument hint shown to the user (e.g., '[engine] [version]') */
     argumentHint?: string;
     /** Whether the user can invoke this skill directly */
     userInvocable?: boolean;
     /** Comma-separated list of allowed tools */
     allowedTools?: string;
+    /** Skill type: workflow (standalone) or capability (extends an agent). */
+    type?: 'workflow' | 'capability';
+    /** Agent names this capability skill is bound to. Only relevant for type=capability. */
+    bindTo?: string[];
+    /** Agent name to route this skill through (e.g., 'game-designer'). */
+    agent?: string;
     /** Model override for this skill */
     model?: string;
+    /** Override default maxTokens for LLM output. */
+    maxTokens?: number;
+    /** Override thinking level: fast (no reasoning), think (medium), deep (extended). */
+    thinkingLevel?: 'fast' | 'think' | 'deep';
     /** Execution context (e.g., 'fork') */
     context?: string;
     /** Full body text (skill instructions) */

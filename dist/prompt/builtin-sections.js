@@ -327,10 +327,10 @@ export function getDoingTasksSection() {
 }
 /**
  * Tone and style.
- * Uncached because the language depends on ctx.lang, which varies per request.
+ * Now cached (P2 fix): ctx.lang is session-level and doesn't change per turn.
  */
 export function getToneAndStyleSection() {
-    return uncachedSystemPromptSection('tone_and_style', async (ctx) => {
+    return systemPromptSection('tone_and_style', async (ctx) => {
         const useZh = ctx.lang !== 'en';
         return [
             '## Communication Style',
@@ -340,7 +340,7 @@ export function getToneAndStyleSection() {
                 : '- Use English for all user-facing responses.',
             '- Avoid emojis unless the user explicitly requests them.',
         ].join('\n');
-    }, 'Language preference varies per request (ctx.lang changes).');
+    });
 }
 /**
  * Environment information — OS, shell, date, cwd, git.
@@ -361,15 +361,15 @@ export function getEnvInfoSection() {
 }
 /**
  * Language preference.
- * Uncached because the language depends on ctx.lang, which varies per request.
+ * Now cached (P2 fix): ctx.lang is session-level and doesn't change per turn.
  */
 export function getLanguageSection() {
-    return uncachedSystemPromptSection('language', async (ctx) => {
+    return systemPromptSection('language', async (ctx) => {
         const useZh = ctx.lang !== 'en';
         return useZh
             ? '## Language\nCurrent conversation language: 中文 (Chinese).'
             : '## Language\nCurrent conversation language: English.';
-    }, 'Language preference varies per request (ctx.lang changes).');
+    });
 }
 /**
  * Project guidance — CODESQUAD.md + CODEBUDDY.md.
@@ -391,10 +391,14 @@ export function setGlobalGuidanceFlags(extraDirs, bare) {
 }
 /**
  * Cross-chat memory — summaries from recent sessions.
+ * Yields to current-session context when the conversation is already deep (>20 messages).
  */
 export function getCrossChatMemorySection() {
     return uncachedSystemPromptSection('cross_chat_memory', async (ctx) => {
         if (!ctx.sessionId)
+            return null;
+        // When current session is deep, yield budget to current conversation
+        if ((ctx.messageCount ?? 0) > 20)
             return null;
         try {
             const limit = getMemoryLimit();
@@ -528,10 +532,11 @@ export function getAvailableAgentsSection() {
 /**
  * Conditional rules — inject rules that match the current session context.
  * Uses path-based matching when files are being edited (via FileWrite/Edit contexts).
- * Uncached because the set of active files changes per turn.
+ * Now cached per session (P2 fix): rules rarely change mid-session.
+ * Users should /clear or /compact to pick up rule changes.
  */
 export function getConditionalRulesSection() {
-    return uncachedSystemPromptSection('conditional_rules', async (ctx) => {
+    return systemPromptSection('conditional_rules', async (ctx) => {
         if (!ctx.projectRoot)
             return null;
         // Check if rules are already injected via the tool context
@@ -551,7 +556,7 @@ export function getConditionalRulesSection() {
         catch {
             return null;
         }
-    }, 'Active files may change per turn, so rules must be re-evaluated.');
+    });
 }
 /**
  * Active task status (Feature 2, P4).
@@ -622,7 +627,11 @@ function formatCacheBytes(bytes) {
  * Memory guidance — type taxonomy + save/access rules. (M2)
  */
 export function getMemoryGuidanceSection() {
-    return systemPromptSection('memory_guidance', async () => {
+    return systemPromptSection('memory_guidance', async (ctx) => {
+        // Skip for deep sessions — the model already knows these instructions,
+        // and the current conversation needs the token budget more.
+        if ((ctx.messageCount ?? 0) > 20)
+            return null;
         return [
             TYPES_SECTION_INDIVIDUAL,
             '',

@@ -38,28 +38,7 @@ import { handleSemanticSettings } from './routes/semantic-settings.js';
 import { initRouter } from '../embedding/router.js';
 // ── Tool initialization (shared with agent-runner) ──
 import { initDynamicRegistry } from '../tools/dynamic-registry.js';
-import { BashTool } from '../tools/BashTool.js';
-import { FileReadTool } from '../tools/FileReadTool.js';
-import { FileWriteTool } from '../tools/FileWriteTool.js';
-import { FileEditTool } from '../tools/FileEditTool.js';
-import { GrepTool, GlobTool } from '../tools/GrepGlobTool.js';
-import { AgentTool } from '../tools/AgentTool.js';
-import { TodoWriteTool } from '../tools/TodoWriteTool.js';
-import { TaskCreateTool } from '../tools/TaskCreateTool.js';
-import { TaskGetTool } from '../tools/TaskGetTool.js';
-import { TaskListTool } from '../tools/TaskListTool.js';
-import { TaskStopTool } from '../tools/TaskStopTool.js';
-import { TeamCreateTool } from '../tools/TeamCreateTool.js';
-import { TeamDeleteTool } from '../tools/TeamDeleteTool.js';
-import { SendMessageTool } from '../tools/SendMessageTool.js';
-import { WebSearchTool } from '../tools/WebSearchTool.js';
-import { WebFetchTool } from '../tools/WebFetchTool.js';
-import { AskUserQuestionTool } from '../tools/AskUserQuestionTool.js';
-import { EnterPlanModeTool } from '../tools/EnterPlanModeTool.js';
-import { ExitPlanModeTool } from '../tools/ExitPlanModeTool.js';
-import { LSPTool } from '../tools/LSPTool.js';
-import { SkillTool } from '../tools/SkillTool.js';
-import { ToolSearchTool } from '../tools/ToolSearchTool.js';
+import { ALL_BUILTIN_TOOLS } from '../tools/shared-tools.js';
 import { loadCodesquadConfig } from '../config/aicore-config.js';
 import { initHooksFromCodesquad } from '../hooks/config-loader.js';
 import { initErrorLogger } from '../utils/error-logger.js';
@@ -89,16 +68,8 @@ function initBuiltinToolsAndPermissions() {
     // Dynamic registry: always-hot tools are always active, cold tools are
     // auto-evicted and re-registered on demand. Reduces API payload from
     // 24 tools to ≤12, preventing 502 from oversized tool schemas.
-    initDynamicRegistry([
-        BashTool, FileReadTool, FileWriteTool, FileEditTool, GrepTool, GlobTool,
-        AgentTool, TodoWriteTool,
-        TaskCreateTool, TaskGetTool, TaskListTool, TaskStopTool,
-        TeamCreateTool, TeamDeleteTool, SendMessageTool,
-        AskUserQuestionTool,
-        WebSearchTool, WebFetchTool,
-        EnterPlanModeTool, ExitPlanModeTool,
-        LSPTool, SkillTool, ToolSearchTool,
-    ]);
+    // Tool list: single source at src/tools/shared-tools.ts
+    initDynamicRegistry(ALL_BUILTIN_TOOLS);
     // Init permissions from .codesquad/settings.json
     loadCodesquadConfig(AICORE_DIR);
 }
