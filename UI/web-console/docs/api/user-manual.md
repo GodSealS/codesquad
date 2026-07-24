@@ -1,6 +1,6 @@
 ﻿# CodeSquad 用户使用手册
 
-> **版本**：v1.1.2
+> **版本**：v1.1.3
 > **生成来源**：知识图谱 `.understand-anything/knowledge-graph.json`（提交 `a33aabf`）
 > **生成日期**：2026-07-03
 

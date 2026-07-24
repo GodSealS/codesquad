@@ -1,6 +1,6 @@
 ﻿# CodeSquad User Manual
 
-> **Version**: v1.1.2
+> **Version**: v1.1.3
 > **Source**: Knowledge graph `.understand-anything/knowledge-graph.json` (commit `a33aabf`)
 > **Generated**: 2026-07-03
 

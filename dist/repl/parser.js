@@ -6,7 +6,7 @@
  *   /skill-name [args]    → SkillCommand
  *   /cmd                  → BuiltinCommand or CommandCommand
  *   plain text            → TextInput
- * Phase 1.1 — Step 1.1.2.
+ * Phase 1.1 — Step 1.1.3.
  */
 import { readdirSync, existsSync } from 'fs';
 import { join } from 'path';
