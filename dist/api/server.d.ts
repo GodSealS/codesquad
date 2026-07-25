@@ -7,12 +7,14 @@
  * Start:  codesquad --serve [port]
  *         or: await startApiServer(config)
  */
+import type { ToolRegistry } from '../tools/ToolRegistry.js';
 export interface ApiServerConfig {
     port: number;
     host: string;
     aicoreDir: string;
     projectRoot: string;
     corsOrigins: string[];
+    toolRegistry?: ToolRegistry;
 }
 export interface ApiState {
     providerId: string;

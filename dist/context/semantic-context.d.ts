@@ -28,6 +28,10 @@ export interface AssembleOptions {
     userEmbedding?: Float32Array;
     /** Tokenizer 模型名 */
     model: string;
+    /** 始终保留的最近消息条数，默认 5 */
+    alwaysKeepCount?: number;
+    /** 上下文注入消息数量上限，默认 20。0 = 不限制 */
+    maxMessages?: number;
 }
 /**
  * 从历史消息中选出与用户输入语义最相关的消息，基于 token 预算。

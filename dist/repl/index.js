@@ -43,6 +43,7 @@ import { recordUsage, getMonthlyUsage, getTotalCost, getBudget } from '../llm/us
 import { storeKey, isKeyringAvailable } from '../llm/keyring.js';
 // Tools (Phase 1)
 import { registerTools as registerToolPool, registerTool, getToolPool, findTool } from '../tools/registry.js';
+import { ToolRegistry } from '../tools/ToolRegistry.js';
 import { ALL_BUILTIN_TOOLS } from '../tools/shared-tools.js';
 import { clearSessionCache } from '../tools/file-state.js';
 import { skillInstances } from '../skills/manager.js';
@@ -50,7 +51,7 @@ import { initHooksFromCodesquad } from '../hooks/config-loader.js';
 import { executeSessionStartHooks, executeStopHooks, resetHookState } from '../hooks/executor.js';
 import { loadSandboxConfig } from '../permissions/sandbox.js';
 // MCP Bridge (Phase 7.0) — wire MCP tools into the tool pool
-import { createMCPToolWrapper, registerMCPToolHandler } from '../tools/MCPBridge.js';
+import { MCPBridge, createMCPToolWrapper, registerMCPToolHandler } from '../tools/MCPBridge.js';
 // Prompt Builder (Phase 3)
 import { clearSystemPromptCache as clearPromptCache } from '../prompt/builder.js';
 import { invalidateProjectGuidance, setGlobalGuidanceFlags } from '../prompt/builtin-sections.js';
@@ -125,7 +126,7 @@ function permissionModeToChatModeState(raw) {
  *
  * Mirrors Claude Code's MCP client initialization in bootstrap.
  */
-export async function loadAndRegisterMCPTools(aicoreDir) {
+export async function loadAndRegisterMCPTools(aicoreDir, toolRegistry, mcpBridge) {
     // Try loading MCP server configs from .codesquad/settings.json
     const settingsPath = join(aicoreDir, 'settings.json');
     let mcpServers = [];
@@ -166,6 +167,12 @@ export async function loadAndRegisterMCPTools(aicoreDir) {
     }
     if (mcpServers.length === 0)
         return;
+    const registerHandler = mcpBridge
+        ? mcpBridge.registerMCPToolHandler.bind(mcpBridge)
+        : registerMCPToolHandler;
+    const createWrapper = mcpBridge
+        ? mcpBridge.createMCPToolWrapper.bind(mcpBridge)
+        : createMCPToolWrapper;
     // For each MCP server, discover and register its tools
     for (const server of mcpServers) {
         try {
@@ -175,11 +182,13 @@ export async function loadAndRegisterMCPTools(aicoreDir) {
                 continue;
             for (const mcpTool of tools) {
                 // Register the tool handler
-                registerMCPToolHandler(server.name, mcpTool.name, async (input) => {
+                registerHandler(server.name, mcpTool.name, async (input) => {
                     return invokeMCPToolViaTransport(server, mcpTool.name, input);
                 });
                 // Create and register the CodeSquad Tool wrapper
-                const tool = createMCPToolWrapper(mcpTool, server.name);
+                const tool = createWrapper(mcpTool, server.name);
+                // Keep the legacy pool live until Phase C moves execution reads.
+                toolRegistry?.mcpRegister(tool);
                 registerTool(tool);
             }
         }
@@ -357,7 +366,7 @@ async function invokeMCPToolViaSSE(url, toolName, input) {
  * Load MCP tools from an external config file (--mcp-config CLI flag).
  * Parses JSON or YAML, extracts server definitions, registers tools.
  */
-async function loadAndRegisterMCPToolsFromPath(configPath) {
+async function loadAndRegisterMCPToolsFromPath(configPath, toolRegistry, mcpBridge) {
     const raw = readFileSync(configPath, 'utf-8');
     let servers = [];
     try {
@@ -387,14 +396,23 @@ async function loadAndRegisterMCPToolsFromPath(configPath) {
             return;
         }
     }
+    const registerHandler = mcpBridge
+        ? mcpBridge.registerMCPToolHandler.bind(mcpBridge)
+        : registerMCPToolHandler;
+    const createWrapper = mcpBridge
+        ? mcpBridge.createMCPToolWrapper.bind(mcpBridge)
+        : createMCPToolWrapper;
     for (const server of servers) {
         try {
             const tools = await discoverMCPTools(server);
             for (const mcpTool of tools) {
-                registerMCPToolHandler(server.name, mcpTool.name, async (input) => {
+                registerHandler(server.name, mcpTool.name, async (input) => {
                     return invokeMCPToolViaTransport(server, mcpTool.name, input);
                 });
-                registerTool(createMCPToolWrapper(mcpTool, server.name));
+                const tool = createWrapper(mcpTool, server.name);
+                // Keep the legacy pool live until Phase C moves execution reads.
+                toolRegistry?.mcpRegister(tool);
+                registerTool(tool);
             }
         }
         catch { /* skip unavailable */ }
@@ -512,6 +530,9 @@ export async function startRepl() {
     setTaskStoreRoot(PROJECT_ROOT);
     // ── Register tools (Phase 1) — single source: src/tools/shared-tools.ts ──
     registerToolPool(ALL_BUILTIN_TOOLS);
+    const toolRegistry = new ToolRegistry();
+    toolRegistry.registerTools(ALL_BUILTIN_TOOLS);
+    const mcpBridge = new MCPBridge();
     // ── Init permissions from .codesquad/settings.json (Phase 2 / 5.5) ──
     const { loadCodesquadConfig } = await import('../config/aicore-config.js');
     loadCodesquadConfig(AICORE_DIR);
@@ -520,7 +541,7 @@ export async function startRepl() {
     // ── MCP Bridge wiring (Phase 7.0 / P0 fix) ──
     // Load MCP server configs and register their tools into the pool.
     // MCP tools get `mcp__<server>__<tool>` names to avoid collisions.
-    await loadAndRegisterMCPTools(AICORE_DIR);
+    await loadAndRegisterMCPTools(AICORE_DIR, toolRegistry, mcpBridge);
     // ── CLI flag overrides (P3.2: parseFlags replaces env-only approach) ──
     const cliFlags = parseFlags(process.argv);
     // --help / --version shortcuts
@@ -573,7 +594,7 @@ export async function startRepl() {
         try {
             const mcpPath = join(PROJECT_ROOT, flagMcpConfig);
             if (existsSync(mcpPath)) {
-                await loadAndRegisterMCPToolsFromPath(mcpPath);
+                await loadAndRegisterMCPToolsFromPath(mcpPath, toolRegistry, mcpBridge);
             }
         }
         catch { /* non-critical */ }
@@ -1267,6 +1288,7 @@ export async function startRepl() {
             stream: state.streamingEnabled,
             lang: 'zh',
             runtimeConfig,
+            toolRegistry,
             onToken: (text) => {
                 if (state.modeState.currentMode === 'plan')
                     return;

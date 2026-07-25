@@ -8,10 +8,11 @@
  * Phase 1.7
  */
 import type { Tool, ToolUseContext, ToolResult, ResolvedPermissionRule } from './types.js';
+import { ToolRegistry } from './ToolRegistry.js';
 export declare function registerTools(tools: Tool[]): void;
 export declare function registerTool(tool: Tool): void;
-export declare function getToolPool(): readonly Tool[];
-export declare function findTool(name: string): Tool | undefined;
+export declare function getToolPool(toolRegistry?: ToolRegistry): readonly Tool[];
+export declare function findTool(name: string, toolRegistry?: ToolRegistry): Tool | undefined;
 export declare function clearToolPool(): void;
 /** Remove tools matching a name prefix (e.g. "mcp__" to clear MCP tools before re-registration). */
 export declare function unregisterToolsByPrefix(prefix: string): number;
@@ -22,6 +23,7 @@ export interface RunToolOptions {
     toolName: string;
     rawInput: Record<string, unknown>;
     context: ToolUseContext;
+    toolRegistry?: ToolRegistry;
 }
 /**
  * Complete tool execution chain:
@@ -36,7 +38,7 @@ export declare function runToolUse(options: RunToolOptions): Promise<ToolResult>
  *
  * Merge order: built-in tools → MCP tools (from bridge) → dedup by name.
  */
-export declare function assembleToolPool(context?: Partial<ToolUseContext>): readonly Tool[];
+export declare function assembleToolPool(context?: Partial<ToolUseContext>, toolRegistry?: ToolRegistry): readonly Tool[];
 /**
  * Get dedup statistics for display in startup logs.
  */

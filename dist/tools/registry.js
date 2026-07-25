@@ -10,33 +10,32 @@
 import { randomUUID } from 'crypto';
 import { hasPermissionsToUseTool } from '../permissions/pipeline.js';
 import { executePreToolHooks, executePostToolHooks, executePostToolUseFailureHooks } from '../hooks/executor.js';
+import { ToolRegistry } from './ToolRegistry.js';
 // ── Tool Pool ──
-let _toolPool = [];
+const legacyToolRegistry = new ToolRegistry();
 export function registerTools(tools) {
-    _toolPool = [...tools];
+    legacyToolRegistry.registerTools(tools);
 }
 export function registerTool(tool) {
-    _toolPool.push(tool);
+    if (tool.name.startsWith('mcp__')) {
+        legacyToolRegistry.mcpRegister(tool);
+    }
+    else {
+        legacyToolRegistry.registerTool(tool);
+    }
 }
-export function getToolPool() {
-    return _toolPool;
+export function getToolPool(toolRegistry) {
+    return toolRegistry?.getToolPool() ?? legacyToolRegistry.getToolPool();
 }
-export function findTool(name) {
-    // Direct name match
-    const direct = _toolPool.find((t) => t.name === name);
-    if (direct)
-        return direct;
-    // Alias fallback (e.g. KillShell → TaskStop)
-    return _toolPool.find((t) => t.aliases?.includes(name));
+export function findTool(name, toolRegistry) {
+    return (toolRegistry ?? legacyToolRegistry).findTool(name);
 }
 export function clearToolPool() {
-    _toolPool = [];
+    legacyToolRegistry.clear();
 }
 /** Remove tools matching a name prefix (e.g. "mcp__" to clear MCP tools before re-registration). */
 export function unregisterToolsByPrefix(prefix) {
-    const before = _toolPool.length;
-    _toolPool = _toolPool.filter((t) => !t.name.startsWith(prefix));
-    return before - _toolPool.length;
+    return legacyToolRegistry.unregisterByPrefix(prefix);
 }
 // ── Permission Rules ──
 let _permissionRules = [];
@@ -58,12 +57,12 @@ export function clearPermissionRules() {
 export async function runToolUse(options) {
     const { toolName, rawInput, context } = options;
     // Step 1: Find tool
-    const tool = findTool(toolName);
+    const tool = findTool(toolName, options.toolRegistry);
     if (!tool) {
         return {
             toolCallId: randomUUID(),
             output: null,
-            content: `[Error] Unknown tool: "${toolName}". Available: ${getToolPool().map(t => t.name).join(', ')}`,
+            content: `[Error] Unknown tool: "${toolName}". Available: ${getToolPool(options.toolRegistry).map(t => t.name).join(', ')}`,
             isError: true,
         };
     }
@@ -177,10 +176,11 @@ export async function runToolUse(options) {
  *
  * Merge order: built-in tools → MCP tools (from bridge) → dedup by name.
  */
-export function assembleToolPool(context) {
+export function assembleToolPool(context, toolRegistry) {
     // 1. Separate built-in from MCP tools
-    const builtins = _toolPool.filter((t) => !t.name.startsWith('mcp__'));
-    const mcps = _toolPool.filter((t) => t.name.startsWith('mcp__'));
+    const toolPool = getToolPool(toolRegistry);
+    const builtins = toolPool.filter((t) => !t.name.startsWith('mcp__'));
+    const mcps = toolPool.filter((t) => t.name.startsWith('mcp__'));
     // 2. Build dedup set: built-in tool names take priority
     const builtinNames = new Set(builtins.map((t) => t.name));
     // 3. Dedup MCP tools: if a built-in tool with the same base name exists, skip MCP version
@@ -219,8 +219,9 @@ export function assembleToolPool(context) {
  * Get dedup statistics for display in startup logs.
  */
 export function getDedupStats() {
-    const builtins = _toolPool.filter((t) => !t.name.startsWith('mcp__'));
-    const mcps = _toolPool.filter((t) => t.name.startsWith('mcp__'));
+    const toolPool = legacyToolRegistry.getToolPool();
+    const builtins = toolPool.filter((t) => !t.name.startsWith('mcp__'));
+    const mcps = toolPool.filter((t) => t.name.startsWith('mcp__'));
     const builtinNames = new Set(builtins.map((t) => t.name));
     let mcpDeduped = 0;
     for (const t of mcps) {
@@ -263,9 +264,10 @@ export function generateToolPrompts(context) {
 }
 // ── Tool Stats ──
 export function getToolStats() {
-    const total = _toolPool.length;
-    const readOnly = _toolPool.filter((t) => t.isReadOnly()).length;
-    const destructive = _toolPool.filter((t) => t.isDestructive()).length;
+    const toolPool = legacyToolRegistry.getToolPool();
+    const total = toolPool.length;
+    const readOnly = toolPool.filter((t) => t.isReadOnly()).length;
+    const destructive = toolPool.filter((t) => t.isDestructive()).length;
     return { total, readOnly, destructive };
 }
 //# sourceMappingURL=registry.js.map

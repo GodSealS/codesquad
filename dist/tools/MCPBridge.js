@@ -11,93 +11,83 @@
  */
 import { z } from 'zod';
 import { buildTool } from './types.js';
-// ── Dynamic MCP tool creation ──
-/**
- * Create a CodeSquad Tool wrapper for an MCP tool.
- * The tool name is prefixed with "mcp__" to prevent collisions.
- */
-export function createMCPToolWrapper(def, serverName) {
-    const toolName = `mcp__${serverName}__${def.name}`;
-    // Build a simple Zod schema from MCP JSON Schema
-    const schema = mcpSchemaToZod(def.inputSchema);
-    return buildTool({
-        name: toolName,
-        description: `[MCP:${serverName}] ${def.description}`,
-        searchHint: `mcp ${serverName} ${def.name}`,
-        inputSchema: schema,
-        isReadOnly() {
-            // MCP tools are assumed writable unless proven otherwise
-            return false;
-        },
-        isConcurrencySafe() {
-            return true;
-        },
-        isDestructive() {
-            return false; // Conservative default
-        },
-        prompt() {
-            return [
+/** Runtime-owned MCP handler registry and tool-wrapper factory. */
+export class MCPBridge {
+    toolHandlers = new Map();
+    registerMCPToolHandler(serverName, toolName, handler) {
+        if (!this.toolHandlers.has(serverName)) {
+            this.toolHandlers.set(serverName, new Map());
+        }
+        this.toolHandlers.get(serverName).set(toolName, handler);
+    }
+    unregisterMCPServer(serverName) {
+        this.toolHandlers.delete(serverName);
+    }
+    clear() {
+        this.toolHandlers.clear();
+    }
+    /** Create a wrapper bound to this bridge's handler registry. */
+    createMCPToolWrapper(def, serverName) {
+        const toolName = `mcp__${serverName}__${def.name}`;
+        const schema = mcpSchemaToZod(def.inputSchema);
+        const bridge = this;
+        return buildTool({
+            name: toolName,
+            description: `[MCP:${serverName}] ${def.description}`,
+            searchHint: `mcp ${serverName} ${def.name}`,
+            inputSchema: schema,
+            isReadOnly: () => false,
+            isConcurrencySafe: () => true,
+            isDestructive: () => false,
+            prompt: () => [
                 `### ${toolName} (via MCP: ${serverName})`,
                 '',
                 def.description,
                 '',
                 'This tool is provided by an external MCP server.',
-            ].join('\n');
-        },
-        descriptionFor(input) {
-            return `MCP ${serverName}/${def.name}: ${JSON.stringify(input).slice(0, 100)}`;
-        },
-        validateInput(_input, _context) {
-            return { valid: true }; // Schema validation is handled by Zod
-        },
-        async call(input, _context) {
-            try {
-                const result = await invokeMCPTool(serverName, def.name, input);
-                return {
-                    toolCallId: '',
-                    output: result,
-                    content: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
-                };
-            }
-            catch (err) {
-                return {
-                    toolCallId: '',
-                    output: null,
-                    content: `[MCP Error] ${serverName}/${def.name}: ${err.message}`,
-                    isError: true,
-                };
-            }
-        },
-    });
+            ].join('\n'),
+            descriptionFor: (input) => `MCP ${serverName}/${def.name}: ${JSON.stringify(input).slice(0, 100)}`,
+            validateInput: (_input, _context) => ({ valid: true }),
+            async call(input, _context) {
+                try {
+                    const result = await bridge.invokeMCPTool(serverName, def.name, input);
+                    return {
+                        toolCallId: '',
+                        output: result,
+                        content: typeof result === 'string' ? result : JSON.stringify(result, null, 2),
+                    };
+                }
+                catch (err) {
+                    return {
+                        toolCallId: '',
+                        output: null,
+                        content: `[MCP Error] ${serverName}/${def.name}: ${err.message}`,
+                        isError: true,
+                    };
+                }
+            },
+        });
+    }
+    async invokeMCPTool(serverName, toolName, input) {
+        const server = this.toolHandlers.get(serverName);
+        if (!server)
+            throw new Error(`MCP server "${serverName}" not connected.`);
+        const handler = server.get(toolName);
+        if (!handler)
+            throw new Error(`MCP tool "${toolName}" not found on server "${serverName}".`);
+        return handler(input);
+    }
 }
-// ── MCP Tool Invocation ──
-let _mcpToolHandlers = new Map();
-/**
- * Register an MCP tool handler.
- * Called by the MCP client when tools are discovered.
- */
+// Compatibility exports remain process-global until their callers migrate.
+const defaultMCPBridge = new MCPBridge();
+export function createMCPToolWrapper(def, serverName) {
+    return defaultMCPBridge.createMCPToolWrapper(def, serverName);
+}
 export function registerMCPToolHandler(serverName, toolName, handler) {
-    if (!_mcpToolHandlers.has(serverName)) {
-        _mcpToolHandlers.set(serverName, new Map());
-    }
-    _mcpToolHandlers.get(serverName).set(toolName, handler);
+    defaultMCPBridge.registerMCPToolHandler(serverName, toolName, handler);
 }
-/**
- * Remove all handlers for a server (on disconnect).
- */
 export function unregisterMCPServer(serverName) {
-    _mcpToolHandlers.delete(serverName);
-}
-async function invokeMCPTool(serverName, toolName, input) {
-    const server = _mcpToolHandlers.get(serverName);
-    if (!server) {
-        throw new Error(`MCP server "${serverName}" not connected.`);
-    }
-    const handler = server.get(toolName);
-    if (!handler) {
-        throw new Error(`MCP tool "${toolName}" not found on server "${serverName}".`);
-    }
-    return handler(input);
+    defaultMCPBridge.unregisterMCPServer(serverName);
 }
 // ── Schema Conversion ──
 /**

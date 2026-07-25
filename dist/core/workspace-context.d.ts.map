@@ -1,0 +1,1 @@
+{"version":3,"file":"workspace-context.d.ts","sourceRoot":"","sources":["../../../../AgentTeams_UE/src/core/workspace-context.ts"],"names":[],"mappings":"AAGA,MAAM,WAAW,gBAAgB;IAC/B,WAAW,EAAE,MAAM,CAAC;IACpB,YAAY,EAAE,MAAM,CAAC;CACtB;AAED,2EAA2E;AAC3E,wBAAgB,sBAAsB,CAAC,WAAW,EAAE,MAAM,GAAG,gBAAgB,CAQ5E"}

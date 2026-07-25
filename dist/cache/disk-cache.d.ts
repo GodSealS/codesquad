@@ -92,7 +92,7 @@ export declare class DiskCache {
      */
     private extractCommentDescription;
     /**
-     * 提取 JSDoc / 块注释 (/* ... *​/) 中的描述
+     * 提取 JSDoc / 块注释中的描述
      */
     private extractBlockCommentDescription;
     /**

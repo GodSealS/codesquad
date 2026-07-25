@@ -12,6 +12,7 @@
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { buildTool } from './types.js';
+import { fetchPublicUrl, readTextBody, validatePublicHttpUrl } from '../security/url-policy.js';
 // ── Input Schema ──
 const InputSchema = z.object({
     url: z.string().url().describe('URL to fetch content from'),
@@ -93,10 +94,7 @@ Does NOT execute JavaScript.`;
     isDestructive() { return false; },
     validateInput(input, _ctx) {
         try {
-            const url = new URL(input.url);
-            if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-                return { valid: false, message: 'Only http/https URLs are supported' };
-            }
+            validatePublicHttpUrl(input.url);
         }
         catch {
             return { valid: false, message: 'Invalid URL format' };
@@ -107,10 +105,8 @@ Does NOT execute JavaScript.`;
     async call(input, _context) {
         const toolCallId = randomUUID();
         try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
-            const response = await fetch(input.url, {
-                signal: controller.signal,
+            const response = await fetchPublicUrl(input.url, {
+                timeoutMs: 15_000,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -121,9 +117,7 @@ Does NOT execute JavaScript.`;
                     'Sec-Fetch-Mode': 'navigate',
                     'Sec-Fetch-Site': 'none',
                 },
-                redirect: 'follow',
             });
-            clearTimeout(timeout);
             if (!response.ok) {
                 const hints = {
                     403: 'The server blocked this request (anti-bot protection). Try using WebSearch to find a cached/alternative source.',
@@ -139,16 +133,19 @@ Does NOT execute JavaScript.`;
                 };
             }
             const contentType = response.headers.get('content-type') || '';
+            if (!/^(text\/|application\/(?:json|xml|xhtml\+xml))/i.test(contentType)) {
+                return { toolCallId, output: '', content: `❌ Unsupported content type: ${contentType || 'unknown'}`, isError: true };
+            }
             // For plain text, return directly
             if (contentType.includes('text/plain')) {
-                const text = await response.text();
+                const text = await readTextBody(response, 1_000_000);
                 const truncated = text.length > input.maxChars
                     ? text.slice(0, input.maxChars) + `\n\n... (truncated, original: ${text.length} chars)`
                     : text;
                 return { toolCallId, output: truncated, content: truncated };
             }
             // For HTML (most common), extract readable text
-            const html = await response.text();
+            const html = await readTextBody(response, 1_000_000);
             const text = htmlToText(html, input.maxChars);
             const urlInfo = `📄 Fetched: ${input.url}\nContent-Type: ${contentType}\n\n`;
             return { toolCallId, output: text, content: urlInfo + text };

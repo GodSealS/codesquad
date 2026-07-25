@@ -14,7 +14,12 @@
  * API source routing via models.config.yaml api.sources.
  */
 import type http from 'http';
-export declare function handleChatV2(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
+import type { ToolRegistry } from '../../tools/ToolRegistry.js';
+interface ChatRuntimeOptions {
+    toolRegistry?: ToolRegistry;
+}
+export declare function invalidateModelsConfigCache(): void;
+export declare function handleChatV2(req: http.IncomingMessage, res: http.ServerResponse, runtime?: ChatRuntimeOptions): Promise<void>;
 /**
  * POST /api/chat/stream
  *
@@ -35,7 +40,7 @@ export declare function handleChatV2(req: http.IncomingMessage, res: http.Server
  *   data: {"type":"error","error":"..."}
  *   data: [DONE]
  */
-export declare function handleChatStream(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
+export declare function handleChatStream(req: http.IncomingMessage, res: http.ServerResponse, runtime?: ChatRuntimeOptions): Promise<void>;
 /**
  * POST /api/chat/respond-permission
  *
@@ -43,4 +48,5 @@ export declare function handleChatStream(req: http.IncomingMessage, res: http.Se
  * Body: { sessionId, toolCallId, approved: boolean }
  */
 export declare function handlePermissionResponse(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
+export {};
 //# sourceMappingURL=chat-v2.d.ts.map

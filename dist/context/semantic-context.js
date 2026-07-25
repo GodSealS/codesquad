@@ -28,16 +28,16 @@ import { countTokens } from '../chat/tokenizer.js';
  * @returns 选中的消息列表（按原始时间顺序排列）
  */
 export async function assembleSemanticContext(userInput, messages, options) {
-    const { maxTokens, similarityThreshold, provider, userEmbedding, model } = options;
-    // ── 如果总消息的 token 数不超预算，全部保留 ──
+    const { maxTokens, similarityThreshold, provider, userEmbedding, model, alwaysKeepCount = 5, maxMessages = 0 } = options;
+    // ── 如果总消息的 token 数不超预算且不超过消息上限，全部保留 ──
     const totalTokens = messages.reduce((sum, m) => sum + countTokens(model, m.content), 0);
-    if (totalTokens <= maxTokens) {
+    if (totalTokens <= maxTokens && (maxMessages === 0 || messages.length <= maxMessages)) {
         return [...messages];
     }
     // 1) 预计算用户输入 embedding（如果未提供）
     const queryEmb = userEmbedding ?? (await provider.embed(userInput));
-    // 2) 最近 5 条始终保留
-    const recentCount = Math.min(5, messages.length);
+    // 2) 最近 N 条始终保留
+    const recentCount = Math.min(alwaysKeepCount, messages.length);
     const recent = messages.slice(-recentCount);
     let usedTokens = recent.reduce((sum, m) => sum + countTokens(model, m.content), 0);
     // 3) 剩余候选 + 语义匹配
@@ -56,14 +56,17 @@ export async function assembleSemanticContext(userInput, messages, options) {
             }
         }
     }
-    // 4) 按相似度降序排序，按 token 预算填充
+    // 4) 按相似度降序排序，按 token 预算 + 消息数上限填充
     scored.sort((a, b) => b.similarity - a.similarity);
     const selected = new Set();
     const result = [];
-    // Token 预算填充语义相关消息
+    // Token 预算 + 消息数上限双约束填充语义相关消息
     for (const s of scored) {
         if (selected.has(s.message.index))
             continue;
+        // 消息数上限：recent 已占用 recentCount 条，剩余额度 = maxMessages - recentCount
+        if (maxMessages > 0 && result.length >= maxMessages - recentCount)
+            break;
         const msgTokens = countTokens(model, s.message.content);
         if (usedTokens + msgTokens > maxTokens)
             break; // token 预算耗尽
@@ -172,6 +175,8 @@ export async function getSemanticMessages(userInput, messages, model) {
         provider,
         userEmbedding: userEmb,
         model,
+        alwaysKeepCount: sc.queryContextLength,
+        maxMessages: sc.contextMessageLimit,
     });
     return { messages: filtered, fromSemantic: true };
 }

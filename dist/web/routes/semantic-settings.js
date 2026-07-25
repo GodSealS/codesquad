@@ -59,6 +59,9 @@ export async function handleSemanticSettings(req, res, method) {
             if (partial.queryContextLength !== undefined) {
                 partial.queryContextLength = Math.max(5, Math.min(20, partial.queryContextLength));
             }
+            if (partial.contextMessageLimit !== undefined) {
+                partial.contextMessageLimit = Math.max(15, Math.min(100, partial.contextMessageLimit));
+            }
             if (partial.routingThreshold !== undefined) {
                 partial.routingThreshold = Math.max(0.2, Math.min(0.95, partial.routingThreshold));
             }
@@ -87,6 +90,7 @@ function deepMerge(base, partial) {
         },
         similarityThresholdPercent: partial.similarityThresholdPercent ?? base.similarityThresholdPercent,
         queryContextLength: partial.queryContextLength ?? base.queryContextLength,
+        contextMessageLimit: partial.contextMessageLimit ?? base.contextMessageLimit,
         routingThreshold: partial.routingThreshold ?? base.routingThreshold,
         features: {
             semanticFilter: partial.features?.semanticFilter ?? base.features.semanticFilter,

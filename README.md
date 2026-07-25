@@ -311,6 +311,53 @@ iwr -useb https://raw.githubusercontent.com/GodSealS/Understand-Anything/main/in
 
 ---
 
+### CodeGraph — 语义代码知识图谱
+
+为 AI 代理预构建项目的语义代码知识图谱，100% 本地运行（SQLite + Rust 解析引擎），支持 20+ 编程语言。安装后 CodeSquad 代理可自动获得项目架构的深度语义理解，大幅减少工具调用次数。
+
+**方式 A：一键安装脚本（推荐，无需 Node.js）**
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex
+```
+
+**方式 B：npm 全局安装**
+
+```bash
+npm install -g @colbymchenry/codegraph
+```
+
+**方式 C：通过 npx 快速运行**
+
+```bash
+npx @colbymchenry/codegraph
+```
+
+**注册到 CodeSquad 平台：**
+
+```bash
+# 交互式安装（自动检测 CodeSquad 并配置 MCP 连接）
+codegraph install
+
+# 非交互式，仅注册到 CodeSquad
+codegraph install --target=codesquad --yes
+
+# 项目本地配置（不修改全局设置）
+codegraph install --target=codesquad --location=local
+```
+
+**项目初始化（为每个项目构建知识图谱）：**
+
+```bash
+cd your-game-project
+codegraph init
+```
+
+> 初始化后，文件监听器会自动同步代码变更（基于 OS 原生事件）。所有数据存储在本地 SQLite，完全离线、无需 API Key。CodeSquad CLI 自动通过 MCP bridge 发现并连接 CodeGraph，代理可直接查询项目语义图谱。
+
+> **Fork 分支**: [GodSealS/codegraph (codebuudy 分支)](https://github.com/GodSealS/codegraph/tree/codebuudy) — 针对 CodeBuddy + CodeSquad 平台进行了适配优化。
+
 ### qmd — 本地混合搜索引擎
 
 基于 BM25 + 向量 + LLM 重排的本地搜索引擎，已通过 MCP 桥接原生集成到 CLI：

@@ -15,18 +15,19 @@ export interface MCPToolDefinition {
     description: string;
     inputSchema?: Record<string, unknown>;
 }
-/**
- * Create a CodeSquad Tool wrapper for an MCP tool.
- * The tool name is prefixed with "mcp__" to prevent collisions.
- */
+type MCPToolHandler = (input: Record<string, unknown>) => Promise<unknown>;
+/** Runtime-owned MCP handler registry and tool-wrapper factory. */
+export declare class MCPBridge {
+    private toolHandlers;
+    registerMCPToolHandler(serverName: string, toolName: string, handler: MCPToolHandler): void;
+    unregisterMCPServer(serverName: string): void;
+    clear(): void;
+    /** Create a wrapper bound to this bridge's handler registry. */
+    createMCPToolWrapper(def: MCPToolDefinition, serverName: string): Tool;
+    private invokeMCPTool;
+}
 export declare function createMCPToolWrapper(def: MCPToolDefinition, serverName: string): Tool;
-/**
- * Register an MCP tool handler.
- * Called by the MCP client when tools are discovered.
- */
-export declare function registerMCPToolHandler(serverName: string, toolName: string, handler: (input: Record<string, unknown>) => Promise<unknown>): void;
-/**
- * Remove all handlers for a server (on disconnect).
- */
+export declare function registerMCPToolHandler(serverName: string, toolName: string, handler: MCPToolHandler): void;
 export declare function unregisterMCPServer(serverName: string): void;
+export {};
 //# sourceMappingURL=MCPBridge.d.ts.map

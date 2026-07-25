@@ -9,6 +9,7 @@
  */
 import type { Session } from '../chat/session.js';
 import { type QueueProgress } from '../tools/execution-queue.js';
+import type { ToolRegistry } from '../tools/ToolRegistry.js';
 import type { ChatMode } from '../repl/mode.js';
 import type { RuntimeProviderConfig } from '../llm/provider.js';
 export interface AgentRunConfig {
@@ -20,6 +21,8 @@ export interface AgentRunConfig {
     projectRoot: string;
     aicoreDir: string;
     mode: ChatMode;
+    /** Runtime-owned tool pool used for both model schemas and execution. */
+    toolRegistry?: ToolRegistry;
     maxTurns?: number;
     /** UI language: "zh" | "en". Determines AI response language. */
     lang?: string;

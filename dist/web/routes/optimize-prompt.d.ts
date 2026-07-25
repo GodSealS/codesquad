@@ -9,5 +9,7 @@
  * definition summaries so the optimizer understands the conversation flow.
  */
 import type http from 'http';
-export declare function handleOptimizePrompt(req: http.IncomingMessage, res: http.ServerResponse): Promise<void>;
+export declare function handleOptimizePrompt(req: http.IncomingMessage, res: http.ServerResponse, services: {
+    projectRoot: string;
+}): Promise<void>;
 //# sourceMappingURL=optimize-prompt.d.ts.map

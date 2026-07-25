@@ -15,6 +15,8 @@ const DEFAULT_SEMANTIC_CONTEXT = {
     similarityThresholdPercent: 35,
     // 匹配源上下文条数：查询向量 + 语义过滤激活门槛，默认 5
     queryContextLength: 5,
+    // 上下文注入消息数量上限，默认 20
+    contextMessageLimit: 20,
     routingThreshold: 0.65,
     features: {
         semanticFilter: false,
@@ -155,6 +157,7 @@ function deepMergeSemanticConfig(partial) {
         },
         similarityThresholdPercent: partial.similarityThresholdPercent ?? def.similarityThresholdPercent,
         queryContextLength: partial.queryContextLength ?? def.queryContextLength,
+        contextMessageLimit: partial.contextMessageLimit ?? def.contextMessageLimit,
         routingThreshold: partial.routingThreshold ?? def.routingThreshold,
         features: {
             semanticFilter: partial.features?.semanticFilter ?? def.features.semanticFilter,

@@ -8,6 +8,8 @@
  *
  * Pipeline: User input → readline → parser → LLM/MCP → display → session save
  */
+import { ToolRegistry } from '../tools/ToolRegistry.js';
+import { MCPBridge } from '../tools/MCPBridge.js';
 /**
  * Load MCP server configurations and register their tools.
  * Reads from .codesquad/settings.json mcpServers block (if present),
@@ -15,6 +17,6 @@
  *
  * Mirrors Claude Code's MCP client initialization in bootstrap.
  */
-export declare function loadAndRegisterMCPTools(aicoreDir: string): Promise<void>;
+export declare function loadAndRegisterMCPTools(aicoreDir: string, toolRegistry?: ToolRegistry, mcpBridge?: MCPBridge): Promise<void>;
 export declare function startRepl(): Promise<void>;
 //# sourceMappingURL=index.d.ts.map

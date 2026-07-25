@@ -85,12 +85,14 @@ export async function handleMcpPost(req, res, aicoreDir) {
  * POST /api/mcp/reload
  * Hot-reload MCP tools from .codesquad/settings.json without server restart.
  */
-export async function handleMcpReload(_req, res, aicoreDir) {
+export async function handleMcpReload(_req, res, aicoreDir, toolRegistry, mcpBridge) {
     try {
         const { unregisterToolsByPrefix } = await import('../../tools/registry.js');
         const removed = unregisterToolsByPrefix('mcp__');
+        toolRegistry?.unregisterByPrefix('mcp__');
+        mcpBridge?.clear();
         const { loadAndRegisterMCPTools } = await import('../../repl/index.js');
-        await loadAndRegisterMCPTools(aicoreDir);
+        await loadAndRegisterMCPTools(aicoreDir, toolRegistry, mcpBridge);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, message: `MCP tools reloaded (${removed} removed, new loaded)` }));
     }

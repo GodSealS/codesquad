@@ -9,17 +9,21 @@
  *   - Bash requires whitelist
  */
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
-import { join, resolve, dirname } from 'path';
+import { isAbsolute, join, dirname } from 'path';
 import fastGlob from 'fast-glob';
+import { resolveWorkspacePath } from '../../security/path-policy.js';
+import { fetchPublicUrl, readTextBody } from '../../security/url-policy.js';
 const { globSync } = fastGlob;
 /** Check if a path is within the allowed workspace boundary */
 function resolveSafePath(requestedPath, workspaceRoot) {
-    const resolved = resolve(workspaceRoot, requestedPath);
-    // Verify the resolved path is within workspace
-    if (!resolved.startsWith(resolve(workspaceRoot))) {
-        throw new Error(`Path traversal detected: ${requestedPath} resolves outside workspace`);
+    return resolveWorkspacePath(workspaceRoot, requestedPath);
+}
+/** Glob patterns are relative to the verified search directory and may not escape it. */
+function assertSafeGlobPattern(pattern) {
+    const normalized = pattern.replace(/\\/g, '/');
+    if (isAbsolute(pattern) || /^[a-z]:/i.test(pattern) || normalized.split('/').includes('..')) {
+        throw new Error('Glob pattern may not escape the workspace');
     }
-    return resolved;
 }
 /** Read file handler */
 async function handleRead(args, workspaceRoot) {
@@ -71,7 +75,8 @@ async function handleGlob(args, workspaceRoot) {
     const pattern = args.pattern;
     const searchDir = args.path ? resolveSafePath(args.path, workspaceRoot) : workspaceRoot;
     try {
-        const files = globSync(pattern, { cwd: searchDir, dot: false, onlyFiles: true });
+        assertSafeGlobPattern(pattern);
+        const files = globSync(pattern, { cwd: searchDir, dot: false, onlyFiles: true, followSymbolicLinks: false });
         return { success: true, output: JSON.stringify(files) };
     }
     catch (err) {
@@ -84,8 +89,9 @@ async function handleGrep(args, workspaceRoot) {
     const searchDir = args.path ? resolveSafePath(args.path, workspaceRoot) : workspaceRoot;
     const fileGlob = args.glob ?? '**/*';
     try {
+        assertSafeGlobPattern(fileGlob);
         const regex = new RegExp(pattern, 'gi');
-        const files = globSync(fileGlob, { cwd: searchDir, dot: false, onlyFiles: true });
+        const files = globSync(fileGlob, { cwd: searchDir, dot: false, onlyFiles: true, followSymbolicLinks: false });
         const results = [];
         for (const file of files.slice(0, 500)) {
             const fullPath = join(searchDir, file);
@@ -120,8 +126,15 @@ async function handleWebSearch(args, _workspaceRoot) {
 async function handleWebFetch(args, _workspaceRoot) {
     const url = args.url;
     try {
-        const response = await fetch(url);
-        const text = await response.text();
+        const response = await fetchPublicUrl(url, { timeoutMs: 15_000 });
+        if (!response.ok) {
+            return { success: false, output: '', error: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        const contentType = response.headers.get('content-type') ?? '';
+        if (!/^(text\/|application\/(?:json|xml|xhtml\+xml))/i.test(contentType)) {
+            return { success: false, output: '', error: `Unsupported content type: ${contentType || 'unknown'}` };
+        }
+        const text = await readTextBody(response, 1_000_000);
         return { success: true, output: text.slice(0, 10000) };
     }
     catch (err) {

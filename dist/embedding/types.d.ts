@@ -106,6 +106,8 @@ export interface SemanticContextConfig {
     similarityThresholdPercent: number;
     /** 匹配源上下文条数 — 用于查询向量的最近 N 条消息，同时也是语义过滤激活门槛 (5-20)，默认 5 */
     queryContextLength: number;
+    /** 上下文注入消息数量上限 (5-50)，默认 20。超出的消息由语义过滤筛选 */
+    contextMessageLimit: number;
     /** 路由相似度阈值 [0, 1]（内部使用，不暴露百分比） */
     routingThreshold: number;
     /** 功能级开关 */

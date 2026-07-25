@@ -18,7 +18,9 @@ export interface LoadedSkill extends SkillFrontmatter {
     layer?: 'user' | 'project';
     sourcePath?: string;
 }
-export declare function setAicodeRoot(dir: string): void;
+export declare function setAicodeRoot(dir: string, options?: {
+    isolated?: boolean;
+}): void;
 /** Load and cache all skills from all three layers. */
 export declare function listSkills(): LoadedSkill[];
 /** Load a single skill by name. */

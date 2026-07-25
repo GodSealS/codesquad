@@ -5,6 +5,8 @@
  * POST /api/mcp/servers   → Write mcpServers config from UI to .codesquad/settings.json
  */
 import type http from 'http';
+import type { ToolRegistry } from '../../tools/ToolRegistry.js';
+import type { MCPBridge } from '../../tools/MCPBridge.js';
 /**
  * GET /api/mcp/servers
  * Returns the current mcpServers configuration from .codesquad/settings.json.
@@ -20,7 +22,7 @@ export declare function handleMcpPost(req: http.IncomingMessage, res: http.Serve
  * POST /api/mcp/reload
  * Hot-reload MCP tools from .codesquad/settings.json without server restart.
  */
-export declare function handleMcpReload(_req: http.IncomingMessage, res: http.ServerResponse, aicoreDir: string): Promise<void>;
+export declare function handleMcpReload(_req: http.IncomingMessage, res: http.ServerResponse, aicoreDir: string, toolRegistry?: ToolRegistry, mcpBridge?: MCPBridge): Promise<void>;
 /**
  * POST /api/mcp/verify
  * Body: { url, type }

@@ -12,6 +12,7 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createWorkspaceContext } from './core/workspace-context.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // ── Simple flag parser (P3.2 will enhance this) ──
 function parseSimpleFlags(argv) {
@@ -66,7 +67,7 @@ async function main() {
         process.exit(0);
     }
     const AICORE_DIR = join(__dirname, '..', '.codesquad');
-    const PROJECT_ROOT = join(__dirname, '..');
+    const workspace = createWorkspaceContext(process.cwd());
     // ── Mode: API Server ──
     if (flags.serve) {
         const { startApiServer, setApiState } = await import('./api/server.js');
@@ -82,15 +83,15 @@ async function main() {
         const { initDiskCache } = await import('./cache/disk-cache.js');
         const { initAgentInstanceManager } = await import('./agents/instance-manager.js');
         setAicodeRoot(AICORE_DIR);
-        setProjectRoot(PROJECT_ROOT);
-        initDiskCache(PROJECT_ROOT);
+        setProjectRoot(workspace.projectRoot);
+        initDiskCache(workspace.projectRoot);
         initAgentInstanceManager();
-        setUsageProjectRoot(PROJECT_ROOT);
+        setUsageProjectRoot(workspace.projectRoot);
         registerTools([]);
-        initHooksFromCodesquad(AICORE_DIR);
-        loadCodesquadConfig(AICORE_DIR);
+        initHooksFromCodesquad(workspace.codesquadDir);
+        loadCodesquadConfig(workspace.codesquadDir);
         loadBuiltinPermissionRules();
-        loadAllAgentsLayered(AICORE_DIR);
+        loadAllAgentsLayered(AICORE_DIR, workspace.projectRoot);
         setApiState({ providerId: 'anthropic', modelId: 'claude-sonnet-4-20250514' });
         // Register core tools for API use
         const { BashTool } = await import('./tools/BashTool.js');
@@ -102,13 +103,18 @@ async function main() {
         const { TodoWriteTool } = await import('./tools/TodoWriteTool.js');
         const { SkillTool } = await import('./tools/SkillTool.js');
         const { ToolSearchTool } = await import('./tools/ToolSearchTool.js');
-        registerTools([BashTool, FileReadTool, FileWriteTool, FileEditTool, GrepTool, GlobTool, AgentTool, TodoWriteTool, SkillTool, ToolSearchTool]);
+        const apiTools = [BashTool, FileReadTool, FileWriteTool, FileEditTool, GrepTool, GlobTool, AgentTool, TodoWriteTool, SkillTool, ToolSearchTool];
+        registerTools(apiTools);
+        const { ToolRegistry } = await import('./tools/ToolRegistry.js');
+        const toolRegistry = new ToolRegistry();
+        toolRegistry.registerTools(apiTools);
         await startApiServer({
             port: flags.serve,
             host: '127.0.0.1',
             aicoreDir: AICORE_DIR,
-            projectRoot: PROJECT_ROOT,
+            projectRoot: workspace.projectRoot,
             corsOrigins: ['http://localhost:5173'],
+            toolRegistry,
         });
         // Keep process alive
         process.on('SIGINT', () => { console.log('\n[API] Shutting down...'); process.exit(0); });

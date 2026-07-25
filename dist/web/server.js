@@ -39,6 +39,8 @@ import { initRouter } from '../embedding/router.js';
 // ── Tool initialization (shared with agent-runner) ──
 import { initDynamicRegistry } from '../tools/dynamic-registry.js';
 import { ALL_BUILTIN_TOOLS } from '../tools/shared-tools.js';
+import { ToolRegistry } from '../tools/ToolRegistry.js';
+import { MCPBridge } from '../tools/MCPBridge.js';
 import { loadCodesquadConfig } from '../config/aicore-config.js';
 import { initHooksFromCodesquad } from '../hooks/config-loader.js';
 import { initErrorLogger } from '../utils/error-logger.js';
@@ -64,21 +66,21 @@ else {
     WEB_CONSOLE_DIR = join(PKG_ROOT, 'UI', 'web-console');
 }
 /** Initialize builtin tools via dynamic LRU registry (max 12 active). */
-function initBuiltinToolsAndPermissions() {
+function initBuiltinToolsAndPermissions(toolRegistry) {
     // Dynamic registry: always-hot tools are always active, cold tools are
     // auto-evicted and re-registered on demand. Reduces API payload from
     // 24 tools to ≤12, preventing 502 from oversized tool schemas.
     // Tool list: single source at src/tools/shared-tools.ts
-    initDynamicRegistry(ALL_BUILTIN_TOOLS);
+    initDynamicRegistry(ALL_BUILTIN_TOOLS, toolRegistry);
     // Init permissions from .codesquad/settings.json
     loadCodesquadConfig(AICORE_DIR);
 }
 /** Init hooks + MCP from project-specific .codesquad/settings.json */
-async function initProjectSettings(codesquadDir) {
+async function initProjectSettings(codesquadDir, toolRegistry, mcpBridge) {
     initHooksFromCodesquad(codesquadDir);
     try {
         const { loadAndRegisterMCPTools } = await import('../repl/index.js');
-        await loadAndRegisterMCPTools(codesquadDir);
+        await loadAndRegisterMCPTools(codesquadDir, toolRegistry, mcpBridge);
     }
     catch (err) {
         console.warn(`[web] MCP tools not loaded (non-critical): ${err.message}`);
@@ -216,10 +218,12 @@ export async function startWebServer(options) {
     // ── Initialize TokenHub gateway (cross-session throttling via shared send queue) ──
     loadGatewayConfigsFromYaml(projectRoot);
     // ── Initialize tools, permissions, hooks, and MCP BEFORE accepting requests ──
-    initBuiltinToolsAndPermissions();
+    const toolRegistry = new ToolRegistry();
+    initBuiltinToolsAndPermissions(toolRegistry);
+    const mcpBridge = new MCPBridge();
     // 🔧 Step 9: 初始化语义路由（异步，不阻塞服务器启动）
     initRouter(AICORE_DIR).catch(err => console.warn(`[web] Semantic router init failed (non-critical): ${err.message}`));
-    await initProjectSettings(codesquadDir);
+    await initProjectSettings(codesquadDir, toolRegistry, mcpBridge);
     const server = createServer(async (req, res) => {
         setCorsHeaders(req, res);
         // Handle preflight
@@ -264,12 +268,12 @@ export async function startWebServer(options) {
                 }
                 if (reqPath === '/api/chat' && method === 'POST') {
                     // Route to v2 handler (new React UI) — supports { prompt, history, modelName, ... }
-                    await handleChatV2(req, res);
+                    await handleChatV2(req, res, { toolRegistry });
                     return;
                 }
                 if (reqPath === '/api/chat/stream' && method === 'POST') {
                     // Feature 3 (P5): SSE streaming endpoint for vibe coding
-                    await handleChatStream(req, res);
+                    await handleChatStream(req, res, { toolRegistry });
                     return;
                 }
                 if (reqPath === '/api/chat/respond-permission' && method === 'POST') {
@@ -278,7 +282,7 @@ export async function startWebServer(options) {
                     return;
                 }
                 if (reqPath === '/api/optimize-prompt' && method === 'POST') {
-                    await handleOptimizePrompt(req, res);
+                    await handleOptimizePrompt(req, res, { projectRoot });
                     return;
                 }
                 if (reqPath.startsWith('/api/agents')) {
@@ -294,11 +298,11 @@ export async function startWebServer(options) {
                     return;
                 }
                 if (reqPath === '/api/models') {
-                    await handleModels(req, res);
+                    await handleModels(req, res, { projectRoot });
                     return;
                 }
                 if (reqPath === '/api/models/verify' && method === 'POST') {
-                    await handleModelsVerify(req, res);
+                    await handleModelsVerify(req, res, { projectRoot });
                     return;
                 }
                 if (reqPath === '/api/models/download-embedding' && method === 'POST') {
@@ -369,7 +373,7 @@ export async function startWebServer(options) {
                     return;
                 }
                 if (reqPath === '/api/mcp/reload' && method === 'POST') {
-                    await handleMcpReload(req, res, codesquadDir);
+                    await handleMcpReload(req, res, codesquadDir, toolRegistry, mcpBridge);
                     return;
                 }
                 if (reqPath === '/api/mcp/verify' && method === 'POST') {

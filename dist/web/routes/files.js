@@ -2,17 +2,16 @@
  * Files API — project file tree and content reading.
  */
 import { readdirSync, readFileSync, existsSync, statSync } from 'fs';
-import { join, resolve, normalize, sep } from 'path';
+import { join } from 'path';
 import { countTokens } from '../../chat/tokenizer.js';
+import { isWorkspacePath, resolveWorkspacePath } from '../../security/path-policy.js';
 /**
  * Check that target resolves within root directory.
  * Uses trailing separator to prevent prefix-bypass attacks on Windows
  * (e.g. C:\project-evil\secret starts with C:\project but is NOT in C:\project\).
  */
 function isSafePath(root, target) {
-    const resolved = resolve(root, target);
-    const normalizedRoot = normalize(root) + sep;
-    return resolved.startsWith(normalizedRoot);
+    return isWorkspacePath(root, target);
 }
 function listDir(dir, depth, maxDepth) {
     if (depth > maxDepth)
@@ -62,7 +61,7 @@ export async function handleFiles(req, res, services, path, method) {
             res.end(JSON.stringify({ error: 'Path traversal denied' }));
             return;
         }
-        const fullPath = join(root, filePath);
+        const fullPath = resolveWorkspacePath(root, filePath);
         if (!existsSync(fullPath)) {
             res.writeHead(404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'File not found' }));
@@ -83,7 +82,7 @@ export async function handleFiles(req, res, services, path, method) {
     }
     // GET /api/files?path=...
     const subPath = url.searchParams.get('path') ?? '';
-    const target = subPath ? join(root, subPath) : root;
+    const target = resolveWorkspacePath(root, subPath || '.');
     if (!isSafePath(root, subPath)) {
         res.writeHead(403, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Path traversal denied' }));

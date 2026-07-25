@@ -20,8 +20,10 @@ import { loadAssemblyAgents } from '../agents/assembly-loader.js';
 // ── Cache ──
 let skillCache = null;
 let _aicodeRoot = null;
-export function setAicodeRoot(dir) {
+let _isolatedAicodeRoot = false;
+export function setAicodeRoot(dir, options) {
     _aicodeRoot = dir;
+    _isolatedAicodeRoot = options?.isolated ?? false;
     skillCache = null;
 }
 function skillRoot() {
@@ -33,6 +35,9 @@ function skillRoot() {
 function getAllSkillDirs() {
     const dirs = [];
     const aicoreDir = skillRoot();
+    if (_isolatedAicodeRoot) {
+        return existsSync(aicoreDir) ? [aicoreDir] : [];
+    }
     // Embedded mode: .codesquad is not on disk, but available via readAicoreDir / VirtualFS
     if (isEmbeddedMode() || virtualExists(aicoreDir))
         dirs.push(aicoreDir);
@@ -61,7 +66,7 @@ export function listSkills() {
         const root = skillDirs[i];
         const layer = layerByIndex[i];
         // ── Layer 0 (.codesquad built-in): use readAicoreDir/readAicoreFile (VirtualFS) ──
-        if (i === 0) {
+        if (i === 0 && !_isolatedAicodeRoot) {
             const entries = readAicoreDir('skills');
             for (const entry of entries) {
                 // Try SKILL.md first, fallback to skill.md

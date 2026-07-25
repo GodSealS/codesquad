@@ -76,7 +76,7 @@ export function resetToolQueue() {
  * @returns Array of execution results in the SAME order as the input toolCalls,
  *          so the agent-runner can append tool_result messages in the correct sequence.
  */
-export async function executeToolBatch(toolCalls, context) {
+export async function executeToolBatch(toolCalls, context, toolRegistry) {
     if (toolCalls.length === 0)
         return [];
     // ── Dedup: skip identical calls within the same batch ──
@@ -103,7 +103,7 @@ export async function executeToolBatch(toolCalls, context) {
     const readOnly = [];
     const write = [];
     for (const { index, tc } of deduped) {
-        const tool = findTool(tc.name);
+        const tool = findTool(tc.name, toolRegistry);
         const isReadOnly = tool?.isReadOnly() ?? false;
         if (isReadOnly) {
             readOnly.push({ index, tc });
@@ -134,8 +134,9 @@ export async function executeToolBatch(toolCalls, context) {
                 toolName: tc.name,
                 rawInput: tc.input,
                 context,
+                toolRegistry,
             });
-            touchTool(tc.name);
+            touchTool(tc.name, toolRegistry);
             return { index, name: tc.name, input: tc.input, result };
         }));
         for (const pr of parallelResults) {
@@ -158,8 +159,9 @@ export async function executeToolBatch(toolCalls, context) {
                 toolName: tc.name,
                 rawInput: tc.input,
                 context,
+                toolRegistry,
             });
-            touchTool(tc.name);
+            touchTool(tc.name, toolRegistry);
             results[index] = { name: tc.name, input: tc.input, result };
             completed++;
             emitProgress({ completed, currentTool: null });

@@ -113,7 +113,7 @@ export const CODESQUAD_USER_SETTINGS = join(CODESQUAD_USER_ROOT, 'settings.json'
  * Defaults to process.cwd().
  */
 export function getCodeSquadProjectRoot(cwd) {
-    return join(cwd ?? process.cwd(), '.codesquad');
+    return join(cwd ?? process.env.CODESQUAD_PROJECT_ROOT ?? process.cwd(), '.codesquad');
 }
 export function getCodeSquadProjectCategory(category, cwd) {
     return join(getCodeSquadProjectRoot(cwd), category);

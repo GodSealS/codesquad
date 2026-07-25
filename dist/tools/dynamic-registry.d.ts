@@ -22,16 +22,17 @@
  * Usage: replace `registerTools([...])` with `initDynamicRegistry([...])`.
  */
 import type { Tool } from './types.js';
+import type { ToolRegistry } from './ToolRegistry.js';
 /**
  * Initialise the dynamic tool registry with all available tools.
  * Only ALWAYS_HOT tools are activated immediately; the rest go to cold pool.
  */
-export declare function initDynamicRegistry(allTools: Tool[]): void;
+export declare function initDynamicRegistry(allTools: Tool[], toolRegistry?: ToolRegistry): void;
 /**
  * Record that a tool was used.  Promotes it in the LRU order.
  * If the tool is currently evicted (not in active pool), re-activates it.
  */
-export declare function touchTool(toolName: string): void;
+export declare function touchTool(toolName: string, toolRegistry?: ToolRegistry): void;
 /** Get the current pool status for debugging. */
 export declare function getPoolStatus(): {
     active: string[];

@@ -10,6 +10,7 @@
 import { runAgent } from '../../chat/agent-runner.js';
 import { createSession, save, load, findSessionById } from '../../chat/session.js';
 import { getApiState } from '../server.js';
+import { normalizeChatRequest } from '../../web/contracts/chat.js';
 const DEFAULT_MODEL_CONFIG = {
     provider: 'anthropic',
     model: 'claude-sonnet-4-20250514',
@@ -19,8 +20,13 @@ const DEFAULT_MODEL_CONFIG = {
 export function registerChatRoutes(app, config) {
     app.post('/api/chat', async (req, res) => {
         try {
-            const { agentName, message, sessionId, mode = 'ask', model = DEFAULT_MODEL_CONFIG.model, } = req.body;
-            if (!agentName || !message) {
+            const parsedRequest = normalizeChatRequest(req.body);
+            if (!parsedRequest.success) {
+                res.status(400).json({ error: 'Invalid chat request', code: 400 });
+                return;
+            }
+            const { prompt: message, agentId: agentName, sessionId, modelName: model, mode } = parsedRequest.data;
+            if (!agentName) {
                 res.status(400).json({
                     error: 'Missing required fields: agentName, message',
                     code: 400,
@@ -50,7 +56,8 @@ export function registerChatRoutes(app, config) {
                 modelId: model || session.modelConfig.model,
                 projectRoot: config.projectRoot,
                 aicoreDir: config.aicoreDir,
-                mode: mode,
+                mode: (mode ?? 'ask').toLowerCase(),
+                toolRegistry: config.toolRegistry,
                 onToolUse: (toolName, input, toolResult) => {
                     toolCallsLog.push({ name: toolName, input, isError: toolResult.isError });
                 },

@@ -9,6 +9,9 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlink
 import { join } from 'path';
 import { execSync } from 'child_process';
 import { initProject, installProjectFiles } from '../../core/init-core.js';
+import { runToolUse } from '../../tools/registry.js';
+import { getSessionCache } from '../../tools/file-state.js';
+import { resolveWorkspacePath } from '../../security/path-policy.js';
 function readBody(req) {
     return new Promise((resolve, reject) => {
         const chunks = [];
@@ -16,6 +19,17 @@ function readBody(req) {
         req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
         req.on('error', reject);
     });
+}
+/** Init/reset are project administration operations, never arbitrary-path writes. */
+function resolveRegisteredWorkspace(projectRoot, requestedPath) {
+    const root = resolveWorkspacePath(projectRoot, '.');
+    const target = resolveWorkspacePath(projectRoot, typeof requestedPath === 'string' && requestedPath.trim()
+        ? requestedPath
+        : '.');
+    if (target !== root) {
+        throw new Error('Only the active project workspace may be initialized or reset');
+    }
+    return target;
 }
 export async function handleWorkspaceFiles(req, res, services, reqPath, method) {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
@@ -54,7 +68,7 @@ export async function handleWorkspaceFiles(req, res, services, reqPath, method) 
         try {
             const body = await readBody(req);
             const { path: wsPath } = JSON.parse(body);
-            const target = wsPath || services.projectRoot;
+            const target = resolveRegisteredWorkspace(services.projectRoot, wsPath);
             await initProject({ targetPath: target, tools: 'codebuddy', force: false });
             // Also ensure .codesquad/ directory exists
             const csDir = join(target, '.codesquad');
@@ -75,7 +89,7 @@ export async function handleWorkspaceFiles(req, res, services, reqPath, method) 
         try {
             const body = await readBody(req);
             const { path: wsPath } = JSON.parse(body);
-            const target = wsPath || services.projectRoot;
+            const target = resolveRegisteredWorkspace(services.projectRoot, wsPath);
             const count = installProjectFiles(target, true);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: true, count }));
@@ -96,29 +110,27 @@ export async function handleWorkspaceFiles(req, res, services, reqPath, method) 
                 res.end(JSON.stringify({ error: 'command is required' }));
                 return;
             }
-            // Safety: deny obviously dangerous patterns
-            const DANGEROUS = [/rm\s+-rf/i, />\s*\/dev\//, /mkfs/i, /dd\s+if=/, /:\(\)/, />\s*\/etc\//i, /format\s+[a-z]:/i];
-            for (const p of DANGEROUS) {
-                if (p.test(command)) {
-                    res.writeHead(403, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Command blocked for safety' }));
-                    return;
-                }
-            }
-            const { execSync } = await import('child_process');
-            const cwd = services.projectRoot;
-            // Merge stderr into stdout for unified output
-            const stdout = execSync(command, {
-                cwd,
-                timeout: 30000,
-                maxBuffer: 512 * 1024,
-                encoding: 'utf-8',
-                stdio: ['ignore', 'pipe', 'pipe'],
-                windowsHide: true,
+            const context = {
+                session: undefined,
+                cwd: services.projectRoot,
+                projectRoot: services.projectRoot,
+                abortSignal: new AbortController().signal,
+                permissionMode: 'default',
+                readFileState: getSessionCache(),
+                headless: true,
+            };
+            const result = await runToolUse({
+                toolName: 'Bash',
+                rawInput: { command, timeout: 30 },
+                context,
             });
-            const trimmed = stdout.length > 10000 ? stdout.slice(0, 10000) + '\n... (output truncated)' : stdout;
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ ok: true, output: trimmed }));
+            if (result.needsApproval) {
+                res.writeHead(409, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: false, needsApproval: true, output: result.content }));
+                return;
+            }
+            res.writeHead(result.isError ? 400 : 200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: !result.isError, output: result.content }));
         }
         catch (err) {
             const output = err.stdout ?? err.stderr ?? err.message ?? 'Command failed';

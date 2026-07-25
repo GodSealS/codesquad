@@ -31,6 +31,7 @@ const COLD_THRESHOLD_HOURS = 1;
 const EVICTION_INTERVAL_MS = 5 * 60_000; // 5 minutes
 const _allTools = new Map();
 let _evictionTimer = null;
+let _toolRegistry;
 // ── Always-hot tools (core set, never evicted) ──
 const ALWAYS_HOT = new Set([
     'Read', 'Write', 'Edit', 'Grep', 'Glob',
@@ -42,8 +43,9 @@ const ALWAYS_HOT = new Set([
  * Initialise the dynamic tool registry with all available tools.
  * Only ALWAYS_HOT tools are activated immediately; the rest go to cold pool.
  */
-export function initDynamicRegistry(allTools) {
+export function initDynamicRegistry(allTools, toolRegistry) {
     _allTools.clear();
+    _toolRegistry = toolRegistry;
     for (const tool of allTools) {
         _allTools.set(tool.name, {
             tool,
@@ -72,14 +74,21 @@ function syncActivePool() {
         return b.lastUsed - a.lastUsed;
     });
     const active = sorted.slice(0, MAX_ACTIVE_TOOLS).map(e => e.tool);
-    registerTools(active);
+    if (_toolRegistry) {
+        _toolRegistry.registerTools(active);
+    }
+    else {
+        registerTools(active);
+    }
 }
 // ── Touch (called on every tool use) ──
 /**
  * Record that a tool was used.  Promotes it in the LRU order.
  * If the tool is currently evicted (not in active pool), re-activates it.
  */
-export function touchTool(toolName) {
+export function touchTool(toolName, toolRegistry) {
+    if (toolRegistry)
+        _toolRegistry = toolRegistry;
     const meta = _allTools.get(toolName);
     if (!meta)
         return;
@@ -148,5 +157,6 @@ export function shutdownDynamicRegistry() {
         _evictionTimer = null;
     }
     _allTools.clear();
+    _toolRegistry = undefined;
 }
 //# sourceMappingURL=dynamic-registry.js.map

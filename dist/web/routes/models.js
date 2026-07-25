@@ -1,33 +1,10 @@
-import { join } from 'path';
 import { parse as parseYaml } from 'yaml';
-import { fileURLToPath } from 'url';
 import { resolveEnvValue } from '../../utils/env-resolver.js';
 import { getContextWindow } from '../../context/auto-compact.js';
-import { virtualExists, virtualReadFile } from '../../embedded/virtual-fs.js';
 import { readEmbeddedFile } from '../../embedded/runtime.js';
-let PKG_ROOT;
-try {
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    PKG_ROOT = join(__dirname, '..', '..', '..');
-}
-catch {
-    PKG_ROOT = process.cwd();
-}
-function loadApiSources() {
-    let raw = null;
-    // 1) Filesystem first (handles user edits in dev mode)
-    const configPath = join(PKG_ROOT, 'models.config.yaml');
-    if (virtualExists(configPath)) {
-        raw = virtualReadFile(configPath, 'utf-8');
-    }
-    // 1b) Working directory fallback (user-saved config via POST /api/models-config)
-    if (raw === null) {
-        const cwdPath = join(process.cwd(), 'models.config.yaml');
-        if (virtualExists(cwdPath)) {
-            raw = virtualReadFile(cwdPath, 'utf-8');
-        }
-    }
-    // 2) Embedded fallback (Bun-compiled mode)
+import { ConfigRepository } from '../../config/config-repository.js';
+function loadApiSources(projectRoot) {
+    let raw = new ConfigRepository(projectRoot).readModelsConfig()?.content ?? null;
     if (raw === null) {
         try {
             raw = readEmbeddedFile('models.config.yaml');
@@ -55,9 +32,9 @@ function loadApiSources() {
         return {};
     }
 }
-export async function handleModels(_req, res) {
+export async function handleModels(_req, res, services) {
     try {
-        const sources = loadApiSources();
+        const sources = loadApiSources(services.projectRoot);
         const models = Object.entries(sources).map(([name, info]) => ({
             name,
             supportsVision: info.supportsVision ?? false,
@@ -77,8 +54,8 @@ export async function handleModels(_req, res) {
  * Tests connectivity for each configured model by calling the API endpoint.
  * Returns { model → { ok, error? } }.
  */
-export async function handleModelsVerify(_req, res) {
-    const sources = loadApiSources();
+export async function handleModelsVerify(_req, res, services) {
+    const sources = loadApiSources(services.projectRoot);
     const results = {};
     // Group by baseUrl to avoid duplicate checks for same endpoint
     const testedEndpoints = new Map();

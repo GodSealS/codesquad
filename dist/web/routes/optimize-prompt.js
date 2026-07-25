@@ -9,28 +9,15 @@
  * definition summaries so the optimizer understands the conversation flow.
  */
 import { join } from 'path';
-import { fileURLToPath } from 'url';
 import { parse as parseYaml } from 'yaml';
 import { resolveEnvValue } from '../../utils/env-resolver.js';
 import { virtualExists, virtualReadFile, AICORE_ROOT } from '../../embedded/virtual-fs.js';
 import { readEmbeddedFile } from '../../embedded/runtime.js';
 import { load as loadSession } from '../../chat/session.js';
-let PKG_ROOT;
+import { ConfigRepository } from '../../config/config-repository.js';
 let AICORE_DIR;
 // Canonical .codesquad path from virtual-fs (handles Bun-compiled correctly)
 AICORE_DIR = AICORE_ROOT;
-if (process.env.CODESQUAD_PROJECT_ROOT) {
-    PKG_ROOT = process.env.CODESQUAD_PROJECT_ROOT;
-}
-else {
-    try {
-        const __dirname = fileURLToPath(new URL('.', import.meta.url));
-        PKG_ROOT = join(__dirname, '..', '..', '..');
-    }
-    catch {
-        PKG_ROOT = process.cwd();
-    }
-}
 function readBody(req) {
     return new Promise((resolve, reject) => {
         const chunks = [];
@@ -46,18 +33,8 @@ function readBody(req) {
         req.on('error', reject);
     });
 }
-function loadApiSources() {
-    let raw = null;
-    const configPath = join(PKG_ROOT, 'models.config.yaml');
-    if (virtualExists(configPath)) {
-        raw = virtualReadFile(configPath, 'utf-8');
-    }
-    if (raw === null) {
-        const cwdPath = join(process.cwd(), 'models.config.yaml');
-        if (virtualExists(cwdPath)) {
-            raw = virtualReadFile(cwdPath, 'utf-8');
-        }
-    }
+function loadApiSources(projectRoot) {
+    let raw = new ConfigRepository(projectRoot).readModelsConfig()?.content ?? null;
     if (raw === null) {
         try {
             raw = readEmbeddedFile('models.config.yaml');
@@ -74,7 +51,7 @@ function loadApiSources() {
         return {};
     }
 }
-export async function handleOptimizePrompt(req, res) {
+export async function handleOptimizePrompt(req, res, services) {
     let body;
     try {
         body = (await readBody(req));
@@ -131,7 +108,7 @@ export async function handleOptimizePrompt(req, res) {
             // Session not found or corrupted — proceed without context (non-blocking)
         }
     }
-    const sources = loadApiSources();
+    const sources = loadApiSources(services.projectRoot);
     const sourceKey = body.modelName && sources[body.modelName] ? body.modelName : Object.keys(sources)[0];
     if (!sourceKey) {
         res.writeHead(200, { 'Content-Type': 'application/json' });

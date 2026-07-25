@@ -25,6 +25,8 @@ import { resolveEnvValue } from '../../utils/env-resolver.js';
 import { virtualExists, virtualReadFile, AICORE_ROOT, PKG_ROOT as VFS_PKG_ROOT } from '../../embedded/virtual-fs.js';
 import { readEmbeddedFile, isBunCompiled } from '../../embedded/runtime.js';
 import { notifyError, logDiagnostic } from '../../utils/error-logger.js';
+import { ChatRequestSchema } from '../contracts/chat.js';
+import { ConfigRepository } from '../../config/config-repository.js';
 let PKG_ROOT;
 let AICORE_DIR;
 let DEFAULT_PROJECT_ROOT;
@@ -93,15 +95,10 @@ function readBody(req, maxBytes = 1_048_576) {
 }
 /** Try to read models.config.yaml — filesystem first, embedded fallback. */
 function readModelsConfigRaw() {
-    // 1) PKG_ROOT (bundled config)
-    const configPath = join(PKG_ROOT, 'models.config.yaml');
-    if (virtualExists(configPath))
-        return virtualReadFile(configPath, 'utf-8');
-    // 1b) Working directory (user-saved config via POST /api/models-config)
-    const cwdPath = join(process.cwd(), 'models.config.yaml');
-    if (virtualExists(cwdPath))
-        return virtualReadFile(cwdPath, 'utf-8');
-    // 2) Embedded fallback (Bun-compiled mode)
+    const configured = new ConfigRepository(DEFAULT_PROJECT_ROOT).readModelsConfig();
+    if (configured)
+        return configured.content;
+    // Embedded fallback supplies package defaults when the workspace has no config.
     try {
         return readEmbeddedFile('models.config.yaml');
     }
@@ -134,6 +131,10 @@ function loadApiSources() {
 let _fullModelsConfigCache = null;
 let _fullModelsConfigCacheTime = 0;
 const MODELS_CONFIG_CACHE_TTL_MS = 30_000; // 30s TTL
+export function invalidateModelsConfigCache() {
+    _fullModelsConfigCache = null;
+    _fullModelsConfigCacheTime = 0;
+}
 function loadFullModelsConfig() {
     const now = Date.now();
     if (_fullModelsConfigCache && (now - _fullModelsConfigCacheTime) < MODELS_CONFIG_CACHE_TTL_MS) {
@@ -214,25 +215,11 @@ function resolveBatchModel(modelName, config) {
     }
     return modelName;
 }
-function resolveApiConfig(modelName, customSources) {
+function resolveApiConfig(modelName) {
     // Priority 0: Apply batch model-name mapping before source lookup
     const fullConfig = loadFullModelsConfig();
     const mappedModel = resolveBatchModel(modelName, fullConfig);
-    // Priority 1: customSources from the request
-    if (customSources) {
-        const sourceKey = modelToSourceKey(mappedModel);
-        const custom = customSources[sourceKey];
-        if (custom?.baseUrl && custom?.apiKey) {
-            return {
-                baseUrl: custom.baseUrl,
-                apiKey: resolveEnvValue(custom.apiKey) || '',
-                resolvedModel: mappedModel,
-                sourceKey,
-                provider: custom.provider || 'openai-compatible',
-            };
-        }
-    }
-    // Priority 2: models.config.yaml api.sources
+    // Only server-owned models.config.yaml may provide endpoints or credentials.
     const configSources = loadApiSources();
     const sourceKey = modelToSourceKey(mappedModel);
     const configSource = configSources[sourceKey];
@@ -245,7 +232,7 @@ function resolveApiConfig(modelName, customSources) {
             provider: configSource.provider || 'openai-compatible',
         };
     }
-    // Priority 3: Use the first available API source as fallback
+    // Use the first server-configured API source as fallback.
     const firstKey = Object.keys(configSources)[0];
     if (firstKey) {
         const fallback = configSources[firstKey];
@@ -295,22 +282,20 @@ const SAFE_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
 function isValidAgentOrSkillName(name) {
     return SAFE_NAME_RE.test(name) && !name.includes('..');
 }
-export async function handleChatV2(req, res) {
+export async function handleChatV2(req, res, runtime) {
     let body;
     try {
-        body = (await readBody(req));
+        const parsed = ChatRequestSchema.safeParse(await readBody(req));
+        if (!parsed.success)
+            throw new Error('Invalid chat request');
+        body = parsed.data;
     }
     catch {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
         return;
     }
-    const { prompt, history, modelName, agentId, skillId, mode, lang, memorySummaryMode, customSources, generationConfig } = body;
-    if (!prompt) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'prompt is required' }));
-        return;
-    }
+    const { prompt, history, modelName, agentId, skillId, mode, lang, memorySummaryMode, generationConfig } = body;
     // Semantic routing — auto-select best agent when agentId not specified
     let effectiveAgentName = agentId || 'game-designer';
     if (!agentId) {
@@ -344,7 +329,7 @@ export async function handleChatV2(req, res) {
         }
     }
     const resolvedModel = resolveModel(targetModel, resolveName, resolveType, modelsConfig);
-    const apiConfig = resolveApiConfig(resolvedModel, customSources);
+    const apiConfig = resolveApiConfig(resolvedModel);
     if (!apiConfig) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'No API source configured' }));
@@ -365,9 +350,32 @@ export async function handleChatV2(req, res) {
             temperature: generationConfig?.temperature ?? 0.7,
         });
         if (history && history.length > 0) {
-            for (const msg of history.slice(-20)) {
-                if (msg.sender !== 'user' && msg.sender !== 'assistant')
-                    continue;
+            const { loadSettings } = await import('../../chat/settings.js');
+            const sc = loadSettings().semanticContext;
+            const limit = sc.contextMessageLimit;
+            const chatMessages = history.filter(m => m.sender === 'user' || m.sender === 'assistant');
+            let selected;
+            if (sc.enabled && sc.features.semanticFilter && chatMessages.length > sc.queryContextLength) {
+                try {
+                    const { getSemanticMessages } = await import('../../context/semantic-context.js');
+                    const semanticMsgs = chatMessages.map((m, i) => ({
+                        role: m.sender,
+                        content: m.content,
+                        index: i,
+                    }));
+                    const result = await getSemanticMessages(prompt, semanticMsgs, resolvedModel);
+                    selected = result.fromSemantic
+                        ? result.messages.map(m => ({ sender: m.role, content: m.content }))
+                        : chatMessages.slice(-limit);
+                }
+                catch {
+                    selected = chatMessages.slice(-limit);
+                }
+            }
+            else {
+                selected = chatMessages.slice(-limit);
+            }
+            for (const msg of selected) {
                 addMessage(session, msg.sender, msg.content);
             }
         }
@@ -433,6 +441,7 @@ export async function handleChatV2(req, res) {
             allowedTools: skillAllowedTools,
             memorySummaryMode,
             runtimeConfig,
+            toolRegistry: runtime?.toolRegistry,
             stream: false,
         });
         // Persist session
@@ -512,17 +521,24 @@ export async function handleChatV2(req, res) {
  *   data: {"type":"error","error":"..."}
  *   data: [DONE]
  */
-export async function handleChatStream(req, res) {
+export async function handleChatStream(req, res, runtime) {
     let body;
     try {
-        body = (await readBody(req));
+        const rawBody = await readBody(req);
+        const parsed = ChatRequestSchema.safeParse(rawBody);
+        if (!parsed.success) {
+            console.error('[chat-v2 stream] Validation failed:', JSON.stringify(parsed.error.issues));
+            throw new Error('Invalid chat request');
+        }
+        body = parsed.data;
     }
-    catch {
+    catch (err) {
+        console.error('[chat-v2 stream] Request error:', err.message);
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON body' }));
         return;
     }
-    const { prompt, history, modelName, agentId, skillId, mode, lang, thinkingMode, searchProvider, memorySummaryMode, customSources, generationConfig } = body;
+    const { prompt, history, modelName, agentId, skillId, mode, lang, thinkingMode, searchProvider, memorySummaryMode, generationConfig } = body;
     // Apply search provider preference (allowlist validated)
     if (searchProvider) {
         const VALID_SEARCH_PROVIDERS = new Set(['auto', 'brave', 'duckduckgo', 'bing', 'google']);
@@ -532,11 +548,6 @@ export async function handleChatStream(req, res) {
         else {
             console.warn(`[chat-v2] Ignored invalid searchProvider: "${searchProvider}"`);
         }
-    }
-    if (!prompt) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'prompt is required' }));
-        return;
     }
     // 🔧 Step 9: 语义路由 — 无显式 agentId 时自动匹配最佳 agent
     let effectiveAgentName = agentId || 'game-designer';
@@ -574,7 +585,7 @@ export async function handleChatStream(req, res) {
         }
     }
     const resolvedModel = resolveModel(targetModel, resolveName, resolveType, modelsConfig);
-    const apiConfig = resolveApiConfig(resolvedModel, customSources);
+    const apiConfig = resolveApiConfig(resolvedModel);
     if (!apiConfig) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'No API source configured' }));
@@ -629,11 +640,40 @@ export async function handleChatStream(req, res) {
             temperature: generationConfig?.temperature ?? 0.7,
         });
         // Inject history from the request body (for multi-turn continuity)
-        // Only include user/assistant messages — skip system, info, shell to avoid leaking non-chat content into LLM context
+        // Uses semantic filtering when enabled, otherwise last-N truncation based on contextMessageLimit
         if (history && history.length > 0) {
-            for (const msg of history.slice(-20)) {
-                if (msg.sender !== 'user' && msg.sender !== 'assistant')
-                    continue;
+            const { loadSettings } = await import('../../chat/settings.js');
+            const sc = loadSettings().semanticContext;
+            const limit = sc.contextMessageLimit;
+            // Filter to user/assistant messages only
+            const chatMessages = history.filter(m => m.sender === 'user' || m.sender === 'assistant');
+            // Try semantic filtering if enabled + embeddings available
+            let selected;
+            if (sc.enabled && sc.features.semanticFilter && chatMessages.length > sc.queryContextLength) {
+                try {
+                    const { getSemanticMessages } = await import('../../context/semantic-context.js');
+                    const semanticMsgs = chatMessages.map((m, i) => ({
+                        role: m.sender,
+                        content: m.content,
+                        index: i,
+                    }));
+                    const result = await getSemanticMessages(prompt, semanticMsgs, resolvedModel);
+                    if (result.fromSemantic) {
+                        selected = result.messages.map(m => ({ sender: m.role, content: m.content }));
+                    }
+                    else {
+                        selected = chatMessages.slice(-limit);
+                    }
+                }
+                catch {
+                    // Semantic unavailable — fall back to last-N
+                    selected = chatMessages.slice(-limit);
+                }
+            }
+            else {
+                selected = chatMessages.slice(-limit);
+            }
+            for (const msg of selected) {
                 addMessage(session, msg.sender, msg.content);
             }
         }
@@ -738,6 +778,7 @@ export async function handleChatStream(req, res) {
             skillThinkingLevel,
             memorySummaryMode,
             runtimeConfig,
+            toolRegistry: runtime?.toolRegistry,
             stream: true,
             onToken(text) {
                 sendSSE({ type: 'token', text });

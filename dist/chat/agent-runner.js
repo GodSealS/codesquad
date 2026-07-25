@@ -19,7 +19,6 @@ import { buildSkillGuidance, buildCapabilitySkillGuidance } from '../repl/skill-
 import { loadSessionRules } from '../rules/loader.js';
 import { runToolUse, assembleToolPool } from '../tools/registry.js';
 import { executeToolBatch, resetToolQueue, onToolProgress as subscribeToolProgress } from '../tools/execution-queue.js';
-import { touchTool } from '../tools/dynamic-registry.js';
 import { getSessionCache } from '../tools/file-state.js';
 import { microCompactWithSession } from '../context/micro-compact.js';
 import { incrementTurn, shouldAutoCompact, autoCompact } from '../context/auto-compact.js';
@@ -153,7 +152,7 @@ async function executeForkSkill(pending, config, rc, messages, parentSession, on
                 // S04: Filter Agent, TodoWrite, and Skill from fork skill tool pool to prevent
                 // recursive nesting (fork skill → AgentTool/Skill → sub-agent/sub-skill → ...).
                 const FORK_DISALLOWED_TOOLS = new Set(['Agent', 'TodoWrite', 'Skill']);
-                let pool = assembleToolPool().filter(t => !FORK_DISALLOWED_TOOLS.has(t.name));
+                let pool = assembleToolPool(undefined, config.toolRegistry).filter(t => !FORK_DISALLOWED_TOOLS.has(t.name));
                 // Grill-me Phase 0: also apply skill's allowed-tools whitelist for fork skills
                 if (pending.allowedTools && pending.allowedTools.length > 0) {
                     const forkAllowed = new Set(pending.allowedTools);
@@ -169,6 +168,7 @@ async function executeForkSkill(pending, config, rc, messages, parentSession, on
                                 toolName: tc.name,
                                 rawInput: tc.input,
                                 context: forkContext,
+                                toolRegistry: config.toolRegistry,
                             });
                             forkMessages.push({
                                 role: 'user',
@@ -251,7 +251,7 @@ function isForkErrorRetryable(err) {
 // ── Core Runner ──
 export async function runAgent(config) {
     const startTime = Date.now();
-    const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, stream = false, allowedTools, skillThinkingLevel, onToken, onTurn, onToolUse, onToolProgress, onError, } = config;
+    const { agentName, userInput, session, providerId, modelId, projectRoot, aicoreDir, mode, maxTurns = 20, lang = 'zh', runtimeConfig: configRuntimeConfig, toolRegistry, stream = false, allowedTools, skillThinkingLevel, onToken, onTurn, onToolUse, onToolProgress, onError, } = config;
     // ── Session Memory setup (M7) ──
     const querySource = config.querySource ?? 'repl_main_thread';
     const settings = loadSettings();
@@ -504,8 +504,9 @@ export async function runAgent(config) {
                             const ogMsgs = rawMsgs.length;
                             const ogTools = rawTools.length;
                             const ogSys = rawSys.length;
-                            // Truncate each message to max 4KB, keep last 20
-                            const trimmedMsgs = rawMsgs.slice(-20).map((m) => {
+                            // Truncate each message to max 4KB, keep last N (configurable contextMessageLimit)
+                            const msgLimit = loadSettings().semanticContext.contextMessageLimit;
+                            const trimmedMsgs = rawMsgs.slice(-msgLimit).map((m) => {
                                 const content = typeof m.content === 'string' ? m.content : '';
                                 if (content.length > 4096) {
                                     return { ...m, content: content.slice(0, 4096) + `\n[... ${content.length - 4096} chars truncated]` };
@@ -630,7 +631,7 @@ export async function runAgent(config) {
             incrementTurn(session);
             // Cache tool pool once per turn (fork path also calls assembleToolPool,
             // but that runs before the while loop via executeForkSkill → created outside)
-            const _cachedPool = assembleToolPool();
+            const _cachedPool = assembleToolPool(undefined, toolRegistry);
             // Phase 6.1: Auto-compact check at the start of each turn
             if (!compactFailed && turn > 1 && session.messages.length >= 10) {
                 const check = shouldAutoCompact(session.messages, modelId, session);
@@ -1059,14 +1060,13 @@ export async function runAgent(config) {
                         name: tc.name,
                         input: tc.input,
                     }));
-                    const execResults = await executeToolBatch(enqueuedTools, toolContext);
+                    const execResults = await executeToolBatch(enqueuedTools, toolContext, toolRegistry);
                     for (const exec of execResults) {
                         const tc = exec;
                         const result = exec.result;
                         onToolUse?.(tc.name, tc.input, { content: result.content, isError: !!result.isError });
                         recordToolCall(session.id); // Session Memory (M7)
                         addMessage(session, 'user', `[Tool Result: ${tc.name}]\n${result.content}`);
-                        touchTool(tc.name); // update LRU timestamp — keep frequently-used tools active
                         toolCallsMade++;
                         // Feature 1 (P5): AskUserQuestion
                         if (tc.name === 'AskUserQuestion' && toolContext.__needsUserInput) {

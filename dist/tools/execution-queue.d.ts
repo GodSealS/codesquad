@@ -15,6 +15,7 @@
  *   This module extends that model with parallel-safe read-only batching.
  */
 import type { ToolUseContext, ToolResult } from './types.js';
+import type { ToolRegistry } from './ToolRegistry.js';
 export type QueuePhase = 'idle' | 'parallel_read' | 'sequential_write' | 'done';
 export interface QueueProgress {
     /** Total tool calls in this batch. */
@@ -59,7 +60,7 @@ export declare function resetToolQueue(): void;
  * @returns Array of execution results in the SAME order as the input toolCalls,
  *          so the agent-runner can append tool_result messages in the correct sequence.
  */
-export declare function executeToolBatch(toolCalls: EnqueuedTool[], context: ToolUseContext): Promise<Array<{
+export declare function executeToolBatch(toolCalls: EnqueuedTool[], context: ToolUseContext, toolRegistry?: ToolRegistry): Promise<Array<{
     name: string;
     input: Record<string, unknown>;
     result: ToolResult;

@@ -328,7 +328,7 @@ export class DiskCache {
         return this.extractFirstParagraph(lines);
     }
     /**
-     * 提取 JSDoc / 块注释 (/* ... *​/) 中的描述
+     * 提取 JSDoc / 块注释中的描述
      */
     extractBlockCommentDescription(lines) {
         let inComment = false;

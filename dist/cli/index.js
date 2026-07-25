@@ -16,6 +16,7 @@ import { handleMcpStdio } from '../commands/mcp.js';
 import { handleBuild, getBuildInfoJson } from '../commands/build.js';
 import { handleTest } from '../commands/test.js';
 import { enableDebugMode } from '../utils/debug.js';
+import { createWorkspaceContext } from '../core/workspace-context.js';
 /** Read package.json version, with embedded mode fallback. */
 async function getPkgVersion() {
     // Bun compiled mode: read from embedded data
@@ -412,8 +413,9 @@ ${chalk.dim('Storage:')}
         const port = options?.port ? parseInt(options.port) : 9090;
         const bind = options?.bind ?? '127.0.0.1';
         const __dir = dirname(fileURLToPath(import.meta.url));
-        const PROJECT_ROOT = join(__dir, '..', '..');
-        const AICORE_DIR = join(PROJECT_ROOT, '.codesquad');
+        const packageRoot = join(__dir, '..', '..');
+        const AICORE_DIR = join(packageRoot, '.codesquad');
+        const workspace = createWorkspaceContext(process.cwd());
         // Bootstrap (same as REPL init)
         const { startApiServer, setApiState } = await import('../api/server.js');
         const { setAicodeRoot } = await import('../repl/skill-registry.js');
@@ -426,14 +428,14 @@ ${chalk.dim('Storage:')}
         const { initDiskCache } = await import('../cache/disk-cache.js');
         const { initAgentInstanceManager } = await import('../agents/instance-manager.js');
         setAicodeRoot(AICORE_DIR);
-        setProjectRoot(PROJECT_ROOT);
-        initDiskCache(PROJECT_ROOT);
+        setProjectRoot(workspace.projectRoot);
+        initDiskCache(workspace.projectRoot);
         initAgentInstanceManager();
-        setUsageProjectRoot(PROJECT_ROOT);
+        setUsageProjectRoot(workspace.projectRoot);
         registerTools([]);
-        initHooksFromCodesquad(AICORE_DIR);
-        loadCodesquadConfig(AICORE_DIR);
-        loadAllAgentsLayered(AICORE_DIR);
+        initHooksFromCodesquad(workspace.codesquadDir);
+        loadCodesquadConfig(workspace.codesquadDir);
+        loadAllAgentsLayered(AICORE_DIR, workspace.projectRoot);
         // Resolve provider from env
         const providerId = process.env.CODESQUAD_DEFAULT_MODEL?.split('/')[0] || 'anthropic';
         const modelId = process.env.CODESQUAD_DEFAULT_MODEL?.split('/')[1] || 'claude-sonnet-4-20250514';
@@ -448,13 +450,18 @@ ${chalk.dim('Storage:')}
         const { TodoWriteTool } = await import('../tools/TodoWriteTool.js');
         const { SkillTool } = await import('../tools/SkillTool.js');
         const { ToolSearchTool } = await import('../tools/ToolSearchTool.js');
-        registerTools([BashTool, FileReadTool, FileWriteTool, FileEditTool, GrepTool, GlobTool, AgentTool, TodoWriteTool, SkillTool, ToolSearchTool]);
+        const apiTools = [BashTool, FileReadTool, FileWriteTool, FileEditTool, GrepTool, GlobTool, AgentTool, TodoWriteTool, SkillTool, ToolSearchTool];
+        registerTools(apiTools);
+        const { ToolRegistry } = await import('../tools/ToolRegistry.js');
+        const toolRegistry = new ToolRegistry();
+        toolRegistry.registerTools(apiTools);
         await startApiServer({
             port,
             host: bind,
             aicoreDir: AICORE_DIR,
-            projectRoot: PROJECT_ROOT,
+            projectRoot: workspace.projectRoot,
             corsOrigins: ['http://localhost:5173'],
+            toolRegistry,
         });
         process.on('SIGINT', () => { console.log('\n[API] Shutting down...'); process.exit(0); });
         process.on('SIGTERM', () => { console.log('\n[API] Shutting down...'); process.exit(0); });
