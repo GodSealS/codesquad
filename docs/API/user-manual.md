@@ -403,15 +403,17 @@ data: {"sessionId": "...", "usage": {...}}
 
 | 类别 | 数量 | 示例 |
 |------|------|------|
-| **设计** | game-designer, systems-designer, level-designer, economy-designer |
+| **设计** | game-designer, systems-designer, level-designer, economy-designer, ux-designer, live-ops-designer |
 | **编程** | lead-programmer, gameplay-programmer, engine-programmer, network-programmer, ai-programmer, tools-programmer, ui-programmer |
 | **美术** | art-director, technical-artist, world-builder |
 | **音频** | audio-director, sound-designer |
 | **叙事** | narrative-director, writer |
-| **QA** | qa-lead, qa-tester, performance-analyst, security-engineer |
+| **QA** | qa-lead, qa-tester, performance-analyst, security-engineer, test-engineer |
+| **安全** | security-auditor, code-reviewer, perf-auditor |
 | **运维** | devops-engineer, build-specialist, release-manager |
 | **管理** | producer, creative-director, technical-director |
 | **引擎** | unreal-specialist, unity-specialist, godot-specialist, cocos-specialist |
+| **其他** | community-manager, localization-lead, accessibility-specialist, analytics-engineer, prototyper, economy-designer |
 
 ### Agent 加载策略
 

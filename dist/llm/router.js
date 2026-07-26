@@ -1,13 +1,12 @@
 /**
  * Multi-provider router with automatic fallback chain.
  *
- * Order: primary → fallback_chain (from Config/mcp.config.yaml) → Ollama (last resort)
+ * Order: primary → fallback_chain (from Config/mcp.config.yaml)
  *
  * Phase P3.6
  */
 import { callLLM } from './client.js';
 import { buildRuntimeConfig } from './registry.js';
-import { detectOllama, getOllamaRuntimeConfig } from './fallback.js';
 import { loadMcpConfig } from '../mcp/config.js';
 const circuitBreaker = new Map(); // provider → state
 function recordFailure(providerId) {
@@ -37,8 +36,12 @@ function isCircuitOpen(providerId, mcpConfig) {
 /**
  * Call LLM with automatic fallback across configured providers.
  *
- * Chain: primary → fallback providers (from Config/mcp.config.yaml) → Ollama
+ * Chain: primary → fallback providers (from Config/mcp.config.yaml)
  * Skips providers with open circuit breakers or missing API keys.
+ *
+ * NOTE: No automatic local-model fallback. If all providers fail,
+ * the caller receives an error and should prompt the user to configure
+ * a local model via the settings panel.
  */
 export async function callWithFallback(request, primaryProvider, primaryModel, projectRoot) {
     const root = projectRoot || process.cwd();
@@ -76,20 +79,12 @@ export async function callWithFallback(request, primaryProvider, primaryModel, p
             continue;
         }
     }
-    // 3. Ollama as last resort
-    if (await detectOllama()) {
-        try {
-            const rt = await getOllamaRuntimeConfig();
-            if (rt?.apiKey) {
-                const response = await callLLM(rt, { ...request, model: 'llama3.1' });
-                return { ...response, routedVia: 'ollama' };
-            }
-        }
-        catch {
-            // Ollama also failed
-        }
-    }
-    throw lastError || new Error('All providers failed — check API keys and network');
+    // All providers exhausted — prompt user to configure a local model
+    const hintMsg = 'All configured providers failed.\n'
+        + '  → To use a local model, configure the "ollama" provider in Config/mcp.config.yaml\n'
+        + '  → Or download a local model (Qwen2.5 / Nanbeige4.2) via the Web Console Settings panel.';
+    console.error(hintMsg);
+    throw lastError || new Error(hintMsg);
 }
 /**
  * Format a human-readable fallback chain description.
@@ -98,8 +93,6 @@ export function getFallbackChainDescription(primaryProvider, projectRoot) {
     const root = projectRoot || process.cwd();
     const mcpConfig = loadMcpConfig(root);
     const chain = [primaryProvider, ...mcpConfig.provider.fallback_chain.filter((p) => p !== primaryProvider)];
-    // Always show Ollama as final fallback
-    chain.push('ollama (local)');
     return chain.join(' → ');
 }
 //# sourceMappingURL=router.js.map

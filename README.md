@@ -17,7 +17,7 @@
 <p align="center"><strong>AI 原生的游戏开发 CLI —— 多工具代理与技能绑定框架</strong></p>
 <p align="center">
   将单一 AI 会话转变为一个完整的游戏开发工作室。<br>
-  一个协调的 AI 团队，包含 <strong>43 个代理</strong> 和 <strong>121 个技能</strong>，覆盖设计、编程、美术、音频、叙事、QA 和生产全流程。
+  一个协调的 AI 团队，包含 <strong>43 个代理</strong> 和 <strong>113 个技能</strong>，覆盖设计、编程、美术、音频、叙事、QA 和生产全流程。
 </p>
 
 <p align="center">
@@ -268,9 +268,9 @@ Unreal 适合 大型AAA游戏
 CODESQUAD.md                    # 主配置文件
 .codesquad/
 agents/                        # 43 个代理定义
-skills/                        # 121 个技能定义
-  hooks/                         # 12 个钩子脚本
-  rules/                         # 11 个路径级编码规范
+skills/                        # 113 个技能定义
+  hooks/                         # 13 个钩子脚本
+  rules/                         # 12 个路径级编码规范
   docs/
     quick-start.md               # 快速入门指南
 UI/                              # Web 控制台前端

@@ -19,8 +19,8 @@ High-fidelity AAA-scale games → Unreal Engine or Unity
 >    - Generates 3 concepts, helps you pick one, defines a core loop and pillars
 >    - Produces a game concept document and recommends an engine
 > 2. **Set up the engine** — run `/setup-engine` (using the brainstorm recommendation)
->    - Configures CODEBUDDY.md, detects knowledge gaps, populates reference docs
->    - Creates `.codebuddy/docs/technical-preferences.md` with naming conventions, performance budgets, and engine-specific defaults
+>    - Configures CODESQUAD.md, detects knowledge gaps, populates reference docs
+>    - Creates `.codesquad/docs/technical-preferences.md` with naming conventions, performance budgets, and engine-specific defaults
 >    - If the engine version is newer than the LLM training data, it fetches the latest docs from the web so agents can suggest correct APIs
 > 3. **Validate the concept** — run `/design-review design/gdd/game-concept.md`
 > 4. **Decompose into systems** — run `/map-systems` to map all systems and dependencies
@@ -195,4 +195,4 @@ Before running `/setup-engine`, you need to create an engine project locally. Be
 | **Language** | C# | TypeScript | C++ / Blueprint | GDScript / C# |
 | **Free Threshold** | Revenue <$200K | Completely free | Revenue <$1M | Completely free |
 
-> After choosing an engine, run `/setup-engine [engine-name]` to configure it. If you already have a project directory, simply run `/setup-engine` and it will auto-detect the engine type and version. `/setup-engine` will sync CODEBUDDY.md, create technical preferences, install engine reference docs, and set up the directory structure.
+> After choosing an engine, run `/setup-engine [engine-name]` to configure it. If you already have a project directory, simply run `/setup-engine` and it will auto-detect the engine type and version. `/setup-engine` will sync CODESQUAD.md, create technical preferences, install engine reference docs, and set up the directory structure.

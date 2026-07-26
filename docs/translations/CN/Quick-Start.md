@@ -18,8 +18,8 @@
 >    - 生成3个概念，帮你选择一个，定义核心循环和支柱
 >    - 产出游戏概念文档并推荐引擎
 > 2. **设置引擎** — 运行 `/setup-engine`（使用brainstorm推荐）
->    - 配置 CODEBUDDY.md，检测知识差距，填充参考文档
->    - 创建 `.codebuddy/docs/technical-preferences.md`，包含命名约定、性能预算和引擎特定默认值
+>    - 配置 CODESQUAD.md，检测知识差距，填充参考文档
+>    - 创建 `.codesquad/docs/technical-preferences.md`，包含命名约定、性能预算和引擎特定默认值
 >    - 如果引擎版本比LLM训练数据新，会从网上获取最新文档以便代理建议正确的API
 > 3. **验证概念** — 运行 `/design-review design/gdd/game-concept.md`
 > 4. **分解为系统** — 运行 `/map-systems` 映射所有系统和依赖
@@ -194,4 +194,4 @@
 | **编程语言** | C# | TypeScript | C++ / Blueprint | GDScript / C# |
 | **免费门槛** | 收入<$200K | 完全免费 | 收入<$1M | 完全免费 |
 
-> 选择合适的引擎后，运行 `/setup-engine [引擎名]` 开始配置。如果已有项目目录，直接运行 `/setup-engine` 会自动检测引擎类型和版本。`/setup-engine` 会同步更新 CODEBUDDY.md、创建技术偏好、安装引擎参考文档和目录结构。
+> 选择合适的引擎后，运行 `/setup-engine [引擎名]` 开始配置。如果已有项目目录，直接运行 `/setup-engine` 会自动检测引擎类型和版本。`/setup-engine` 会同步更新 CODESQUAD.md、创建技术偏好、安装引擎参考文档和目录结构。

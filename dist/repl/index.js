@@ -37,7 +37,7 @@ import { computeBudget } from '../chat/budget.js';
 // LLM
 import { getProvider, listProviders, buildRuntimeConfig, resolveApiKey } from '../llm/registry.js';
 import { callLLM, LlmError } from '../llm/client.js';
-import { detectOllama, registerOllamaProvider } from '../llm/fallback.js';
+import { detectOllama } from '../llm/fallback.js';
 import { recordUsage, getMonthlyUsage, getTotalCost, getBudget } from '../llm/usage-tracker.js';
 // Keyring
 import { storeKey, isKeyringAvailable } from '../llm/keyring.js';
@@ -684,12 +684,11 @@ export async function startRepl() {
                 return;
             }
         }
-        // Check Ollama
-        if (await detectOllama()) {
-            await registerOllamaProvider();
-            st.providerId = 'ollama';
-            st.modelId = 'llama3.1';
-        }
+        // No providers configured — prompt user to set up
+        console.error('No LLM provider configured.\n'
+            + '  → Set environment variables (e.g. DEEPSEEK_API_KEY) for cloud providers, or\n'
+            + '  → If Ollama is running, add "ollama" to Config/mcp.config.yaml providers list, or\n'
+            + '  → Download a local model via the Web Console Settings panel.');
     }
     // ── Get runtime config ──
     async function getRuntimeConfig() {
@@ -998,9 +997,8 @@ export async function startRepl() {
                 catch (err) {
                     stopSpinner();
                     if (err instanceof LlmError && (err.status === 0 || err.status >= 500)) {
-                        if (await tryOllamaFallback()) {
-                            return handleSkillCommand(cmd);
-                        }
+                        console.error('Network error or API unavailable.\n'
+                            + '  → To use an offline local model, download one via the Web Console Settings panel.');
                     }
                     if (err instanceof LlmError) {
                         console.log(errorLine(err.message));
@@ -1402,23 +1400,6 @@ export async function startRepl() {
     /** Shared extractToolCalls (used by agent runner too). */
     function extractToolCallsForAgent(content, agentToolNames) {
         return extractToolCalls(content).filter((tc) => agentToolNames.has(tc.name));
-    }
-    /**
-     * Switch the active provider to local Ollama if available.
-     * Returns true on successful switch. Bounded by retry count to prevent
-     * infinite recursion if Ollama also fails.
-     */
-    async function tryOllamaFallback() {
-        if (state.providerId === 'ollama')
-            return false; // already on Ollama
-        if (await detectOllama()) {
-            await registerOllamaProvider();
-            state.providerId = 'ollama';
-            state.modelId = 'llama3.1';
-            console.log(warnLine('网络不可用，切换到本地 Ollama...'));
-            return true;
-        }
-        return false;
     }
     // ── Save and exit ──
     async function saveAndExit() {

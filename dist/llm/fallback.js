@@ -67,7 +67,11 @@ export async function registerOllamaProvider() {
     if (!(await detectOllama()))
         return;
     const models = await listOllamaModels();
-    const defaultModel = models[0] ?? 'llama3.1';
+    if (models.length === 0) {
+        console.error('[Ollama] Ollama is running but no models found. Pull a model first, e.g.: ollama pull qwen2.5:3b');
+        return;
+    }
+    const defaultModel = models[0];
     const ollamaProvider = {
         id: 'ollama',
         name: 'Ollama Local',
@@ -78,20 +82,5 @@ export async function registerOllamaProvider() {
         envVar: '', // Ollama doesn't need an API key
     };
     registerProvider(ollamaProvider);
-}
-/**
- * Get a fallback runtime config for Ollama (no API key needed).
- */
-export function getOllamaRuntimeConfig() {
-    return {
-        id: 'ollama',
-        name: 'Ollama Local',
-        protocol: 'openai-compatible',
-        baseUrl: 'http://localhost:11434/v1',
-        defaultModel: 'llama3.1',
-        models: [],
-        apiKey: '',
-        envVar: '',
-    };
 }
 //# sourceMappingURL=fallback.js.map
